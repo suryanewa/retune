@@ -99,7 +99,7 @@ export function ComponentsBrowser() {
     const selectedEl = selectedId ? elements[selectedId] : null;
 
     // Default styles — give component a visible placeholder size
-    const styles = { width: "w-full", height: "h-10", padding: "p-3" };
+    const styles = { width: "w-full", height: "h-8" };
 
     if (selectedId === ARTBOARD_LAYER_ID || selectedEl?.type === "container") {
       const parentId = selectedId === ARTBOARD_LAYER_ID ? null : selectedId;
