@@ -90,11 +90,7 @@ export {
   type VideoSectionProps,
 } from "./video-section";
 
-export {
-  GifSection,
-  type GifSectionProps,
-} from "./gif-section";
-
+// Removed: GifSection (Klipy integration)
 // Removed: InteractionSection (animation/effect)
 // Removed: ReactEffectSection (effect)
 // Removed: ReactEffectDialog (effect)

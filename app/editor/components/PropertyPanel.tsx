@@ -57,7 +57,6 @@ import {
   LinkSection,
   ImageSection,
   VideoSection,
-  GifSection,
   HeaderSection,
   type PanelTab,
   type SpacingMode,
@@ -170,7 +169,6 @@ function showSection(elementType: string) {
     link: !isDivider && !isShape && !isComponent,
     image: elementType === "image",
     video: elementType === "video",
-    gif: elementType === "gif",
   };
 }
 
@@ -793,26 +791,6 @@ function VideoBridge({ element, onElementUpdate, styles, onStylesUpdate, disable
       fit={styles.objectFit || "object-cover"}
       onFitChange={(fit) => onStylesUpdate({ objectFit: fit })}
       urlDisabled={urlDisabled}
-      disabled={disabled}
-    />
-  );
-}
-
-function GifBridge({ element, onElementUpdate, styles, onStylesUpdate, disabled, onReplace }: {
-  element: CanvasElement;
-  onElementUpdate: (updates: Partial<CanvasElement>) => void;
-  styles: TailwindStyles;
-  onStylesUpdate: (updates: Partial<TailwindStyles>) => void;
-  disabled?: boolean;
-  onReplace: () => void;
-}) {
-  return (
-    <GifSection
-      fit={styles.objectFit || "object-contain"}
-      onFitChange={(fit) => onStylesUpdate({ objectFit: fit })}
-      alt={element.alt || ""}
-      onAltChange={(alt) => onElementUpdate({ alt })}
-      onReplace={onReplace}
       disabled={disabled}
     />
   );
@@ -1926,20 +1904,6 @@ export function PropertyPanel() {
                 onStylesUpdate={singleProps.bridgeProps.onUpdate}
                 urlDisabled={false}
                 disabled={singleProps.bridgeProps.disabled}
-              />
-            )}
-
-            {/* GIF — single gif elements only */}
-            {singleProps?.sections.gif && (
-              <GifBridge
-                element={singleProps.element}
-                onElementUpdate={(updates) => updateElement(singleProps.id, updates)}
-                styles={singleProps.bridgeProps.styles}
-                onStylesUpdate={singleProps.bridgeProps.onUpdate}
-                disabled={singleProps.bridgeProps.disabled}
-                onReplace={() => {
-                  window.dispatchEvent(new CustomEvent("open-gif-search", { detail: { elementId: singleProps.id } }));
-                }}
               />
             )}
 

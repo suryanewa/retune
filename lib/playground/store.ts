@@ -35,7 +35,6 @@ export type ElementType =
   | "star"
   // Media
   | "video"
-  | "gif"
   // Component elements (renders React components inside editor wrappers)
   | "component";
 

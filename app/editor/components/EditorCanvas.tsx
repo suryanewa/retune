@@ -1282,25 +1282,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
       );
     }
 
-    case "gif": {
-      const { objectFit: gifObjFit, objectPosition: gifObjPos, ...gifWrapperStyle } = elementStyle as any;
-      const gifMediaStyle: React.CSSProperties = {};
-      if (gifObjFit) gifMediaStyle.objectFit = gifObjFit;
-      if (gifObjPos) gifMediaStyle.objectPosition = gifObjPos;
-      return wrapWithLink(
-        <div className={cn(wrapperClasses, styleClasses, "overflow-hidden")} style={gifWrapperStyle} {...commonProps}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={element.content || "/placeholder.svg"}
-            alt={element.alt || "GIF"}
-            crossOrigin="anonymous"
-            className="w-full h-full"
-            style={gifMediaStyle}
-          />
-        </div>
-      );
-    }
-
     case "video": {
       const { objectFit: vidObjFit, objectPosition: vidObjPos, ...videoWrapperStyle } = elementStyle as any;
       const videoMediaStyle: React.CSSProperties = {};

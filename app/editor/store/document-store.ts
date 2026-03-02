@@ -319,7 +319,6 @@ export const useDocumentStore = create<DocumentState>()(
         star: { w: 100, h: 100 },
         text: { w: 200, h: 40 },
         video: { w: 400, h: 225 },
-        gif: { w: 300, h: 200 },
       };
       const size = defaultSizes[type] ?? { w: 200, h: 200 };
       return get().addElement(type, null, {

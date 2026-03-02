@@ -99,7 +99,6 @@ function getLayerIcon(element: CanvasElement): React.ComponentType<{ className?:
     circle: Ellipse16,
     star: Star16,
     video: Image16,
-    gif: Image16,
     component: ComponentSmall16,
   };
   return map[element.type] || Rectangle16;

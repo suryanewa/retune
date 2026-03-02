@@ -24,7 +24,6 @@ export type EditorElementType =
   | 'circle'
   | 'star'
   | 'video'
-  | 'gif'
   | 'component';
 
 export type CreationTool = 'select' | 'frame' | 'rectangle' | 'circle' | 'star' | 'text' | 'image' | 'video' | 'comment';
@@ -811,15 +810,6 @@ export function createDefaultTailwindElement(
           width: 'w-[100px]',
           height: 'h-[100px]',
           backgroundColor: 'bg-[#D9D9D9]',
-        },
-      };
-    case 'gif':
-      return {
-        content: '',
-        tailwindStyles: {
-          width: 'w-[300px]',
-          borderRadius: 'rounded-lg',
-          objectFit: 'object-contain',
         },
       };
     case 'component':

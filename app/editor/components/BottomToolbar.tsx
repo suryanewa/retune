@@ -1,13 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useComposer } from "@/app/editor/provider/ComposerProvider";
 import {
   useEditorMutations,
-  useSelectedIds,
   useCreationTool,
   useDevice,
-  editorStateStore,
 } from "./context";
 import { cn } from "@/lib/utils";
 import {
@@ -23,25 +20,21 @@ import {
   Comment,
   Image,
   Video,
-  Gif,
   RectangleSmall,
   EllipseSmall,
   StarSmall,
   ImageSmall,
   VideoSmall,
-  GifSmall,
 } from "@/components/icons/editor";
 import {
   ChevronDown16,
 } from "@/components/icons/editor-16";
 import { DropdownMenu, type DropdownMenuOption } from "./ui/dropdown-menu";
-import { GifSearchPopover } from "./gif-search-popover";
 import type { CreationTool } from "@/lib/playground/editor-types";
-import { ARTBOARD_LAYER_ID } from "@/lib/playground/store";
 
 // ─── Shape tools (grouped behind one button with dropdown) ─────────────
 
-type ShapeTool = "rectangle" | "circle" | "star" | "image" | "video" | "gif";
+type ShapeTool = "rectangle" | "circle" | "star" | "image" | "video";
 
 const SHAPE_TOOLS: { tool: ShapeTool; label: string; shortcut?: string; icon: React.ComponentType<{ className?: string }>; menuIcon: React.ComponentType<{ className?: string }> }[] = [
   { tool: "rectangle", label: "Rectangle", shortcut: "R", icon: Rectangle, menuIcon: RectangleSmall },
@@ -49,7 +42,6 @@ const SHAPE_TOOLS: { tool: ShapeTool; label: string; shortcut?: string; icon: Re
   { tool: "star", label: "Star", icon: Star, menuIcon: StarSmall },
   { tool: "image", label: "Image", icon: Image, menuIcon: ImageSmall },
   { tool: "video", label: "Video", icon: Video, menuIcon: VideoSmall },
-  { tool: "gif", label: "GIF", icon: Gif, menuIcon: GifSmall },
 ];
 
 // ─── Device options ────────────────────────────────────────────────────
@@ -77,18 +69,13 @@ const btnClass = (active: boolean) =>
 // ─── Component ─────────────────────────────────────────────────────────
 
 export function BottomToolbar() {
-  const { elements } = useComposer();
-  const { setDevice, setCreationTool, addElement, addCanvasElement, updateElement } = useEditorMutations();
+  const { setDevice, setCreationTool } = useEditorMutations();
   const creationTool = useCreationTool();
-  const selectedIds = useSelectedIds();
   const device = useDevice();
 
   // Track which shape was last selected so it persists in the toolbar
   const [activeShape, setActiveShape] = React.useState<ShapeTool>("rectangle");
   const [shapeMenuOpen, setShapeMenuOpen] = React.useState(false);
-  const [gifPopoverOpen, setGifPopoverOpen] = React.useState(false);
-  const replaceTargetRef = React.useRef<string | null>(null);
-  const selectionSnapshotRef = React.useRef<string[]>([]);
   const shapeMenuRef = React.useRef<HTMLDivElement>(null);
   const shapeBtnRef = React.useRef<HTMLDivElement>(null);
 
@@ -98,17 +85,6 @@ export function BottomToolbar() {
       setActiveShape(creationTool as ShapeTool);
     }
   }, [creationTool]);
-
-  // Listen for "open-gif-search" from PropertyPanel's Replace GIF button
-  React.useEffect(() => {
-    const handler = (e: Event) => {
-      replaceTargetRef.current = (e as CustomEvent).detail?.elementId ?? null;
-      selectionSnapshotRef.current = editorStateStore.getSnapshot().selectedIds ?? [];
-      setGifPopoverOpen(true);
-    };
-    window.addEventListener("open-gif-search", handler);
-    return () => window.removeEventListener("open-gif-search", handler);
-  }, []);
 
   // Close shape menu on click outside
   React.useEffect(() => {
@@ -142,57 +118,8 @@ export function BottomToolbar() {
     const tool = option.value as ShapeTool;
     setActiveShape(tool);
     setShapeMenuOpen(false);
-    if (tool === "gif") {
-      // GIF uses pick-and-insert flow instead of creation tool
-      selectionSnapshotRef.current = selectedIds ?? [];
-      setGifPopoverOpen(true);
-      return;
-    }
     setCreationTool(tool);
   };
-
-  const handleGifSelect = React.useCallback((gifUrl: string, width: number, height: number) => {
-    // Scale to reasonable size (cap at 400px wide)
-    const maxW = 400;
-    const scale = width > maxW ? maxW / width : 1;
-    const w = Math.round(width * scale);
-    const h = Math.round(height * scale);
-
-    const replaceId = replaceTargetRef.current;
-    replaceTargetRef.current = null;
-
-    if (replaceId && elements[replaceId]) {
-      // Replace mode: just swap content, keep everything else
-      updateElement(replaceId, { content: gifUrl, alt: "GIF" });
-    } else {
-      // Use snapshotted selection from when the popover opened
-      const selectedId = selectionSnapshotRef.current[0];
-      const selectedEl = selectedId ? elements[selectedId] : null;
-
-      const gifStyles = { width: `w-[${w}px]` as any, height: `h-[${h}px]` as any };
-
-      if (selectedId === ARTBOARD_LAYER_ID || selectedEl?.type === "container") {
-        // Artboard or frame selected → insert as child (null parent = artboard root)
-        const parentId = selectedId === ARTBOARD_LAYER_ID ? null : selectedId;
-        const newId = addElement("gif", parentId, { styles: gifStyles });
-        if (newId) updateElement(newId, { content: gifUrl, alt: "GIF" });
-      } else if (selectedEl?.parentId && elements[selectedEl.parentId]) {
-        // Selected has a parent → insert as sibling after it
-        const parent = elements[selectedEl.parentId];
-        const siblingIndex = parent.children?.indexOf(selectedId!) ?? -1;
-        const newId = addElement("gif", selectedEl.parentId, {
-          insertIndex: siblingIndex >= 0 ? siblingIndex + 1 : undefined,
-          styles: gifStyles,
-        });
-        if (newId) updateElement(newId, { content: gifUrl, alt: "GIF" });
-      } else {
-        // No selection or root-level → place on canvas
-        const newId = addCanvasElement("gif", 50, 50, { width: w, height: h });
-        if (newId) updateElement(newId, { content: gifUrl, alt: "GIF" });
-      }
-    }
-    setGifPopoverOpen(false);
-  }, [elements, addElement, addCanvasElement, updateElement]);
 
   return (
     <div data-editor-panel className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50">
@@ -233,8 +160,7 @@ export function BottomToolbar() {
               type="button"
               title={SHAPE_TOOLS.find(s => s.tool === activeShape)?.label}
               onClick={(e) => {
-                if (activeShape === "gif") { selectionSnapshotRef.current = selectedIds ?? []; setGifPopoverOpen(true); }
-                else { setCreationTool(activeShape); }
+                setCreationTool(activeShape);
                 (e.currentTarget as HTMLElement).blur();
               }}
               style={{ borderRadius: 6 }}
@@ -275,12 +201,6 @@ export function BottomToolbar() {
               </div>
             )}
 
-            {/* GIF search popover — positioned relative to shape group */}
-            <GifSearchPopover
-              open={gifPopoverOpen}
-              onOpenChange={(open) => { setGifPopoverOpen(open); if (!open) replaceTargetRef.current = null; }}
-              onSelectGif={handleGifSelect}
-            />
           </div>
 
           {/* Text */}

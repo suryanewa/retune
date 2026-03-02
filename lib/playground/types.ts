@@ -149,22 +149,6 @@ export interface WallSubmitResponse {
   reason?: string;
 }
 
-export interface GifImage {
-  id: string;
-  title: string;
-  url: string;
-  preview_url: string;
-  width: number;
-  height: number;
-  original_url: string;
-  original_width: number;
-  original_height: number;
-}
-
-export interface GifResponse {
-  gifs: GifImage[];
-}
-
 // ============================================
 // Context Types
 // ============================================
