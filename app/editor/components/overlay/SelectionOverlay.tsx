@@ -10,7 +10,6 @@ import {
   useEditingElementId,
   useCreationTool,
   useDevice,
-  useIsAdmin,
   editorStateStore,
 } from "../context";
 import { useElementBounds } from "./use-element-bounds";
@@ -20,7 +19,6 @@ import type { CreationTool } from "@/lib/playground/editor-types";
 import type { TailwindStyles } from "@/lib/playground/editor-types";
 import { getEffectiveStyles } from "@/lib/playground/editor-types";
 import { type CanvasElement, ARTBOARD_LAYER_ID } from "@/lib/playground/store";
-import { LockSmall } from "@/components/icons/editor";
 // Removed: AiSparkle16 (AI)
 // Removed: parseCSSAnimations, parseReactEffect, ReactEffectState, CSSAnimation (animation/effect)
 // Removed: collectAllDescendants (stagger/animation)
@@ -140,7 +138,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
   const editingElementId = useEditingElementId();
   const creationTool = useCreationTool();
   const device = useDevice();
-  const isAdmin = useIsAdmin();
 
   // Device-aware style helpers
   const updateStylesForDevice = useCallback(
@@ -1881,7 +1878,7 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                     if (el.type === "container") {
                       mutations.enterContainer(id);
                     } else if (["heading", "text", "button", "badge"].includes(el.type || "")) {
-                      if (!el.locked && (isAdmin || !el.isCore)) {
+                      if (!el.locked) {
                         mutations.setEditingElementId(id);
                       }
                     }
@@ -1920,7 +1917,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
               const el = elements[id];
               if (!el) return null;
 
-              const isProtected = !isAdmin && (el.isCore || el.textLocked);
               const size = readSize(getStyles(el));
               const pxW = Math.round(r.width);
               const pxH = Math.round(r.height);
@@ -1960,8 +1956,8 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                         lineHeight: "16px",
                         fontWeight: 450,
                         letterSpacing: 0.045,
-                        paddingLeft: isProtected ? 1 : 4,
-                        paddingRight: isProtected ? 6 : 4,
+                        paddingLeft: 4,
+                        paddingRight: 4,
                         paddingTop: 2,
                         paddingBottom: 2,
                         borderRadius: 4,
@@ -1971,12 +1967,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                         gap: 0,
                       }}
                     >
-                      {isProtected && (
-                        <>
-                          <LockSmall style={{ width: 24, height: 24, flexShrink: 0 }} />
-                          {"Protected \u00B7 "}
-                        </>
-                      )}
                       {dimText}
                     </div>
                   </div>
@@ -2012,7 +2002,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
             } as React.CSSProperties}
           >
             {(() => {
-              const hasProtected = !isAdmin && selectedIds.some(id => elements[id]?.isCore || elements[id]?.textLocked);
               const pxW = Math.round(unionRect.width);
               const pxH = Math.round(unionRect.height);
               const dimText = `${pxW} \u00D7 ${pxH}`;
@@ -2026,8 +2015,8 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                     lineHeight: "16px",
                     fontWeight: 450,
                     letterSpacing: 0.045,
-                    paddingLeft: hasProtected ? 1 : 4,
-                    paddingRight: hasProtected ? 4 : 4,
+                    paddingLeft: 4,
+                    paddingRight: 4,
                     paddingTop: 2,
                     paddingBottom: 2,
                     borderRadius: 4,
@@ -2038,12 +2027,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                     gap: 0,
                   }}
                 >
-                  {hasProtected && (
-                    <>
-                      <LockSmall style={{ width: 24, height: 24, flexShrink: 0 }} />
-                      {"Protected \u00B7 "}
-                    </>
-                  )}
                   {dimText}
                 </div>
               );

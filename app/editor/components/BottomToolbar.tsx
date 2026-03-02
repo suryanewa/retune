@@ -7,7 +7,6 @@ import {
   useSelectedIds,
   useCreationTool,
   useDevice,
-  useIsAdmin,
   editorStateStore,
 } from "./context";
 import { cn } from "@/lib/utils";
@@ -44,12 +43,12 @@ import { ARTBOARD_LAYER_ID } from "@/lib/playground/store";
 
 type ShapeTool = "rectangle" | "circle" | "star" | "image" | "video" | "gif";
 
-const SHAPE_TOOLS: { tool: ShapeTool; label: string; shortcut?: string; icon: React.ComponentType<{ className?: string }>; menuIcon: React.ComponentType<{ className?: string }>; adminOnly?: boolean }[] = [
+const SHAPE_TOOLS: { tool: ShapeTool; label: string; shortcut?: string; icon: React.ComponentType<{ className?: string }>; menuIcon: React.ComponentType<{ className?: string }> }[] = [
   { tool: "rectangle", label: "Rectangle", shortcut: "R", icon: Rectangle, menuIcon: RectangleSmall },
   { tool: "circle", label: "Circle", shortcut: "O", icon: Ellipse, menuIcon: EllipseSmall },
   { tool: "star", label: "Star", icon: Star, menuIcon: StarSmall },
-  { tool: "image", label: "Image", icon: Image, menuIcon: ImageSmall, adminOnly: true },
-  { tool: "video", label: "Video", icon: Video, menuIcon: VideoSmall, adminOnly: true },
+  { tool: "image", label: "Image", icon: Image, menuIcon: ImageSmall },
+  { tool: "video", label: "Video", icon: Video, menuIcon: VideoSmall },
   { tool: "gif", label: "GIF", icon: Gif, menuIcon: GifSmall },
 ];
 
@@ -83,7 +82,6 @@ export function BottomToolbar() {
   const creationTool = useCreationTool();
   const selectedIds = useSelectedIds();
   const device = useDevice();
-  const isAdmin = useIsAdmin();
 
   // Track which shape was last selected so it persists in the toolbar
   const [activeShape, setActiveShape] = React.useState<ShapeTool>("rectangle");
@@ -133,7 +131,7 @@ export function BottomToolbar() {
     };
   }, [shapeMenuOpen]);
 
-  const visibleShapeTools = SHAPE_TOOLS.filter(s => !s.adminOnly || isAdmin);
+  const visibleShapeTools = SHAPE_TOOLS;
   const shapeMenuOptions: DropdownMenuOption[] = visibleShapeTools.map(s => ({
     value: s.tool, label: s.label, icon: s.menuIcon, shortcut: s.shortcut,
   }));
@@ -286,30 +284,26 @@ export function BottomToolbar() {
           </div>
 
           {/* Text */}
-          {isAdmin && (
-            <button
-              type="button"
-              title="Text (T)"
-              onClick={(e) => { setCreationTool("text"); (e.currentTarget as HTMLElement).blur(); }}
-              className={btnClass(creationTool === "text")}
-              style={{ borderRadius: 6 }}
-            >
-              <Text className="w-6 h-6" />
-            </button>
-          )}
+          <button
+            type="button"
+            title="Text (T)"
+            onClick={(e) => { setCreationTool("text"); (e.currentTarget as HTMLElement).blur(); }}
+            className={btnClass(creationTool === "text")}
+            style={{ borderRadius: 6 }}
+          >
+            <Text className="w-6 h-6" />
+          </button>
 
           {/* Comment */}
-          {isAdmin && (
-            <button
-              type="button"
-              title="Comment (C)"
-              onClick={(e) => { setCreationTool("comment"); (e.currentTarget as HTMLElement).blur(); }}
-              className={btnClass(creationTool === "comment")}
-              style={{ borderRadius: 6 }}
-            >
-              <Comment className="w-6 h-6" />
-            </button>
-          )}
+          <button
+            type="button"
+            title="Comment (C)"
+            onClick={(e) => { setCreationTool("comment"); (e.currentTarget as HTMLElement).blur(); }}
+            className={btnClass(creationTool === "comment")}
+            style={{ borderRadius: 6 }}
+          >
+            <Comment className="w-6 h-6" />
+          </button>
 
         </div>
 

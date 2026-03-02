@@ -87,7 +87,6 @@ export interface DocumentState {
     type: ElementType,
     parentId?: string | null,
     options?: {
-      isCore?: boolean;
       insertIndex?: number;
       styles?: Partial<TailwindStyles>;
       placement?: "artboard" | "canvas";
@@ -155,7 +154,6 @@ export interface DocumentState {
   // ── Layer Controls ─────────────────────────────────────────────────────────
   toggleVisibility: (elementId: string) => void;
   toggleLock: (elementId: string) => void;
-  toggleCore: (elementId: string) => void;
   isElementEffectivelyHidden: (elementId: string) => boolean;
 
   // ── Pages ──────────────────────────────────────────────────────────────────
@@ -244,7 +242,6 @@ export const useDocumentStore = create<DocumentState>()(
           : defaults.tailwindStyles,
         createdBy: "local",
         createdAt: Date.now(),
-        isCore: options?.isCore ?? false,
         pageId,
         parentId: isCanvasPlacement ? null : (parentId || null),
         children: type === "container" ? [] : undefined,
@@ -432,9 +429,6 @@ export const useDocumentStore = create<DocumentState>()(
             ...JSON.parse(JSON.stringify(element)),
             id: newId,
             parentId: newParentId ?? element.parentId,
-            isCore: false,
-            textLocked:
-              element.isCore || element.textLocked || false,
             createdBy: "local",
             createdAt: Date.now(),
             children:
@@ -748,7 +742,6 @@ export const useDocumentStore = create<DocumentState>()(
           },
           createdBy: "local",
           createdAt: Date.now(),
-          isCore: false,
           pageId: firstElement.pageId ?? DEFAULT_PAGE_ID,
           parentId: firstElement.parentId,
           children: [...topLevel],
@@ -978,14 +971,6 @@ export const useDocumentStore = create<DocumentState>()(
         const el = draft.elements[elementId];
         if (!el) return;
         el.locked = !el.locked;
-      });
-    },
-
-    toggleCore: (elementId) => {
-      set((draft) => {
-        const el = draft.elements[elementId];
-        if (!el) return;
-        el.isCore = !el.isCore;
       });
     },
 
@@ -1267,7 +1252,6 @@ export const useDocumentStore = create<DocumentState>()(
             id: newId,
             parentId: newParentId,
             pageId: pageId,
-            isCore: false,
             createdBy: "local",
             createdAt: Date.now(),
             children:

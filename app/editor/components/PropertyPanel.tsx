@@ -9,7 +9,6 @@ import {
   usePanelTab,
   useViewMode,
   useDevice,
-  useIsAdmin,
 } from "./context";
 import { useTiptapEditor } from "./tiptap/TiptapProvider";
 import {
@@ -29,7 +28,6 @@ import type { GradientFill } from "./ui/color-input";
 import {
   EyeSmall,
   HiddenSmall,
-  ShieldSmall,
   Rotation,
   Rotate,
   FlipHorizontalSmall,
@@ -1673,7 +1671,6 @@ export function PropertyPanel() {
     updateElement,
     updateStyles,
     updateResponsiveStyles,
-    toggleCore,
     toggleVisibility,
     setViewMode,
     updatePage,
@@ -1686,7 +1683,6 @@ export function PropertyPanel() {
   const panelTab = usePanelTab();
   const viewMode = useViewMode();
   const device = useDevice();
-  const isAdmin = useIsAdmin();
 
   const { camera, cameraRef, applyCamera } = useCamera();
 
@@ -1736,7 +1732,7 @@ export function PropertyPanel() {
       bridgeProps: { styles: effectiveStyles, onUpdate: handleUpdateStyles } as BridgeProps,
       id: firstSelectedId,
       currentDevice,
-      canDelete: !selectedElement.isCore || isAdmin,
+      canDelete: true,
       handleContentChange,
     };
   })();
@@ -1811,14 +1807,6 @@ export function PropertyPanel() {
                 : singleProps.element.type.charAt(0).toUpperCase() + singleProps.element.type.slice(1)}
             </span>
             <div className="flex items-center gap-1">
-              {isAdmin && (
-                <IconButton
-                  icon={ShieldSmall}
-                  toggled={singleProps.element.isCore}
-                  onToggle={() => toggleCore(singleProps.id)}
-                  aria-label={singleProps.element.isCore ? "Remove core protection" : "Mark as core"}
-                />
-              )}
               <IconButton
                 icon={singleProps.element.hidden ? HiddenSmall : EyeSmall}
                 toggled={!!singleProps.element.hidden}
@@ -1827,20 +1815,6 @@ export function PropertyPanel() {
               />
             </div>
           </div>
-          {/* Section Body — guest only, protected elements */}
-          {!isAdmin && (singleProps.element.isCore || singleProps.element.textLocked) && (
-            <div className="pb-2">
-              <div className="px-4 pr-10">
-                <p className="text-[11px] font-[450] leading-4 tracking-[0.045px] text-stone-500 dark:text-stone-400">
-                  {singleProps.element.isCore
-                    ? ["heading", "text", "button", "badge"].includes(singleProps.element.type)
-                      ? "This element can\u2019t be deleted, and its text isn\u2019t editable."
-                      : "This element can\u2019t be deleted."
-                    : "This element\u2019s text isn\u2019t editable, but it can be deleted."}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -1863,16 +1837,6 @@ export function PropertyPanel() {
                     {selectedIds.length} selected
                   </span>
                   <div className="flex items-center gap-1">
-                    {isAdmin && (
-                      <IconButton
-                        icon={ShieldSmall}
-                        toggled={selectedElements.every((el) => el.isCore)}
-                        onToggle={() => {
-                          for (const id of selectedIds) toggleCore(id);
-                        }}
-                        aria-label="Toggle core protection"
-                      />
-                    )}
                     <IconButton
                       icon={selectedElements.every((el) => el.hidden) ? HiddenSmall : EyeSmall}
                       toggled={selectedElements.every((el) => el.hidden)}
@@ -1930,8 +1894,8 @@ export function PropertyPanel() {
 
             {/* Section stack — Link, Position, Layout, Size, Typography, Appearance, Fill, Border, Shadow, Filter */}
 
-            {/* Link — single only, admin only */}
-            {isAdmin && singleProps?.sections.link && (
+            {/* Link — single only */}
+            {singleProps?.sections.link && (
               <LinkBridge
                 element={singleProps.element}
                 onLinkChange={(link) => updateElement(singleProps.id, { link })}
@@ -1948,7 +1912,7 @@ export function PropertyPanel() {
                 onElementUpdate={(updates) => updateElement(singleProps.id, updates)}
                 styles={singleProps.bridgeProps.styles}
                 onStylesUpdate={singleProps.bridgeProps.onUpdate}
-                urlDisabled={singleProps.element.isCore && !isAdmin}
+                urlDisabled={false}
                 disabled={singleProps.bridgeProps.disabled}
               />
             )}
@@ -1960,7 +1924,7 @@ export function PropertyPanel() {
                 onElementUpdate={(updates) => updateElement(singleProps.id, updates)}
                 styles={singleProps.bridgeProps.styles}
                 onStylesUpdate={singleProps.bridgeProps.onUpdate}
-                urlDisabled={singleProps.element.isCore && !isAdmin}
+                urlDisabled={false}
                 disabled={singleProps.bridgeProps.disabled}
               />
             )}

@@ -69,10 +69,6 @@ export type CanvasElement = {
   parentId?: string | null;
   children?: string[];
 
-  // NEW: Content protection
-  isCore: boolean; // true = protected portfolio content, cannot be deleted by visitors
-  textLocked?: boolean; // true = text content not editable by guests (set on duplicates of core elements)
-
   // Rich text content (Tiptap JSON document)
   richContent?: JsonObject | null;
 

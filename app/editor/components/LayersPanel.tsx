@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from "react";
 import { useComposer } from "@/app/editor/provider/ComposerProvider";
-import { useEditorMutations, useSelectedIds, useFocusedContainerId, useIsAdmin } from "./context";
+import { useEditorMutations, useSelectedIds, useFocusedContainerId } from "./context";
 import { useContextMenu, ContextMenu, type ContextMenuItemDef } from "./ui/context-menu";
 import { elementClipboard } from "./YjsEditorContext";
 import { cn } from "@/lib/utils";
@@ -143,7 +143,6 @@ function LayerRow({
   } = useEditorMutations();
   const selectedIds = useSelectedIds();
   const focusedContainerId = useFocusedContainerId();
-  const isAdmin = useIsAdmin();
 
   const element = elements[elementId];
   const [isRenaming, setIsRenaming] = useState(false);
@@ -398,10 +397,10 @@ function LayerRow({
           ) : (
             <span
               className={cn("text-[11px] leading-4 tracking-[0.055px] font-[450] whitespace-nowrap", element.type === "component" ? "text-purple-600 dark:text-purple-400" : "text-stone-900 dark:text-stone-100")}
-              onDoubleClick={isAdmin ? (e) => {
+              onDoubleClick={(e) => {
                 e.stopPropagation();
                 handleStartRename();
-              } : undefined}
+              }}
             >
               {displayName}
             </span>
@@ -477,7 +476,6 @@ export function LayersPanel() {
     setHomepage, reorderPages, updatePage,
   } = useEditorMutations();
   const selectedIds = useSelectedIds();
-  const isAdmin = useIsAdmin();
   // Snapshot element trees into the module-level clipboard
   function snapshotToClipboard(ids: string[]) {
     const snaps: Record<string, Record<string, unknown>> = {};
@@ -637,11 +635,11 @@ export function LayersPanel() {
       {/* ── Pages Section ── */}
       <SectionHeader
         title="Pages"
-        iconButton={isAdmin ? {
+        iconButton={{
           icon: Plus16,
           onClick: addPage,
           "aria-label": "Add page",
-        } : undefined}
+        }}
       />
       <div className="relative max-h-40 overflow-y-auto overscroll-none flex-shrink-0 border-b border-stone-200 dark:border-stone-800 pb-2">
         {pages.map((page) => {
@@ -654,7 +652,7 @@ export function LayersPanel() {
             <div
               key={page.id}
               className="px-2"
-              draggable={isAdmin}
+              draggable
               onDragStart={(e) => {
                 e.stopPropagation();
                 e.dataTransfer.effectAllowed = "move";
@@ -741,11 +739,11 @@ export function LayersPanel() {
                       "text-[11px] leading-4 tracking-[0.055px] whitespace-nowrap truncate",
                       isActive ? "font-medium text-stone-900 dark:text-stone-100" : "font-medium text-stone-900 dark:text-stone-100"
                     )}
-                    onDoubleClick={isAdmin ? (e) => {
+                    onDoubleClick={(e) => {
                       e.stopPropagation();
                       setEditingPageName(page.name);
                       setRenamingPageId(page.id);
-                    } : undefined}
+                    }}
                   >
                     {isHomepage ? "Home" : `/${slug}`}
                   </span>
@@ -909,11 +907,11 @@ export function LayersPanel() {
                     ) : (
                       <span
                         className="text-[11px] leading-4 tracking-[0.055px] font-[450] text-stone-900 dark:text-stone-100 whitespace-nowrap"
-                        onDoubleClick={isAdmin ? (e) => {
+                        onDoubleClick={(e) => {
                           e.stopPropagation();
                           setEditArtboardName(artboardName);
                           setIsRenamingArtboard(true);
-                        } : undefined}
+                        }}
                       >
                         {artboardName}
                       </span>
@@ -957,21 +955,19 @@ export function LayersPanel() {
 
         const items: ContextMenuItemDef[] = [
           { label: "Copy link to page", onClick: () => navigator.clipboard.writeText(window.location.href) },
-        ];
-        if (isAdmin) {
-          items.push({ type: "separator" });
-          items.push({ label: "Rename", onClick: () => {
+          { type: "separator" },
+          { label: "Rename", onClick: () => {
             const page = pages.find((p) => p.id === pageId);
             if (page) { setEditingPageName(page.name); setRenamingPageId(page.id); }
-          }});
-          items.push({ label: "Duplicate", onClick: () => duplicatePage(pageId) });
-          if (!contextPageIsHomepage) {
-            items.push({ type: "separator" });
-            items.push({ label: "Set as homepage", onClick: () => setHomepage(pageId) });
-          }
-          items.push({ type: "separator" });
-          items.push({ label: "Delete page", disabled: pages.length <= 1, onClick: () => handleDeletePage(pageId) });
-        }
+          }},
+          { label: "Duplicate", onClick: () => duplicatePage(pageId) },
+          ...(!contextPageIsHomepage ? [
+            { type: "separator" } as ContextMenuItemDef,
+            { label: "Set as homepage", onClick: () => setHomepage(pageId) } as ContextMenuItemDef,
+          ] : []),
+          { type: "separator" },
+          { label: "Delete page", disabled: pages.length <= 1, onClick: () => handleDeletePage(pageId) },
+        ];
 
         return (
           <ContextMenu
@@ -989,13 +985,6 @@ export function LayersPanel() {
         const elId = layerMenu.state.meta.elementId;
         const el = elements[elId];
         if (!el) return null;
-        const hasProtectedDescendant = (id: string): boolean => {
-          const e = elements[id];
-          if (!e) return false;
-          if (e.isCore) return true;
-          return e.children?.some(hasProtectedDescendant) ?? false;
-        };
-        const isProtected = !isAdmin && hasProtectedDescendant(elId);
         const isLocked = !!el.locked;
 
         const items: ContextMenuItemDef[] = [
@@ -1003,7 +992,7 @@ export function LayersPanel() {
           { label: "Copy", shortcut: "\u2318C", onClick: () => { snapshotToClipboard([elId]); } },
           { label: "Duplicate", shortcut: "\u2318D", disabled: el.type === "component", onClick: () => panelDuplicateElement(elId) },
           { type: "separator" },
-          ...(isAdmin ? [{ label: "Rename", onClick: () => {
+          { label: "Rename", onClick: () => {
             const row = document.querySelector(`[data-element-id="${elId}"]`);
             if (row) {
               const nameSpan = row.querySelector("span[class*='tracking-']");
@@ -1012,7 +1001,7 @@ export function LayersPanel() {
                 nameSpan.dispatchEvent(dblClick);
               }
             }
-          }} as ContextMenuItemDef] : []),
+          }},
           { label: "Frame Selection", shortcut: "\u2318G", onClick: () => wrapInContainer([elId]) },
           ...(el.type === "container" && el.children?.length ? [{
             label: "Ungroup",
@@ -1034,7 +1023,7 @@ export function LayersPanel() {
           {
             label: "Delete",
             shortcut: "\u232B",
-            disabled: !!isProtected || isLocked || el.type === "component",
+            disabled: isLocked || el.type === "component",
             onClick: () => panelDeleteElement(elId),
           },
         ];

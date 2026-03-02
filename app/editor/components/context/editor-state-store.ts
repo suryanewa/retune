@@ -14,7 +14,6 @@ export type EditorUIState = {
   device: "desktop" | "tablet" | "mobile";
   panelTab: "design" | "animate";
   previewFont: string | null;
-  isAdmin: boolean;
   lastSelectedId: string | null;
 };
 
@@ -32,7 +31,6 @@ let state: EditorUIState = {
   device: "desktop",
   panelTab: "design",
   previewFont: null,
-  isAdmin: false,
   lastSelectedId: null,
 };
 
@@ -111,11 +109,6 @@ export const editorStateStore = {
     emitChange();
   },
 
-  setIsAdmin(admin: boolean) {
-    state = { ...state, isAdmin: admin };
-    emitChange();
-  },
-
   setLastSelectedId(id: string | null) {
     state = { ...state, lastSelectedId: id };
     emitChange();
@@ -141,7 +134,6 @@ export const setViewMode = editorStateStore.setViewMode;
 export const setDevice = editorStateStore.setDevice;
 export const setPanelTab = editorStateStore.setPanelTab;
 export const setPreviewFont = editorStateStore.setPreviewFont;
-export const setIsAdmin = editorStateStore.setIsAdmin;
 export const setLastSelectedId = editorStateStore.setLastSelectedId;
 export const setEditorState = editorStateStore.setState;
 
@@ -324,25 +316,6 @@ export function usePreviewFont(): string | null {
   const subscribe = useCallback((cb: () => void) => {
     return editorStateStore.subscribe(() => {
       const next = editorStateStore.getSnapshot().previewFont;
-      if (next !== prevRef.current) {
-        prevRef.current = next;
-        cb();
-      }
-    });
-  }, []);
-
-  const getSnapshot = useCallback(() => prevRef.current, []);
-
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
-
-/** Returns `isAdmin`. Only re-renders when it changes. */
-export function useIsAdmin(): boolean {
-  const prevRef = useRef(state.isAdmin);
-
-  const subscribe = useCallback((cb: () => void) => {
-    return editorStateStore.subscribe(() => {
-      const next = editorStateStore.getSnapshot().isAdmin;
       if (next !== prevRef.current) {
         prevRef.current = next;
         cb();

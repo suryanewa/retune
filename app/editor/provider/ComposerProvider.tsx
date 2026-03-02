@@ -52,7 +52,6 @@ export interface ComposerContextValue {
   pageStyles: PageStyles;
   homepageId: string;
   localUser: { id: string; name: string; color: string };
-  isAdmin: boolean;
   others: never[];
 
   // ── Editor UI State (convenience — mirrors editorStateStore) ────────────────
@@ -66,7 +65,6 @@ export interface ComposerContextValue {
     draggedId: string | null;
     panelTab: "design" | "animate";
     previewFont: string | null;
-    isAdmin: boolean;
     lastSelectedId: string | null;
   };
 
@@ -120,7 +118,6 @@ export interface ComposerContextValue {
   setEditingElementId: EditorMutations["setEditingElementId"];
   toggleVisibility: EditorMutations["toggleVisibility"];
   toggleLock: EditorMutations["toggleLock"];
-  toggleCore: EditorMutations["toggleCore"];
   isElementEffectivelyHidden: EditorMutations["isElementEffectivelyHidden"];
   getElement: EditorMutations["getElement"];
   setActivePageId: EditorMutations["setActivePageId"];
@@ -511,10 +508,9 @@ function buildEditorMutations(store: DocumentState): EditorMutations {
     // Inline text editing
     setEditingElementId: setEditingElementIdFn,
 
-    // Visibility / Lock / Core
+    // Visibility / Lock
     toggleVisibility: store.toggleVisibility,
     toggleLock: store.toggleLock,
-    toggleCore: store.toggleCore,
     isElementEffectivelyHidden: store.isElementEffectivelyHidden,
 
     // Element lookup
@@ -579,7 +575,6 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
       pageStyles,
       homepageId,
       localUser: LOCAL_USER,
-      isAdmin: editorState.isAdmin,
       others: EMPTY_OTHERS,
 
       // Editor UI state (for EditorCanvas which destructures `state`)

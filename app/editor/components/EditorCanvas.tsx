@@ -9,7 +9,7 @@ import DOMPurify from "dompurify";
 import {
   useElement, useEditorMutations, editorStateStore,
   useIsSelected, useEditingElementId, useDraggedId,
-  useDevice, usePreviewFont, useIsAdmin,
+  useDevice, usePreviewFont,
 } from "./context";
 import { cn } from "@/lib/utils";
 import { type CanvasElement, type Page, ARTBOARD_LAYER_ID, defaultPageStyles } from "@/lib/playground/store";
@@ -695,7 +695,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
   const isDragged = useDraggedId() === elementId;
   const device = useDevice();
   const previewFont = usePreviewFont();
-  const isAdmin = useIsAdmin();
 
   // Stable callbacks — never change
   const {
@@ -931,7 +930,7 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
         enterContainer(elementId);
         return;
       }
-      if (isLocked || ((element.isCore || element.textLocked) && !isAdmin)) return;
+      if (isLocked) return;
       if (["heading", "text", "button", "badge"].includes(element.type || "")) {
         setEditingElementId(elementId);
       }
@@ -960,7 +959,7 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
     if (targetId !== elementId) return; // Element is deeper than focus — don't edit
 
     // If text-like, enter inline editing (existing behavior)
-    if (isLocked || ((targetElement.isCore || targetElement.textLocked) && !isAdmin)) return;
+    if (isLocked) return;
     if (["heading", "text", "button", "badge"].includes(targetElement.type || "")) {
       setEditingElementId(elementId);
     }
@@ -1566,7 +1565,7 @@ function getShapeSvgProps(styles: TailwindStyles | undefined) {
 }
 
 export function EditorCanvas() {
-  const { state, elements, clearSelection, exitContainer, pageStyles, updatePageStyles, setViewMode, pages, activePageId, selectElement, toggleElementSelection, hoverElement, updateElement, wrapInContainer, ungroupContainer, deleteElement, deleteElements, duplicateElement, duplicateElementForDrag, pasteElement, pasteElements, toggleVisibility, toggleLock, isAdmin, editingElementId, pauseHistory, resumeHistory } = useYjsEditor();
+  const { state, elements, clearSelection, exitContainer, pageStyles, updatePageStyles, setViewMode, pages, activePageId, selectElement, toggleElementSelection, hoverElement, updateElement, wrapInContainer, ungroupContainer, deleteElement, deleteElements, duplicateElement, duplicateElementForDrag, pasteElement, pasteElements, toggleVisibility, toggleLock, editingElementId, pauseHistory, resumeHistory } = useYjsEditor();
   const { cameraRef, worldRef, pageRef: cameraPageRef, canvasLayerRef, overlayWorldRef, overlayZoomRef, baseZoomRef, applyCamera } = useCamera();
   const isPreviewMode = state.viewMode === "preview";
 
@@ -2419,13 +2418,6 @@ export function EditorCanvas() {
         } else {
           menuWidth = 160;
           const el = elements[meta.elementId];
-          const hasProtectedDescendant = (id: string): boolean => {
-            const e = elements[id];
-            if (!e) return false;
-            if (e.isCore) return true;
-            return e.children?.some(hasProtectedDescendant) ?? false;
-          };
-          const isProtected = !isAdmin && hasProtectedDescendant(meta.elementId);
           const isLocked = el?.locked;
           items = [
             { label: "Cut", shortcut: "\u2318X", onClick: () => { snapshotToClipboard([meta.elementId]); deleteElement(meta.elementId); } },
@@ -2457,7 +2449,7 @@ export function EditorCanvas() {
             {
               label: "Delete",
               shortcut: "\u232B",
-              disabled: !!isProtected || !!isLocked,
+              disabled: !!isLocked,
               onClick: () => deleteElement(meta.elementId),
             },
           ];

@@ -41,7 +41,6 @@ export interface EditorMutations {
     type: ElementType,
     parentId?: string | null,
     options?: {
-      isCore?: boolean;
       insertIndex?: number;
       styles?: Partial<TailwindStyles>;
       placement?: "artboard" | "canvas";
@@ -119,10 +118,9 @@ export interface EditorMutations {
   // ─── Inline text editing ─────────────────────────────────────────────
   setEditingElementId: (id: string | null) => void;
 
-  // ─── Element visibility / lock / core ────────────────────────────────
+  // ─── Element visibility / lock ──────────────────────────────────────
   toggleVisibility: (elementId: string) => void;
   toggleLock: (elementId: string) => void;
-  toggleCore: (elementId: string) => void;
   isElementEffectivelyHidden: (elementId: string) => boolean;
 
   // ─── Element lookup (for event handlers needing arbitrary element data) ──
