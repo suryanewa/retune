@@ -13,6 +13,7 @@ import {
 } from "./context";
 import { cn } from "@/lib/utils";
 import { type CanvasElement, type Page, ARTBOARD_LAYER_ID, defaultPageStyles } from "@/lib/playground/store";
+import { componentRegistry } from "@/lib/component-registry";
 import { isInternalLink, parseInternalLink } from "@/lib/playground/link-utils";
 import { pageStylesToTailwind } from "./adapters/page-tailwind-converter";
 import { SelectionOverlay, creationFlag, spatialDragFlag, DUPLICATE_CURSOR } from "./overlay/SelectionOverlay";
@@ -1320,17 +1321,28 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
         </div>
       );
 
-    case "component":
+    case "component": {
+      const reg = element.mcpComponentId ? componentRegistry[element.mcpComponentId] : null;
+      if (reg) {
+        const UDSComponent = reg.component;
+        const mergedProps = { ...reg.defaultProps, ...element.mcpProps };
+        return (
+          <div className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
+            <UDSComponent {...mergedProps} />
+          </div>
+        );
+      }
+      // Fallback placeholder for unknown components
       return (
         <div className={cn(wrapperClasses, styleClasses, "flex items-center justify-center")} style={elementStyle} {...commonProps}>
           <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-dashed border-stone-300 dark:border-stone-600 bg-stone-50 dark:bg-stone-800/50 select-none pointer-events-none">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 text-violet-500"><path d="M5.5 2L8 0.5L10.5 2V5L8 6.5L5.5 5V2Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1"/><path d="M5.5 11L8 9.5L10.5 11V14L8 15.5L5.5 14V11Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1"/><path d="M1 6.5L3.5 5L6 6.5V9.5L3.5 11L1 9.5V6.5Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1"/><path d="M10 6.5L12.5 5L15 6.5V9.5L12.5 11L10 9.5V6.5Z" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1"/></svg>
             <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
               {element.mcpComponentId || "Component"}
             </span>
           </div>
         </div>
       );
+    }
 
     case "rectangle":
     case "circle":

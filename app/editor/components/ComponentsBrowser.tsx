@@ -43,24 +43,17 @@ const UDS_CATALOG: UDSCategory[] = [
   {
     name: "Data Display",
     components: [
+      { id: "Text", label: "Text", description: "Typography component" },
       { id: "Avatar", label: "Avatar", description: "User profile image" },
       { id: "Badge", label: "Badge", description: "Status indicator" },
       { id: "Chip", label: "Chip", description: "Tag or filter chip" },
-      { id: "Tooltip", label: "Tooltip", description: "Hover tooltip" },
     ],
   },
   {
-    name: "Feedback",
+    name: "Layout",
     components: [
-      { id: "Toast", label: "Toast", description: "Notification toast" },
+      { id: "Box", label: "Box", description: "Flexible layout container" },
       { id: "Divider", label: "Divider", description: "Visual separator" },
-    ],
-  },
-  {
-    name: "Surfaces",
-    components: [
-      { id: "Menu", label: "Menu", description: "Dropdown menu" },
-      { id: "Screen", label: "Screen", description: "Screen wrapper" },
     ],
   },
   {

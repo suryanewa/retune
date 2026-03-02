@@ -6,7 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, type DropdownMenuOption } from "./dropdown-menu";
 
 export interface IconButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onToggle"> {
   icon: React.ComponentType<{ className?: string }>;
   /** Button size: "default" uses 24px icons, "sm" uses 16px icons with subtle hover */
   size?: "default" | "sm";
