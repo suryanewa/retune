@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useMemo } from "react";
-// TODO: Replace with ComposerContext
-// import { useYjsEditor } from "./YjsEditorContext";
+import { useComposer } from "@/app/editor/provider/ComposerProvider";
 import {
   useEditingElementId,
   useEditorMutations,
@@ -1507,8 +1506,7 @@ function MultiFilterBridge({ allStyles, onUpdate, disabled }: MultiBridgeProps) 
 // ============================================================================
 
 function PagePositionBridge() {
-  // TODO: Replace with ComposerContext
-  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
+  const { pageStyles } = useComposer();
   const { updatePageStyles } = useEditorMutations();
   return (
     <SectionWrapper>
@@ -1667,14 +1665,7 @@ function PageBorderBridge({ pageStyles, onUpdate, disabled }: PageBridgeProps) {
 // ============================================================================
 
 export function PropertyPanel() {
-  // TODO: Replace with ComposerContext
-  // const { elements, pageStyles, others, localUser, pages, activePageId, homepageId } = useYjsEditor();
-  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
-  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
-  const others: unknown[] = [];
-  const localUser: unknown = null;
-  const pages: import("@/lib/playground/store").Page[] = [];
-  const activePageId: string = "";
+  const { elements, pageStyles, others, localUser, pages, activePageId } = useComposer();
 
   // MUTATIONS — stable proxy, never changes identity
   const {

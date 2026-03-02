@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-// TODO: Replace with ComposerContext
-// import { useYjsEditor } from "./YjsEditorContext";
+import { useComposer } from "@/app/editor/provider/ComposerProvider";
 import { useEditorMutations, useSelectedIds, useFocusedContainerId, useIsAdmin } from "./context";
 import { useContextMenu, ContextMenu, type ContextMenuItemDef } from "./ui/context-menu";
 import { elementClipboard } from "./YjsEditorContext";
@@ -123,9 +122,7 @@ function LayerRow({
   toggleExpand,
   isDescendantOfSelected,
 }: LayerRowProps) {
-  // TODO: Replace with ComposerContext
-  // const { elements } = useYjsEditor();
-  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
+  const { elements } = useComposer();
   const {
     selectElement,
     toggleElementSelection,
@@ -470,14 +467,7 @@ function LayerRow({
 // ─── LayersPanel ───────────────────────────────────────────────────────
 
 export function LayersPanel() {
-  // TODO: Replace with ComposerContext
-  // const { elements, elementsArray, activePageId, pages, homepageId, pageStyles } = useYjsEditor();
-  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
-  const elementsArray: import("@/lib/playground/store").CanvasElement[] = [];
-  const activePageId: string = "";
-  const pages: import("@/lib/playground/store").Page[] = [];
-  const homepageId: string = "";
-  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
+  const { elements, elementsArray, activePageId, pages, homepageId, pageStyles } = useComposer();
   const {
     clearSelection, selectElement, reparentIntoContainer,
     deleteElement: panelDeleteElement, duplicateElement: panelDuplicateElement,

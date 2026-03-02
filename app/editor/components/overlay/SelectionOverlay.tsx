@@ -2,8 +2,7 @@
 
 import { useRef, useState, useCallback, useMemo, useEffect, type RefObject } from "react";
 import { flushSync } from "react-dom";
-// TODO: Replace with ComposerContext
-// import { useYjsEditor, useHoveredId } from "../YjsEditorContext";
+import { useComposer } from "@/app/editor/provider/ComposerProvider";
 import { useHoveredId } from "../YjsEditorContext";
 import {
   useEditorMutations,
@@ -135,11 +134,7 @@ interface SelectionOverlayProps {
 }
 
 export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
-  // TODO: Replace with ComposerContext
-  // const { elements, pageStyles, activePageId } = useYjsEditor();
-  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
-  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
-  const activePageId: string = "";
+  const { elements, pageStyles, activePageId } = useComposer();
   const mutations = useEditorMutations();
   const selectedIds = useSelectedIds();
   const editingElementId = useEditingElementId();
