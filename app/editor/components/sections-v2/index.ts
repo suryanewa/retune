@@ -95,12 +95,9 @@ export {
   type GifSectionProps,
 } from "./gif-section";
 
-export {
-  InteractionSection,
-  type InteractionSectionProps,
-  type EffectType,
-  type PseudoGroup,
-} from "./interaction-section";
+// Removed: InteractionSection (animation/effect)
+// Removed: ReactEffectSection (effect)
+// Removed: ReactEffectDialog (effect)
 
 export {
   HeaderSection,
@@ -108,16 +105,6 @@ export {
   type AvatarUser,
   type PanelTab,
 } from "./header-section";
-
-export {
-  ReactEffectSection,
-  type ReactEffectSectionProps,
-} from "./react-effect-section";
-
-export {
-  ReactEffectDialog,
-  type ReactEffectDialogProps,
-} from "./react-effect-dialog";
 
 // Re-export AlignmentPosition from alignment-grid-new for convenience
 export type { AlignmentPosition } from "../ui/alignment-grid-new";

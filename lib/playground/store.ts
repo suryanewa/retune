@@ -1,4 +1,5 @@
-import type { JsonObject } from "@liveblocks/client";
+type JsonObject = Record<string, unknown>;
+
 import type { TailwindStyles, ResponsiveStyles } from "./editor-types";
 
 // Page type for multi-page support
@@ -36,14 +37,9 @@ export type ElementType =
   | "video"
   | "gif"
   // Component elements (renders React components inside editor wrappers)
-  | "component"
-  // GPU shader/particle elements (renders WebGL shaders or Canvas2D particles)
-  | "shader";
+  | "component";
 
 // Element types for the design canvas
-// NOTE: Must be `type` (not `interface`) for Liveblocks LSON compatibility.
-// TypeScript interfaces lack implicit index signatures, so Liveblocks can't
-// verify they extend JsonObject. Type aliases work correctly.
 export type CanvasElement = {
   id: string;
   type: ElementType;
@@ -105,25 +101,6 @@ export type CanvasElement = {
   // Infinite canvas placement
   placement?: "artboard" | "canvas"; // default: "artboard"
 
-  // Unified CSS animations (JSON-encoded CSSAnimationList)
-  cssAnimations?: string;
-
-  // AI-generated React effects — React component type only (JSON-encoded ReactEffectState)
-  reactEffect?: string;
-
-  // GPU effect layers (JSON-encoded EffectLayerList) — Animate tab overlay system
-  effectLayers?: string;
-
-  // Design tab shader layers (JSON-encoded ShaderLayerList) — always-on visual layers like fills
-  shaderLayers?: string;
-
-  // Shader element data (only when type === "shader")
-  shaderSystem?: "particle" | "webgl";   // which GPU renderer to use
-  shaderConfig?: string;                  // JSON-encoded ParticleEffectConfig | ShaderEffectConfig
-  shaderPreset?: string;                  // preset key ("aurora", "confetti", etc.)
-  // DEPRECATED: read-only for migration (use cssAnimations instead)
-  interactions?: string;
-  animations?: string;
 };
 
 export type ElementStyles = {
@@ -199,58 +176,6 @@ export type PageStyles = {
   backgroundFills: string | null;  // JSON-encoded fill items for multi-fill support
   artboardX: number;  // World X position of the artboard
   artboardY: number;  // World Y position of the artboard
-  // Animation fields (same shape as CanvasElement — JSON-encoded)
-  cssAnimations?: string;   // JSON-encoded CSSAnimationList
-  effectLayers?: string;    // JSON-encoded EffectLayerList
-  shaderLayers?: string;    // JSON-encoded ShaderLayer[] (Design tab shader fills)
-};
-
-// Selection type for editor
-export interface EditorSelection {
-  type: "element" | "section" | "page";
-  ids: string[];
-}
-
-// Active tool type
-export type ActiveTool = "select" | "text" | "image" | "shape" | "divider" | null;
-
-// Presence state for each user
-export interface UserPresence {
-  id: string;
-  color: string;
-  name?: string;
-  avatar?: string;
-  cursor: { x: number; y: number } | null;
-  selectedElementId: string | null;
-  isEditing: string | null; // which control panel they're using
-  // New editor state
-  selection: EditorSelection | null;
-  activeTool: ActiveTool;
-  activePageId?: string;
-  message?: string;
-  aiInteraction?: {
-    elementId: string;
-    status: "prompting" | "generating" | "reviewing";
-  } | null;
-}
-
-// The store shape (for reference)
-export type PlaygroundStore = {
-  // Multi-page support
-  pages: Record<string, Page>;
-  pageStylesMap: Record<string, PageStyles>; // keyed by pageId
-  // Legacy (read-only after migration)
-  pageStyles: PageStyles;
-  // Canvas elements (all pages in one map, filtered by pageId)
-  elements: Record<string, CanvasElement>;
-  // Style presets for reusable styles
-  stylePresets: Record<string, StylePreset>;
-  // Metadata
-  meta: {
-    totalEdits: number;
-    uniqueContributors: string[];
-    podcastPageSeeded?: boolean;
-  };
 };
 
 // Virtual ID for the artboard (page frame) in the selection system.

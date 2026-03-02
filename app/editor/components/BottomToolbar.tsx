@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useYjsEditor } from "./YjsEditorContext";
+// TODO: Replace with ComposerContext
+// import { useYjsEditor } from "./YjsEditorContext";
 import {
   useEditorMutations,
   useSelectedIds,
@@ -78,7 +79,9 @@ const btnClass = (active: boolean) =>
 // ─── Component ─────────────────────────────────────────────────────────
 
 export function BottomToolbar() {
-  const { elements } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements } = useYjsEditor();
+  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
   const { setDevice, setCreationTool, addElement, addCanvasElement, updateElement } = useEditorMutations();
   const creationTool = useCreationTool();
   const selectedIds = useSelectedIds();

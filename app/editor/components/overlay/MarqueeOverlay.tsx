@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import type { CanvasElement } from "@/lib/playground/store";
-import { useYjsEditor } from "../YjsEditorContext";
+// TODO: Replace with ComposerContext
+// import { useYjsEditor } from "../YjsEditorContext";
 import { useEditorMutations, editorStateStore } from "../context";
 import { useCamera } from "../CameraContext";
 
@@ -110,7 +111,9 @@ export function computePromotedSelection(
  * live during drag.
  */
 export function MarqueeOverlay({ canvasRef, isPanningRef }: MarqueeOverlayProps) {
-  const { elements } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements } = useYjsEditor();
+  const elements: Record<string, CanvasElement> = {};
   const mutations = useEditorMutations();
   const { cameraRef } = useCamera();
 

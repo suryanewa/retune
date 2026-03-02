@@ -3,11 +3,9 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { useYjsEditor, elementClipboard } from "./YjsEditorContext";
 import { useCamera } from "./CameraContext";
-import { type Camera, screenToWorld, zoomAtPoint, cameraToFitRect } from "./camera-utils";
-import { getStyleClasses, parseReactEffect, type TailwindStyles } from "@/lib/playground/editor-types";
+import { type Camera, zoomAtPoint, cameraToFitRect } from "./camera-utils";
+import { getStyleClasses, type TailwindStyles } from "@/lib/playground/editor-types";
 import DOMPurify from "dompurify";
-import type { JsonObject } from "@liveblocks/client";
-import { useStorage } from "@liveblocks/react";
 import {
   useElement, useEditorMutations, editorStateStore,
   useIsSelected, useEditingElementId, useDraggedId,
@@ -20,33 +18,19 @@ import { pageStylesToTailwind } from "./adapters/page-tailwind-converter";
 import { SelectionOverlay, creationFlag, spatialDragFlag, DUPLICATE_CURSOR } from "./overlay/SelectionOverlay";
 import { useContextMenu, ContextMenu, type ContextMenuItemDef } from "./ui/context-menu";
 import { MarqueeOverlay, marqueeFlag } from "./overlay/MarqueeOverlay";
-import { CursorLayer } from "../multiplayer/CursorLayer";
-import { usePlayground } from "../PlaygroundProvider";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
-import dynamic from "next/dynamic";
-import { ArtboardWidthProvider } from "@/hooks/useArtboardWidth";
+
 import { TiptapTextEditor } from "./tiptap/TiptapTextEditor";
 import { generateHTML } from "@tiptap/html";
 import { createEditorExtensions } from "./tiptap/tiptap-extensions";
 
-const PodcastPageContent = dynamic(
-  () => import("@/app/components/PodcastPageContent"),
-  { ssr: false, loading: () => <div className="animate-pulse bg-muted h-full" /> }
-);
-
-import { PodcastProvider } from "./podcast/PodcastProvider";
-import { PodcastComponentRenderer } from "./podcast/PodcastComponentRenderer";
 import { loadGoogleFont } from "./font-picker/font-loader";
-import { AnimationStyles } from "./animation-styles";
-import { EffectLayer } from "./effect-layer";
-import { EffectLayerRenderer } from "./effects/effect-layer-renderer";
-import { ShaderRenderer } from "./effects/shader-renderer";
-import { ElementShaderLayers, ShaderTextFill } from "./effects/element-shader-layers";
-import { InlineEffectWrapper } from "./inline-effect-wrapper";
-import { useAnimationTriggers } from "./use-animation-triggers";
 import { generateBeautifulShadow } from "./sections-v2/shadow-utils";
 import type { ShadowValue } from "./sections-v2/shadow-section";
 import { SHADOW_PRESETS, INSET_SHADOW_PRESETS, parseShadowColorClass } from "./adapters/tailwind-adapters";
+
+// JsonObject: formerly from @liveblocks/client — plain serializable record type
+type JsonObject = Record<string, unknown>;
 
 // Precompute Tiptap extensions once at module level (pure function, no element-specific args)
 const EDITOR_EXTENSIONS = createEditorExtensions();
@@ -691,16 +675,9 @@ function extractArbitraryStyles(classes: string, gradientStopsJson?: string, hid
   return result;
 }
 
-// Pages subscription for internal link resolution (rarely changes — only on page CRUD)
+// TODO: pages from Zustand store
 function usePages(): Page[] {
-  const rawPages = useStorage((root) => root.pages);
-  return useMemo(() => {
-    if (!rawPages || (rawPages as any).size === 0) return [];
-    const entries: [number, Page][] = Array.from((rawPages as any).entries());
-    return entries
-      .map(([, page]) => page)
-      .sort((a, b) => a.order - b.order);
-  }, [rawPages]);
+  return [];
 }
 
 interface RenderElementProps {
@@ -835,13 +812,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
           onExit={() => setEditingElementId(null)}
         />
       );
-    }
-    // Content effect: render inline in preview mode (inherits all CSS from parent)
-    if (isPreview && element?.reactEffect) {
-      const effect = parseReactEffect(element.reactEffect);
-      if (effect && effect.type !== "css" && effect.placement === "content") {
-        return <InlineEffectWrapper effect={effect} content={element.content || ""} />;
-      }
     }
     // Static rich text rendering
     if (element?.richContent) {
@@ -1097,58 +1067,10 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
     }
   }, [isSelected, previewFont]);
 
-  // Memoize parsed shader config so hover re-renders don't reinit the GPU renderer
-  const parsedShaderConfig = useMemo(() => {
-    if (!element?.shaderConfig) return null;
-    try { return JSON.parse(element.shaderConfig); } catch { return null; }
-  }, [element?.shaderConfig]);
-
-  // Shader auto-chain: find the shader element directly below in z-order (for post-process shaders).
-  // Uses useStorage selector so only re-renders when the actual source shader changes.
-  const isPostProcessShader = !!parsedShaderConfig && (
-    parsedShaderConfig.postProcess || parsedShaderConfig.preset === "chromatic-aberration" || parsedShaderConfig.preset === "crt"
-  );
-  const myZIndex = element?.zIndex || 0;
-  const shaderAutoSourceRaw = useStorage((root) => {
-    if (!isPostProcessShader) return undefined;
-    const allElements = root.elements;
-    if (!allElements) return undefined;
-    let bestId: string | undefined;
-    let bestZ = -Infinity;
-    allElements.forEach((el, id) => {
-      if (id === elementId || el.type !== "shader" || !el.shaderConfig) return;
-      const z = el.zIndex || 0;
-      if (z < myZIndex && z > bestZ) {
-        bestZ = z;
-        bestId = id;
-      }
-    });
-    return bestId ? `shader-el-${bestId}` : undefined;
-  });
-  const shaderAutoSource = shaderAutoSourceRaw ?? undefined;
-
   if (!element) return null;
 
   // Hidden elements: completely invisible on canvas
   if (effectivelyHidden) return null;
-
-  // Shader layers: text elements use text-fill mode (background-clip: text),
-  // all other elements use overlay mode (absolutely positioned canvases).
-  const isTextLike = element.type === "text" || element.type === "heading"
-    || element.type === "button" || element.type === "badge" || element.type === "link";
-  const shaderOverlay = element.shaderLayers && !isTextLike ? (
-    <ElementShaderLayers
-      shaderLayersJson={element.shaderLayers}
-      elementId={elementId}
-      contentSrc={element.content}
-    />
-  ) : null;
-  const shaderTextFill = element.shaderLayers && isTextLike ? (
-    <ShaderTextFill
-      shaderLayersJson={element.shaderLayers}
-      elementId={elementId}
-    />
-  ) : null;
 
   // Link wrapping: any element with element.link wraps in an <a>
   const elementLink = element.link;
@@ -1238,61 +1160,45 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
   switch (element.type) {
     case "heading": {
       const HeadingTag = isEditing ? "div" : "h2";
-      const headingStyle = shaderTextFill
-        ? { ...elementStyle, backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } as React.CSSProperties
-        : elementStyle;
       return wrapWithLink(
-        <HeadingTag className={cn(wrapperClasses, styleClasses)} style={headingStyle} {...commonProps}>
+        <HeadingTag className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
           {renderEditableContent()}
-          {shaderTextFill}
         </HeadingTag>
       );
     }
 
     case "text": {
-      const TextTag = isEditing || shaderTextFill ? "div" : "p";
-      const textStyle = shaderTextFill
-        ? { ...elementStyle, backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } as React.CSSProperties
-        : elementStyle;
+      const TextTag = isEditing ? "div" : "p";
       return wrapWithLink(
-        <TextTag className={cn(wrapperClasses, styleClasses)} style={textStyle} {...commonProps}>
+        <TextTag className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
           {renderEditableContent()}
-          {shaderTextFill}
         </TextTag>
       );
     }
 
     case "button": {
-      const ButtonTag = isEditing || shaderTextFill ? "div" : "button";
-      const buttonStyle = shaderTextFill
-        ? { ...elementStyle, backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } as React.CSSProperties
-        : elementStyle;
+      const ButtonTag = isEditing ? "div" : "button";
       return wrapWithLink(
         <ButtonTag
           {...(ButtonTag === "button" ? { type: "button" as const } : {})}
           className={cn(wrapperClasses, styleClasses, "inline-flex items-center justify-center")}
-          style={buttonStyle}
+          style={elementStyle}
           {...commonProps}
         >
           {renderEditableContent()}
-          {shaderTextFill}
         </ButtonTag>
       );
     }
 
     case "badge": {
-      const BadgeTag = isEditing || shaderTextFill ? "div" : "span";
-      const badgeStyle = shaderTextFill
-        ? { ...elementStyle, backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } as React.CSSProperties
-        : elementStyle;
+      const BadgeTag = isEditing ? "div" : "span";
       return wrapWithLink(
         <BadgeTag
           className={cn(wrapperClasses, styleClasses, "inline-flex items-center")}
-          style={badgeStyle}
+          style={elementStyle}
           {...commonProps}
         >
           {renderEditableContent()}
-          {shaderTextFill}
         </BadgeTag>
       );
     }
@@ -1319,9 +1225,7 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
           target={isLinkInternal ? undefined : linkTarget}
           rel={!isLinkInternal && linkTarget === "_blank" ? "noopener noreferrer" : undefined}
           className={cn(wrapperClasses, styleClasses)}
-          style={shaderTextFill
-            ? { ...elementStyle, backgroundClip: "text", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" } as React.CSSProperties
-            : elementStyle}
+          style={elementStyle}
           {...commonProps}
           onClickCapture={(e) => {
             if (isLinkInternal) {
@@ -1341,7 +1245,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
           }}
         >
           {renderEditableContent()}
-          {shaderTextFill}
         </a>
       );
     }
@@ -1376,7 +1279,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
               style={imageMediaStyle}
             />
           )}
-          {shaderOverlay}
         </div>
       );
     }
@@ -1396,7 +1298,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
             className="w-full h-full"
             style={gifMediaStyle}
           />
-          {shaderOverlay}
         </div>
       );
     }
@@ -1418,7 +1319,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
             muted={element.videoMuted ?? true}
             playsInline
           />
-          {shaderOverlay}
         </div>
       );
     }
@@ -1429,11 +1329,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
     case "container":
       return wrapWithLink(
         <div className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
-          {shaderOverlay && (
-            <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-              {shaderOverlay}
-            </div>
-          )}
           {renderChildren()}
         </div>
       );
@@ -1442,17 +1337,13 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
       return wrapWithLink(
         <div className={cn(wrapperClasses, "text-4xl")} {...commonProps}>
           {element.content}
-          {shaderOverlay}
         </div>
       );
 
     case "component":
       return (
         <div className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
-          <div style={{ pointerEvents: isPreview ? "auto" : "none" }}>
-            <PodcastComponentRenderer componentName={element.componentName!} />
-          </div>
-          {shaderOverlay}
+          {/* Component rendering placeholder — podcast removed */}
         </div>
       );
 
@@ -1506,55 +1397,6 @@ const RenderElement = React.memo(function RenderElement({ elementId, isPreview =
           >
             {svgContent}
           </svg>
-          {shaderOverlay && shapeClipPath ? (
-            <div className="absolute inset-0" style={{ clipPath: shapeClipPath, pointerEvents: "none" }}>
-              {shaderOverlay}
-            </div>
-          ) : shaderOverlay}
-        </div>
-      );
-    }
-
-    case "shader": {
-      // Show placeholder only when no config; otherwise always render live
-      if (!parsedShaderConfig) {
-        return (
-          <div className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
-            <div className="w-full h-full flex items-center justify-center bg-stone-100 dark:bg-stone-800/50 rounded-md">
-              <span className="text-[11px] font-medium text-stone-400 dark:text-stone-500 select-none">
-                {element.name || element.shaderPreset || "Shader"}
-              </span>
-            </div>
-          </div>
-        );
-      }
-
-      if (element.shaderSystem === "particle") {
-        return (
-          <div className={cn(wrapperClasses, styleClasses)} style={elementStyle} {...commonProps}>
-            <div className="w-full h-full flex items-center justify-center bg-stone-100 dark:bg-stone-800/50 rounded-md">
-              <span className="text-[11px] font-medium text-stone-400 dark:text-stone-500 select-none">
-                Particle effects moved to Animations
-              </span>
-            </div>
-          </div>
-        );
-      }
-
-      // Auto-chain: for postProcess (transformative) shaders, read from the
-      // shader element directly below in z-order. Generative shaders blend via CSS.
-      const isPostProcess = parsedShaderConfig.postProcess || parsedShaderConfig.preset === "chromatic-aberration" || parsedShaderConfig.preset === "crt";
-      const autoSourceCanvasId = isPostProcess ? shaderAutoSource : undefined;
-
-      return (
-        <div className={cn(wrapperClasses, styleClasses)} style={{ ...elementStyle, overflow: "visible" }} {...commonProps}>
-          <ShaderRenderer
-            config={isPostProcess && !parsedShaderConfig.postProcess ? { ...parsedShaderConfig, postProcess: true } : parsedShaderConfig}
-            active
-            canvasId={`shader-el-${elementId}`}
-            sourceCanvasId={autoSourceCanvasId}
-            preserveDrawingBuffer
-          />
         </div>
       );
     }
@@ -1725,7 +1567,7 @@ function getShapeSvgProps(styles: TailwindStyles | undefined) {
 
 export function EditorCanvas() {
   const { state, elements, clearSelection, exitContainer, pageStyles, updatePageStyles, setViewMode, pages, activePageId, selectElement, toggleElementSelection, hoverElement, updateElement, wrapInContainer, ungroupContainer, deleteElement, deleteElements, duplicateElement, duplicateElementForDrag, pasteElement, pasteElements, toggleVisibility, toggleLock, isAdmin, editingElementId, pauseHistory, resumeHistory } = useYjsEditor();
-  const { camera, cameraRef, worldRef, pageRef: cameraPageRef, canvasLayerRef, overlayWorldRef, overlayZoomRef, baseZoomRef, applyCamera } = useCamera();
+  const { cameraRef, worldRef, pageRef: cameraPageRef, canvasLayerRef, overlayWorldRef, overlayZoomRef, baseZoomRef, applyCamera } = useCamera();
   const isPreviewMode = state.viewMode === "preview";
 
   // Snapshot element trees into the module-level clipboard
@@ -1744,14 +1586,9 @@ export function EditorCanvas() {
     elementClipboard.snapshots = snaps;
   }
   const activePage = pages.find(p => p.id === activePageId);
-  const isComponentPage = !!activePage?.component;
-  const isLegacyPodcastPage = isComponentPage && activePage?.component === "PodcastPage";
-  const isProviderPodcastPage = activePage?.provider === "podcast";
-  const isPodcastPage = isLegacyPodcastPage || isProviderPodcastPage;
   const artboardX = pageStyles?.artboardX ?? 0;
   const artboardY = pageStyles?.artboardY ?? 0;
   const canvasRef = useRef<HTMLDivElement | null>(null);
-  useAnimationTriggers(canvasRef, elements, isPreviewMode, pageStyles?.cssAnimations);
   const canvasDragRef = useRef<{
     elementId: string;
     startMouseX: number;
@@ -1865,44 +1702,6 @@ export function EditorCanvas() {
     editorContextMenu.open(x, y, { type: "element", elementId: id });
   elementContextMenuRef.openText = (x, y, id) =>
     editorContextMenu.open(x, y, { type: "text", elementId: id });
-
-  // ── Cursor tracking (page-relative, throttled via rAF) ──
-  const { updateCursor } = usePlayground();
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    let rafId = 0;
-    let pendingX = 0;
-    let pendingY = 0;
-    let hasPending = false;
-
-    const flush = () => {
-      rafId = 0;
-      if (hasPending) {
-        updateCursor({ x: pendingX, y: pendingY });
-        hasPending = false;
-      }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      // Convert viewport-relative cursor to world coords via camera
-      const canvasRect = canvas.getBoundingClientRect();
-      const vpX = e.clientX - canvasRect.left;
-      const vpY = e.clientY - canvasRect.top;
-      const world = screenToWorld(vpX, vpY, cameraRef.current);
-      pendingX = world.x;
-      pendingY = world.y;
-      hasPending = true;
-      if (!rafId) rafId = requestAnimationFrame(flush);
-    };
-
-    canvas.addEventListener("mousemove", handleMouseMove);
-    return () => {
-      canvas.removeEventListener("mousemove", handleMouseMove);
-      if (rafId) cancelAnimationFrame(rafId);
-    };
-  }, [updateCursor, cameraRef]);
 
   const deviceWidths: Record<string, number> = {
     desktop: 1440,
@@ -2254,16 +2053,6 @@ export function EditorCanvas() {
 
   const pageWidth = deviceWidths[state.device];
 
-  // Page-level shader overlay (rendered behind children like a fill)
-  const pageShaderOverlay = pageStyles?.shaderLayers ? (
-    <div style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}>
-      <ElementShaderLayers
-        shaderLayersJson={pageStyles.shaderLayers}
-        elementId={ARTBOARD_LAYER_ID}
-      />
-    </div>
-  ) : null;
-
   // ── Initial camera position (before first paint) ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
@@ -2356,22 +2145,6 @@ export function EditorCanvas() {
   useLayoutEffect(() => {
     if (isPreviewMode) {
       savedCameraRef.current = cameraRef.current;
-      if (isPodcastPage) {
-        // PodcastPage: clear transforms directly (not via applyCamera) because
-        // applyCamera sets translate(0px,0px) which still creates a CSS
-        // containing block — we want transform:none for fixed descendants.
-        if (worldRef.current) {
-          worldRef.current.style.transform = 'none';
-        }
-        if (cameraPageRef.current) {
-          (cameraPageRef.current.style as any).zoom = '1';
-          cameraPageRef.current.style.transform = '';
-        }
-        if (canvasLayerRef.current) {
-          (canvasLayerRef.current.style as any).zoom = '1';
-          canvasLayerRef.current.style.transform = '';
-        }
-      }
       // Regular pages: edit DOM unmounts in preview, no DOM cleanup needed
     } else if (savedCameraRef.current) {
       // Exiting preview: reset scroll position left over from preview's overflow-auto
@@ -2385,7 +2158,7 @@ export function EditorCanvas() {
       applyCamera(savedCameraRef.current, true);
       savedCameraRef.current = null;
     }
-  }, [isPreviewMode, isPodcastPage, applyCamera, cameraRef, baseZoomRef, worldRef, cameraPageRef, canvasLayerRef]);
+  }, [isPreviewMode, applyCamera, cameraRef, baseZoomRef, worldRef, cameraPageRef, canvasLayerRef]);
 
   // Label zoom — cameraRef is synchronously updated in applyCamera, used for
   // canvas element label positions (artboard labels don't need zoom).
@@ -2408,132 +2181,7 @@ export function EditorCanvas() {
       }}
       style={{ cursor: !isPreviewMode ? (state.creationTool !== 'select' ? 'crosshair' : CUSTOM_CURSOR) : undefined }}
     >
-      <AnimationStyles elements={elements} pageCssAnimations={pageStyles?.cssAnimations} />
-      {isPodcastPage ? (
-        /* PodcastPage: unified container — stays mounted across edit ↔ preview */
-        <>
-          <div
-            ref={worldRef}
-            style={isPreviewMode ? undefined : { willChange: 'transform' }}
-          >
-            <div
-              ref={cameraPageRef}
-              data-page
-              data-element-id={isPreviewMode ? undefined : ARTBOARD_LAYER_ID}
-              className={cn(
-                isPreviewMode ? "min-h-screen flex flex-col" : "overflow-hidden relative flex flex-col",
-                !pageStyles?.backgroundColor && !isLegacyPodcastPage && "bg-background",
-                isProviderPodcastPage ? outerFiltered : undefined,
-              )}
-              style={{
-                ...(isLegacyPodcastPage ? { background: "linear-gradient(180deg, #F0F2F5 0%, #FFFFFF 100%)" } : {}),
-                ...(isProviderPodcastPage ? outerInline : {}),
-                ...(isPreviewMode ? {} : {
-                  position: 'absolute' as const,
-                  left: artboardX,
-                  top: artboardY,
-                  width: pageWidth,
-                  minHeight: 900,
-                  pointerEvents: isPanning ? "none" : undefined,
-                  cursor: isAltHeld ? DUPLICATE_CURSOR : undefined,
-                }),
-              }}
-              onMouseMove={isPreviewMode ? undefined : (e) => {
-                if (e.target === e.currentTarget) {
-                  hoverElement(ARTBOARD_LAYER_ID);
-                }
-              }}
-              onMouseLeave={isPreviewMode ? undefined : () => {
-                hoverElement(null);
-              }}
-              onClick={isPreviewMode ? undefined : (e) => {
-                if (e.target === e.currentTarget) {
-                  e.stopPropagation();
-                  selectElement(ARTBOARD_LAYER_ID);
-                }
-              }}
-            >
-              {pageShaderOverlay}
-              <ArtboardWidthProvider value={isPreviewMode ? null : pageWidth}>
-                {isProviderPodcastPage ? (
-                  <PodcastProvider isEditMode={!isPreviewMode}>
-                    <div style={{ width: '100%', containerType: 'inline-size' }}>
-                      <div
-                        className={cn("flex-1", innerFiltered)}
-                        style={{ ...innerInline, gap: innerInline.gap ?? "1rem" }}
-                      >
-                        {sortedArtboardElements.map((el) => (
-                            <RenderElement key={el.id} elementId={el.id} isPreview={isPreviewMode} />
-                          ))}
-                      </div>
-                    </div>
-                  </PodcastProvider>
-                ) : (
-                  <PodcastPageContent contained={!isPreviewMode} />
-                )}
-              </ArtboardWidthProvider>
-            </div>
-
-            {/* Canvas layer — only in edit mode */}
-            {!isPreviewMode && renderCanvasElements()}
-          </div>
-
-          {/* Overlays + labels — inside overlay zoom pipeline for lag-free pan & zoom */}
-          {!isPreviewMode && (
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-              <div ref={overlayWorldRef} style={{ position: 'absolute', inset: 0, willChange: 'transform' }}>
-                <div ref={overlayZoomRef} style={{ position: 'absolute', inset: 0 }}>
-                  {/* Frame labels — world-space anchor, CSS zoom counter-scale (layout-phase, no jitter) */}
-                  <div
-                    ref={labelRefCallback}
-                    style={{ position: 'absolute', left: artboardX, top: artboardY, width: 0, height: 0, overflow: 'visible', zIndex: 50 }}
-                  >
-                    <div
-                      onPointerDown={handleLabelPointerDown}
-                      onPointerMove={handleLabelPointerMove}
-                      onPointerUp={handleLabelPointerUp}
-                      onClick={(e) => e.stopPropagation()}
-                      style={{ position: 'absolute', bottom: 0, left: 0, zoom: 'var(--inv-zoom, 1)', padding: '2px 0', cursor: 'inherit', pointerEvents: 'auto', whiteSpace: 'nowrap' } as React.CSSProperties}
-                    >
-                      <span
-                        className="text-[11px] leading-4 text-stone-500 dark:text-stone-400 select-none"
-                        style={state.selectedIds.includes(ARTBOARD_LAYER_ID) ? { color: '#3b82f6' } : undefined}
-                      >
-                        {activePage?.artboardName || "Frame"}
-                      </span>
-                    </div>
-                  </div>
-                  {canvasContainers.map((el) => (
-                    <div
-                      key={`label-${el.id}`}
-                      ref={labelRefCallback}
-                      style={{ position: 'absolute', left: el.x, top: el.y, width: 0, height: 0, overflow: 'visible', zIndex: 50 }}
-                    >
-                      <div
-                        onPointerDown={(e) => handleElLabelPointerDown(e, el.id, el.x, el.y)}
-                        onPointerMove={handleElLabelPointerMove}
-                        onPointerUp={handleElLabelPointerUp}
-                        onClick={(e) => e.stopPropagation()}
-                        style={{ position: 'absolute', bottom: 0, left: 0, zoom: 'var(--inv-zoom, 1)', padding: '2px 0', cursor: 'inherit', pointerEvents: 'auto', whiteSpace: 'nowrap' } as React.CSSProperties}
-                      >
-                        <span
-                          className="text-[11px] leading-4 text-stone-500 dark:text-stone-400 select-none"
-                          style={state.selectedIds.includes(el.id) ? { color: '#3b82f6' } : undefined}
-                        >
-                          {el.name || el.content?.slice(0, 20) || el.type}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                  <CursorLayer />
-                  <MarqueeOverlay canvasRef={canvasRef} isPanningRef={isPanningRef} />
-                  <SelectionOverlay canvasRef={canvasRef} />
-                </div>
-              </div>
-            </div>
-          )}
-        </>
-      ) : isPreviewMode ? (
+      {isPreviewMode ? (
         /* Regular page preview */
         <div
           data-page
@@ -2550,7 +2198,6 @@ export function EditorCanvas() {
             ...outerInline,
           }}
         >
-          {pageShaderOverlay}
           <div
             className={cn("flex-1", innerFiltered)}
             style={{ ...innerInline, gap: innerInline.gap ?? "1rem" }}
@@ -2606,7 +2253,6 @@ export function EditorCanvas() {
                 }
               }}
             >
-              {pageShaderOverlay}
               <div
                 className={cn("flex-1", innerFiltered)}
                 style={{ ...innerInline, gap: innerInline.gap ?? "1rem" }}
@@ -2675,19 +2321,6 @@ export function EditorCanvas() {
           </div>
         </>
       )}
-      <EffectLayer
-        elements={elements}
-        isPreviewMode={isPreviewMode}
-        scrollContainerRef={canvasRef}
-        zoomScale={cameraRef.current.zoom}
-      />
-      <EffectLayerRenderer
-        elements={elements}
-        isPreviewMode={isPreviewMode}
-        scrollContainerRef={canvasRef}
-        zoomScale={cameraRef.current.zoom}
-        pageEffectLayers={pageStyles?.effectLayers}
-      />
       {isPreviewMode && (
         <button
           onClick={() => setViewMode("edit")}

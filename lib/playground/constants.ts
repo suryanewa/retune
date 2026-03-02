@@ -174,14 +174,3 @@ export const VISITOR_BORDER_COLORS: Record<string, string> = {
   '#FB923C': '#F97316', // orange-400 → orange-500
 };
 
-// ============================================
-// Room Configuration (Multi-room support)
-// ============================================
-
-export const ROOM_CONFIG = {
-  MAIN_ROOM_ID: "playground-main",
-  OVERFLOW_PREFIX: "playground-overflow-",
-  DEV_ROOM_ID: "playground-main",  // dev project's main room (mirrors prod data)
-  MAX_CONNECTIONS_PER_ROOM: 45, // buffer below 50 hard limit
-  MAX_OVERFLOW_ROOMS: 498,      // 498 overflow + 1 main + 1 dev = 500 rooms (Liveblocks free tier limit)
-};

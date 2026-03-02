@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useCallback, useMemo } from "react";
-import { useYjsEditor } from "./YjsEditorContext";
+// TODO: Replace with ComposerContext
+// import { useYjsEditor } from "./YjsEditorContext";
 import {
   useEditingElementId,
   useEditorMutations,
@@ -79,9 +80,9 @@ import {
   type FilterItem,
   type LinkValue,
 } from "./sections-v2";
-import { UnifiedAnimationSection } from "./sections-v2/animation-section";
-import { ShaderConfigSection } from "./sections-v2/shader-config-section";
-import { ShaderLayerSection } from "./sections-v2/shader-layer-section";
+// Removed: UnifiedAnimationSection (shader/animation)
+// Removed: ShaderConfigSection (shader)
+// Removed: ShaderLayerSection (shader)
 import {
   // Layout
   readDirection, writeDirection,
@@ -158,7 +159,6 @@ function showSection(elementType: string) {
   const isDivider = elementType === "divider";
   const isShape = ['rectangle', 'circle', 'star'].includes(elementType);
   const isComponent = elementType === "component";
-  const isShader = elementType === "shader";
 
   return {
     layout: isContainer,
@@ -166,17 +166,14 @@ function showSection(elementType: string) {
     position: true,
     typography: isText && !isComponent,
     appearance: true,
-    fill: !isDivider && !isText && !isShader,
-    shaderLayers: !isDivider && !isShader,
+    fill: !isDivider && !isText,
     border: true,
     shadow: !isDivider,
     filter: !isDivider,
-    link: !isDivider && !isShape && !isComponent && !isShader,
+    link: !isDivider && !isShape && !isComponent,
     image: elementType === "image",
     video: elementType === "video",
     gif: elementType === "gif",
-    shader: isShader,
-    interactions: !isDivider && !isShader,
   };
 }
 
@@ -1510,7 +1507,8 @@ function MultiFilterBridge({ allStyles, onUpdate, disabled }: MultiBridgeProps) 
 // ============================================================================
 
 function PagePositionBridge() {
-  const { pageStyles } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
   const { updatePageStyles } = useEditorMutations();
   return (
     <SectionWrapper>
@@ -1669,16 +1667,14 @@ function PageBorderBridge({ pageStyles, onUpdate, disabled }: PageBridgeProps) {
 // ============================================================================
 
 export function PropertyPanel() {
-  // DATA — from Liveblocks storage (re-renders when storage changes)
-  const {
-    elements,
-    pageStyles,
-    others,
-    localUser,
-    pages,
-    activePageId,
-    homepageId,
-  } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements, pageStyles, others, localUser, pages, activePageId, homepageId } = useYjsEditor();
+  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
+  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
+  const others: unknown[] = [];
+  const localUser: unknown = null;
+  const pages: import("@/lib/playground/store").Page[] = [];
+  const activePageId: string = "";
 
   // MUTATIONS — stable proxy, never changes identity
   const {
@@ -1721,19 +1717,6 @@ export function PropertyPanel() {
   // Page props — always safe to construct
   const pageStylesCopy: PageStyles = pageStyles ? { ...pageStyles } : ({} as PageStyles);
   const pageProps: PageBridgeProps = { pageStyles: pageStylesCopy, onUpdate: updatePageStyles };
-
-  // Page animation proxy — lets animation sections treat the page like an element
-  const pageAnimationProxy = isPage ? {
-    type: "page" as const,
-    cssAnimations: pageStylesCopy.cssAnimations,
-    effectLayers: pageStylesCopy.effectLayers,
-  } as unknown as CanvasElement : undefined;
-
-  // Page shader proxy — lets ShaderLayerSection treat the page like an element
-  const pageShaderProxy = isPage ? {
-    type: "page" as const,
-    shaderLayers: pageStylesCopy.shaderLayers,
-  } as unknown as CanvasElement : undefined;
 
   // Single-element props — guarded, bundled into nullable object
   const firstSelectedId = isSingle ? selectedIds[0]! : undefined;
@@ -1876,7 +1859,7 @@ export function PropertyPanel() {
         {isEmpty ? (
           <div className="flex items-center justify-center py-12 px-4">
             <span className="text-[11px] font-[450] tracking-[0.045px] text-stone-400 dark:text-stone-500 text-center">
-              {panelTab === "design" ? "Select an element to inspect" : "Select an element to add animations"}
+              Select an element to inspect
             </span>
           </div>
         ) : panelTab === "design" ? (
@@ -2039,15 +2022,6 @@ export function PropertyPanel() {
               </>
             )}
 
-            {/* Shader — single shader elements only (after position + size) */}
-            {singleProps?.sections.shader && (
-              <ShaderConfigSection
-                element={singleProps.element}
-                elementId={singleProps.id}
-                disabled={singleProps.bridgeProps.disabled}
-              />
-            )}
-
             {/* Typography — single text only */}
             {singleProps?.sections.typography && <TypographyBridge {...singleProps.bridgeProps} />}
 
@@ -2057,21 +2031,6 @@ export function PropertyPanel() {
             {/* Fill */}
             {isPage && <PageFillBridge {...pageProps} />}
             {singleProps?.sections.fill && <FillBridge {...singleProps.bridgeProps} elementType={singleProps.element.type} />}
-
-            {/* Shader Layers (Design tab shader fills) */}
-            {isPage && pageShaderProxy && (
-              <ShaderLayerSection
-                element={pageShaderProxy}
-                elementId={ARTBOARD_LAYER_ID}
-              />
-            )}
-            {singleProps?.sections.shaderLayers && (
-              <ShaderLayerSection
-                element={singleProps.element}
-                elementId={singleProps.id}
-                disabled={singleProps.bridgeProps.disabled}
-              />
-            )}
 
             {/* Border */}
             {isPage && <PageBorderBridge {...pageProps} />}
@@ -2084,25 +2043,12 @@ export function PropertyPanel() {
             {singleProps?.sections.filter && <FilterBridge {...singleProps.bridgeProps} />}
           </>
         ) : (
-          /* Animate tab */
-          isPage && pageAnimationProxy ? (
-            <UnifiedAnimationSection
-              element={pageAnimationProxy}
-              elementId={ARTBOARD_LAYER_ID}
-            />
-          ) : singleProps?.sections.interactions ? (
-            <UnifiedAnimationSection
-              element={singleProps.element}
-              elementId={singleProps.id}
-              disabled={singleProps.bridgeProps.disabled}
-            />
-          ) : (
-            <div className="flex items-center justify-center py-12 px-4">
-              <span className="text-[11px] font-[450] tracking-[0.045px] text-stone-400 dark:text-stone-500 text-center">
-                Select an element to add animations
-              </span>
-            </div>
-          )
+          // Non-design tab (Animate tab removed)
+          <div className="flex items-center justify-center py-12 px-4">
+            <span className="text-[11px] font-[450] tracking-[0.045px] text-stone-400 dark:text-stone-500 text-center">
+              Select an element to inspect
+            </span>
+          </div>
         )}
       </div>
     </div>

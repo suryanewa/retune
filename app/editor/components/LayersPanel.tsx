@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useCallback } from "react";
-import { useYjsEditor } from "./YjsEditorContext";
+// TODO: Replace with ComposerContext
+// import { useYjsEditor } from "./YjsEditorContext";
 import { useEditorMutations, useSelectedIds, useFocusedContainerId, useIsAdmin } from "./context";
 import { useContextMenu, ContextMenu, type ContextMenuItemDef } from "./ui/context-menu";
 import { elementClipboard } from "./YjsEditorContext";
@@ -19,7 +20,6 @@ import {
   Star16,
   Line16,
   Link16,
-  Shader16,
   ComponentSmall16,
   ChevronRight16,
   LockLocked16,
@@ -102,7 +102,6 @@ function getLayerIcon(element: CanvasElement): React.ComponentType<{ className?:
     video: Image16,
     gif: Image16,
     component: ComponentSmall16,
-    shader: Shader16,
   };
   return map[element.type] || Rectangle16;
 }
@@ -124,7 +123,9 @@ function LayerRow({
   toggleExpand,
   isDescendantOfSelected,
 }: LayerRowProps) {
-  const { elements } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements } = useYjsEditor();
+  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
   const {
     selectElement,
     toggleElementSelection,
@@ -469,11 +470,14 @@ function LayerRow({
 // ─── LayersPanel ───────────────────────────────────────────────────────
 
 export function LayersPanel() {
-  const {
-    elements, elementsArray,
-    // Multi-page (data from Liveblocks storage)
-    activePageId, pages, homepageId, pageStyles,
-  } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements, elementsArray, activePageId, pages, homepageId, pageStyles } = useYjsEditor();
+  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
+  const elementsArray: import("@/lib/playground/store").CanvasElement[] = [];
+  const activePageId: string = "";
+  const pages: import("@/lib/playground/store").Page[] = [];
+  const homepageId: string = "";
+  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
   const {
     clearSelection, selectElement, reparentIntoContainer,
     deleteElement: panelDeleteElement, duplicateElement: panelDuplicateElement,

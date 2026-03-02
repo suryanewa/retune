@@ -2,7 +2,9 @@
 
 import { useRef, useState, useCallback, useMemo, useEffect, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import { useYjsEditor, useHoveredId } from "../YjsEditorContext";
+// TODO: Replace with ComposerContext
+// import { useYjsEditor, useHoveredId } from "../YjsEditorContext";
+import { useHoveredId } from "../YjsEditorContext";
 import {
   useEditorMutations,
   useSelectedIds,
@@ -20,12 +22,11 @@ import type { TailwindStyles } from "@/lib/playground/editor-types";
 import { getEffectiveStyles } from "@/lib/playground/editor-types";
 import { type CanvasElement, ARTBOARD_LAYER_ID } from "@/lib/playground/store";
 import { LockSmall } from "@/components/icons/editor";
-import { AiSparkle16 } from "@/components/icons/editor-16";
-import { parseCSSAnimations, parseReactEffect } from "@/lib/playground/editor-types";
-import type { ReactEffectState, CSSAnimation } from "@/lib/playground/editor-types";
-import { collectAllDescendants } from "../stagger-utils";
-import { AIPromptPopover } from "../ai/AIPromptPopover";
-import { buildTreeContext } from "../ai/ai-tree-context";
+// Removed: AiSparkle16 (AI)
+// Removed: parseCSSAnimations, parseReactEffect, ReactEffectState, CSSAnimation (animation/effect)
+// Removed: collectAllDescendants (stagger/animation)
+// Removed: AIPromptPopover (AI)
+// Removed: buildTreeContext (AI)
 import { elementContextMenuRef } from "../EditorCanvas";
 import { useVisualBell } from "../visual-bell/VisualBellContext";
 import {
@@ -134,7 +135,11 @@ interface SelectionOverlayProps {
 }
 
 export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
-  const { elements, pageStyles, activePageId } = useYjsEditor();
+  // TODO: Replace with ComposerContext
+  // const { elements, pageStyles, activePageId } = useYjsEditor();
+  const elements: Record<string, import("@/lib/playground/store").CanvasElement> = {};
+  const pageStyles: import("@/lib/playground/store").PageStyles = {} as import("@/lib/playground/store").PageStyles;
+  const activePageId: string = "";
   const mutations = useEditorMutations();
   const selectedIds = useSelectedIds();
   const editingElementId = useEditingElementId();
@@ -159,18 +164,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
       getEffectiveStyles(el.tailwindStyles ?? {} as TailwindStyles, el.responsiveStyles, device),
     [device]
   );
-
-  // AI animation/effect popover state
-  const [animationPopover, setAnimationPopover] = useState<{
-    elementId: string;
-    phase: "prompt" | "loading" | "review" | "error";
-  } | null>(null);
-
-  // Tree context for AI popover
-  const aiTreeContext = useMemo(() => {
-    if (!animationPopover) return null;
-    return buildTreeContext(animationPopover.elementId, elements, getStyles);
-  }, [animationPopover?.elementId, elements, getStyles]);
 
   // Visual bell (toast) system
   const { showBell } = useVisualBell();
@@ -1705,9 +1698,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
         zIndex: 40,
       }}
     >
-      {/* AI selection pulse animation */}
-      <style dangerouslySetInnerHTML={{ __html: "@keyframes ai-selection-pulse{0%,100%{opacity:1}50%{opacity:0}}" }} />
-
       {/* Hover outline (non-selected) */}
       {hoveredId && !selectedIds.includes(hoveredId) && bounds.get(hoveredId) && (() => {
         const r = bounds.get(hoveredId)!;
@@ -1756,8 +1746,8 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
         />
       )}
 
-      {/* Parent container indicator (dashed border around parent of selected element) — hidden during AI mode */}
-      {parentIndicatorId && !animationPopover && bounds.get(parentIndicatorId) && (() => {
+      {/* Parent container indicator (dashed border around parent of selected element) */}
+      {parentIndicatorId && bounds.get(parentIndicatorId) && (() => {
         const r = bounds.get(parentIndicatorId)!;
         return (
           <svg
@@ -1848,9 +1838,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
             }
           : undefined;
 
-        const isAIActive = animationPopover?.elementId === id;
-        const isAILoading = isAIActive && animationPopover?.phase === "loading";
-
         return (
           <div key={id} data-overlay-for={id} style={overlayGroupStyle}>
             {/* Selection bounding box — canvas-move for canvas elements, move for absolute, reparent for flow */}
@@ -1907,22 +1894,21 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                   style={{
                     ...normalBox,
                     border: editingElementId === id ? `${invZoom}px solid ${SELECTION_COLOR}` : `${2 * invZoom}px solid ${SELECTION_COLOR}`,
-                    ...(isAILoading ? { animation: "ai-selection-pulse 2s ease-in-out infinite" } : {}),
                   }}
                 >
                 </div>
               );
             })()}
             {/* Shape outline (Figma-style: shows shape path in addition to bounding box) */}
-            {!isAIActive && (() => {
+            {(() => {
               const el = elements[id];
               if (!el) return null;
               const shapeType = el.type;
               if (shapeType !== 'rectangle' && shapeType !== 'circle' && shapeType !== 'star') return null;
               return renderShapeOutline(shapeType, r.x, r.y, r.width, r.height);
             })()}
-            {/* Edge resize zones + corner handles — hidden during text editing and AI mode */}
-            {editingElementId !== id && !isAIActive && (
+            {/* Edge resize zones + corner handles — hidden during text editing */}
+            {editingElementId !== id && (
               <>
                 {elementEdges.map((pos) => {
                   const isCanvas = elements[id]?.placement === "canvas" && !elements[id]?.parentId;
@@ -1935,7 +1921,7 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
               </>
             )}
             {/* Dimension badge — CSS zoom counter-scale (layout-phase, no jitter) */}
-            {selectedIds.length === 1 && !isAIActive && (() => {
+            {selectedIds.length === 1 && (() => {
               const el = elements[id];
               if (!el) return null;
 
@@ -2002,61 +1988,7 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
                 </div>
               );
             })()}
-            {/* AI sparkle button — CSS zoom counter-scale (layout-phase, no jitter) */}
-            {isAdmin && selectedIds.length === 1 && editingElementId !== id && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: r.x + r.width,
-                  top: r.y,
-                  width: 0,
-                  height: 0,
-                  overflow: "visible",
-                  zIndex: 3,
-                }}
-              >
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isAIActive) {
-                      setAnimationPopover(null);
-                      return;
-                    }
-                    setAnimationPopover({ elementId: id, phase: "prompt" });
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    zoom: "var(--inv-zoom, 1)",
-                    marginLeft: 8,
-                    color: isAILoading ? SELECTION_COLOR : isAIActive ? "white" : SELECTION_COLOR,
-                    background: isAILoading ? "none" : isAIActive ? SELECTION_COLOR : "none",
-                    border: "none",
-                    borderRadius: isAIActive && !isAILoading ? 4 : 0,
-                    padding: 0,
-                    lineHeight: 0,
-                    width: 16,
-                    height: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    pointerEvents: "auto",
-                    cursor: "default",
-                  } as React.CSSProperties}
-                >
-                  {isAIActive ? (
-                    <svg width={16} height={16} viewBox="0 0 16 16" fill="none">
-                      <path d="M3 8C5.77778 7.16667 7.16667 5.77778 8 3C8.83333 5.77778 10.2222 7.16667 13 8C10.2222 8.83333 8.83333 10.2222 8 13C7.16667 10.2222 5.77778 8.83333 3 8Z" fill="currentColor" />
-                    </svg>
-                  ) : (
-                    <AiSparkle16 style={{ width: 16, height: 16 }} />
-                  )}
-                </button>
-              </div>
-            )}
+            {/* AI sparkle button removed */}
           </div>
         );
       })}
@@ -2124,121 +2056,6 @@ export function SelectionOverlay({ canvasRef }: SelectionOverlayProps) {
           </div>
         </div>
       )}
-
-      {/* AI Animation/Effect Popover */}
-      {animationPopover && (() => {
-        const el = elements[animationPopover.elementId];
-        if (!el) return null;
-        const r = bounds.get(animationPopover.elementId);
-        if (!r) return null;
-        const cssAnims = parseCSSAnimations(el);
-        const existingEffect = parseReactEffect(el.reactEffect);
-
-        // Compute popover position dynamically from current bounds (world→screen)
-        const canvasRect = canvasRef.current?.getBoundingClientRect();
-        const cam = cameraRef.current;
-        const sparkleX = (canvasRect?.left ?? 0) + cam.x + (r.x + r.width) * cam.zoom + 8;
-        const sparkleY = (canvasRect?.top ?? 0) + cam.y + r.y * cam.zoom;
-        const sparkleSize = 16;
-        const GAP = 4;
-        const PW = 296;
-        const PH = 100;
-        const M = 8;
-        const leftBound = (canvasRect?.left ?? 0) + M;
-        const rightBound = (canvasRect?.right ?? window.innerWidth) - M;
-        let popX = sparkleX;
-        let popY = sparkleY + sparkleSize + GAP;
-        if (popX + PW > rightBound) {
-          popX = sparkleX + sparkleSize - PW;
-        }
-        popX = Math.max(leftBound, Math.min(popX, rightBound - PW));
-        if (popY + PH > window.innerHeight - M) {
-          popY = sparkleY - GAP - PH;
-        }
-
-        const effectStyles = el.tailwindStyles
-          ? getStyles(el) as unknown as Record<string, string | undefined>
-          : {};
-
-        return (
-          <AIPromptPopover
-            elementId={animationPopover.elementId}
-            elementType={el.type}
-            position={{ x: popX, y: popY }}
-            onClose={() => setAnimationPopover(null)}
-            treeContext={aiTreeContext}
-            onPhaseChange={(phase) => {
-              if (phase === "review") {
-                setAnimationPopover(null);
-                showBell({
-                  message: "Animation applied",
-                  action: { label: "Preview", onClick: () => mutations.setViewMode("preview") },
-                });
-              } else if (phase === "error") {
-                const eid = animationPopover?.elementId;
-                setAnimationPopover(null);
-                showBell({
-                  message: "Something went wrong",
-                  variant: "error",
-                  action: {
-                    label: "Retry",
-                    onClick: () => {
-                      if (eid) setAnimationPopover({ elementId: eid, phase: "prompt" });
-                    },
-                  },
-                  duration: 0,
-                });
-              } else {
-                setAnimationPopover((prev) => prev ? { ...prev, phase } : null);
-              }
-            }}
-            onApplyAnimation={(anim: CSSAnimation) => {
-              // Handle stagger for keyframe animations — apply to all descendants
-              if (anim.kind === "keyframe" && (anim as any).stagger) {
-                const descendants = collectAllDescendants(animationPopover.elementId, elements);
-                if (descendants.length > 0) {
-                  const stagger = (anim as any).stagger as { delay: number };
-                  const effectiveDelay = stagger.delay * descendants.length > 2000
-                    ? Math.floor(2000 / descendants.length)
-                    : stagger.delay;
-                  descendants.forEach((childId: string, index: number) => {
-                    mutations.addCSSAnimation(childId, {
-                      ...anim,
-                      id: `${anim.id}-${index}`,
-                      delay: (anim.delay ?? 0) + effectiveDelay * index,
-                    } as CSSAnimation);
-                  });
-                  return;
-                }
-              }
-              mutations.addCSSAnimation(animationPopover.elementId, anim);
-            }}
-            onApplyEffect={(effect: ReactEffectState) => {
-              mutations.updateReactEffect(animationPopover.elementId, effect);
-            }}
-            onApplyEffectLayer={(layer) => {
-              mutations.addEffectLayer(animationPopover.elementId, layer);
-            }}
-            onApplyShaderElement={(system, presetKey, config, name) => {
-              const newId = mutations.addCanvasElement("shader", 50, 50);
-              if (newId) {
-                mutations.updateElement(newId, {
-                  shaderSystem: system,
-                  shaderConfig: JSON.stringify(config),
-                  shaderPreset: presetKey,
-                  name,
-                });
-              }
-            }}
-            existingAnimations={cssAnims}
-            existingEffect={existingEffect}
-            existingEffectLayers={el.effectLayers}
-            elementContent={el.content ?? ""}
-            elementDimensions={{ width: el.width ?? 0, height: el.height ?? 0 }}
-            elementStyles={effectStyles}
-          />
-        );
-      })()}
 
       {/* Drop highlight during reparent drag */}
       {dropHighlight && (

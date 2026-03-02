@@ -7,26 +7,15 @@ import type {
 import type {
   TailwindStyles,
   CreationTool,
-  ReactEffectState,
-  CSSAnimation,
-  CSSAnimationList,
 } from "@/lib/playground/editor-types";
-import type {
-  EffectLayer,
-  EffectLayerList,
-  EffectConfig,
-  ShaderLayer,
-  ShaderEffectConfig,
-} from "@/lib/playground/effect-types";
 
 /**
  * EditorMutations — every stable mutation/action callback exposed by
- * YjsEditorContext. Each function reference is guaranteed to be stable
+ * the editor context. Each function reference is guaranteed to be stable
  * (never changes), so consumers wrapped in React.memo will not re-render
  * due to callback identity changes.
  *
- * Organised by domain. The signatures are extracted 1:1 from the existing
- * YjsEditorContextValue interface.
+ * Organised by domain.
  */
 export interface EditorMutations {
   // ─── Selection (single) ──────────────────────────────────────────────
@@ -127,10 +116,6 @@ export interface EditorMutations {
   // ─── Page styles ─────────────────────────────────────────────────────
   updatePageStyles: (updates: Partial<PageStyles>) => void;
 
-  // ─── AI interaction presence ─────────────────────────────────────────
-  setAIInteractionPresence: (elementId: string, status: "prompting" | "generating" | "reviewing") => void;
-  clearAIInteractionPresence: () => void;
-
   // ─── Inline text editing ─────────────────────────────────────────────
   setEditingElementId: (id: string | null) => void;
 
@@ -139,33 +124,6 @@ export interface EditorMutations {
   toggleLock: (elementId: string) => void;
   toggleCore: (elementId: string) => void;
   isElementEffectivelyHidden: (elementId: string) => boolean;
-
-  // ─── React Effects ───────────────────────────────────────────────────
-  updateReactEffect: (elementId: string, effect: ReactEffectState) => void;
-  updateReactEffectProps: (elementId: string, props: Record<string, string | number | boolean>) => void;
-  clearReactEffect: (elementId: string) => void;
-
-  // ─── Unified CSS Animations ──────────────────────────────────────────
-  addCSSAnimation: (elementId: string, animation: CSSAnimation) => void;
-  updateCSSAnimation: (elementId: string, animationId: string, animation: CSSAnimation) => void;
-  removeCSSAnimation: (elementId: string, animationId: string) => void;
-  setCSSAnimations: (elementId: string, animations: CSSAnimationList) => void;
-
-  // ─── GPU Effect Layers ───────────────────────────────────────────────
-  addEffectLayer: (elementId: string, layer: EffectLayer) => void;
-  updateEffectLayer: (elementId: string, layerId: string, updates: Partial<EffectLayer>) => void;
-  removeEffectLayer: (elementId: string, layerId: string) => void;
-  updateEffectLayerConfig: (elementId: string, layerId: string, configPatch: Partial<EffectConfig>) => void;
-  reorderEffectLayers: (elementId: string, layerIds: string[]) => void;
-  setEffectLayers: (elementId: string, layers: EffectLayerList) => void;
-  clearEffectLayers: (elementId: string) => void;
-
-  // ─── Design Tab Shader Layers ────────────────────────────────────────
-  addShaderLayer: (elementId: string, layer: ShaderLayer) => void;
-  updateShaderLayer: (elementId: string, layerId: string, updates: Partial<ShaderLayer>) => void;
-  removeShaderLayer: (elementId: string, layerId: string) => void;
-  updateShaderLayerConfig: (elementId: string, layerId: string, configPatch: Partial<ShaderEffectConfig>) => void;
-  reorderShaderLayers: (elementId: string, layerIds: string[]) => void;
 
   // ─── Element lookup (for event handlers needing arbitrary element data) ──
   getElement: (id: string) => CanvasElement | undefined;
