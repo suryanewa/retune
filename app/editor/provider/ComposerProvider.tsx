@@ -6,6 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import { useShallow } from "zustand/shallow";
 import {
   useDocumentStore,
   selectPageElements,
@@ -24,6 +25,7 @@ import { CameraProvider } from "@/app/editor/components/CameraContext";
 import { VisualBellProvider } from "@/app/editor/components/visual-bell/VisualBellContext";
 import {
   editorStateStore,
+  useEditorState,
   setSelectedIds,
   setDraggedId,
   setEditingElementId,
@@ -534,9 +536,10 @@ function buildEditorMutations(store: DocumentState): EditorMutations {
 
 export function ComposerProvider({ children }: { children: ReactNode }) {
   // ── Read data from Zustand store with selectors ────────────────────────────
-  const elements = useDocumentStore(selectPageElements);
-  const pages = useDocumentStore(selectPagesArray);
-  const pageStyles = useDocumentStore(selectActivePageStyles);
+  // useShallow prevents infinite loops from selectors that return new references
+  const elements = useDocumentStore(useShallow(selectPageElements));
+  const pages = useDocumentStore(useShallow(selectPagesArray));
+  const pageStyles = useDocumentStore(useShallow(selectActivePageStyles));
   const activePageId = useDocumentStore((s) => s.activePageId);
 
   // Derive elementsArray from elements (sorted by zIndex for stable ordering)
@@ -562,8 +565,8 @@ export function ComposerProvider({ children }: { children: ReactNode }) {
     [] // Store actions are stable references from Zustand, never change
   );
 
-  // Read editor UI state snapshot
-  const editorState = editorStateStore.getSnapshot();
+  // Read editor UI state via proper subscription hook
+  const editorState = useEditorState();
 
   // Build the full context value
   const value = useMemo<ComposerContextValue>(

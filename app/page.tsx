@@ -1,7 +1,9 @@
+"use client";
+
+import dynamic from "next/dynamic";
+
+const EditorShell = dynamic(() => import("./editor-shell"), { ssr: false });
+
 export default function Home() {
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <h1 className="text-2xl font-semibold">Composer</h1>
-    </div>
-  );
+  return <EditorShell />;
 }
