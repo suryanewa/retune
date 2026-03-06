@@ -393,7 +393,7 @@ const OVERLAY_STYLES = `
     top: 24px;
   }
 
-  .composer-pin-center {
+  .composer-pin-center-btn {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -403,6 +403,22 @@ const OVERLAY_STYLES = `
     background: #fff;
     border: 1px solid #e7e5e4;
     border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .composer-pin-center-btn:hover {
+    border-color: #d6d3d1;
+  }
+
+  .composer-pin-center-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: #3b82f6;
   }
 
   /* Row layout: flex with gap for side-by-side fields */

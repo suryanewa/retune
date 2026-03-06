@@ -3,6 +3,7 @@
  * editable properties for the selected element.
  */
 
+import { useState, useCallback, useRef } from "react";
 import type { InspectedElement } from "../types";
 import { Section, Row, RowGroup, Field } from "../ui/section";
 import { NumberInput } from "../ui/number-input";
@@ -12,7 +13,7 @@ import { SelectInput } from "../ui/select-input";
 import { SliderInput } from "../ui/slider-input";
 import { TextInput } from "../ui/text-input";
 import { FontInput } from "../ui/font-input";
-import { ConstraintsInput } from "../ui/constraints-input";
+import { ConstraintsInput, type PinState } from "../ui/constraints-input";
 import { SegmentedControl } from "../ui/segmented-control";
 import type { SegmentedOption } from "../ui/segmented-control";
 import { IconAlignmentLeft } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentLeft";
@@ -120,6 +121,79 @@ export function PropertyPanel({
   const isSticky = positionType === "sticky";
   const hasVerticalAlign = isText || ["IMG", "INPUT", "SELECT", "TEXTAREA"].includes(element.tagName) || isFlex || isGrid;
 
+  const [pins, setPins] = useState<PinState>({ top: true, right: false, bottom: false, left: true });
+  const [centered, setCentered] = useState(false);
+  const centeredAxes = useRef({ h: false, v: false });
+
+  const handlePinChange = useCallback((side: "top" | "right" | "bottom" | "left", pinned: boolean) => {
+    setPins((prev) => ({ ...prev, [side]: pinned }));
+  }, []);
+
+  const applyTransform = useCallback(() => {
+    const { h, v } = centeredAxes.current;
+    if (h && v) {
+      setCentered(true);
+      onPropertyChange("transform", "translate(-50%, -50%)");
+    } else {
+      setCentered(false);
+      if (h) {
+        onPropertyChange("transform", "translateX(-50%)");
+      } else if (v) {
+        onPropertyChange("transform", "translateY(-50%)");
+      } else {
+        onPropertyChange("transform", "none");
+      }
+    }
+  }, [onPropertyChange]);
+
+  const alignLeft = useCallback(() => {
+    setPins((p) => ({ ...p, left: true, right: false }));
+    centeredAxes.current.h = false;
+    onPropertyChange("left", "0px");
+    onPropertyChange("right", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
+  const alignCenterH = useCallback(() => {
+    setPins((p) => ({ ...p, left: true, right: false }));
+    centeredAxes.current.h = true;
+    onPropertyChange("left", "50%");
+    onPropertyChange("right", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
+  const alignRight = useCallback(() => {
+    setPins((p) => ({ ...p, right: true, left: false }));
+    centeredAxes.current.h = false;
+    onPropertyChange("right", "0px");
+    onPropertyChange("left", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
+  const alignTop = useCallback(() => {
+    setPins((p) => ({ ...p, top: true, bottom: false }));
+    centeredAxes.current.v = false;
+    onPropertyChange("top", "0px");
+    onPropertyChange("bottom", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
+  const alignCenterV = useCallback(() => {
+    setPins((p) => ({ ...p, top: true, bottom: false }));
+    centeredAxes.current.v = true;
+    onPropertyChange("top", "50%");
+    onPropertyChange("bottom", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
+  const alignBottom = useCallback(() => {
+    setPins((p) => ({ ...p, bottom: true, top: false }));
+    centeredAxes.current.v = false;
+    onPropertyChange("bottom", "0px");
+    onPropertyChange("top", "auto");
+    applyTransform();
+  }, [onPropertyChange, applyTransform]);
+
   return (
     <div className={`composer-panel ${position}`}>
       {/* Header */}
@@ -138,24 +212,24 @@ export function PropertyPanel({
               <span className="composer-field-label">Alignment</span>
               <div className="composer-align-row">
                 <div className="composer-btn-group">
-                  <button type="button" className="composer-align-btn" title="Align left" onClick={() => { onPropertyChange("left", "0px"); onPropertyChange("right", "auto"); }}>
+                  <button type="button" className="composer-align-btn" title="Align left" onClick={alignLeft}>
                     <IconVerticalAlignmentLeft size={16} />
                   </button>
-                  <button type="button" className="composer-align-btn" title="Align center H" onClick={() => { onPropertyChange("left", "50%"); onPropertyChange("right", "auto"); onPropertyChange("transform", "translateX(-50%)"); }}>
+                  <button type="button" className="composer-align-btn" title="Align center H" onClick={alignCenterH}>
                     <IconVerticalAlignmentCenter size={16} />
                   </button>
-                  <button type="button" className="composer-align-btn" title="Align right" onClick={() => { onPropertyChange("right", "0px"); onPropertyChange("left", "auto"); }}>
+                  <button type="button" className="composer-align-btn" title="Align right" onClick={alignRight}>
                     <IconVerticalAlignmentRight size={16} />
                   </button>
                 </div>
                 <div className="composer-btn-group">
-                  <button type="button" className="composer-align-btn" title="Align top" onClick={() => { onPropertyChange("top", "0px"); onPropertyChange("bottom", "auto"); }}>
+                  <button type="button" className="composer-align-btn" title="Align top" onClick={alignTop}>
                     <IconHorizontalAlignmentTop size={16} />
                   </button>
-                  <button type="button" className="composer-align-btn" title="Align center V" onClick={() => { onPropertyChange("top", "50%"); onPropertyChange("bottom", "auto"); onPropertyChange("transform", "translateY(-50%)"); }}>
+                  <button type="button" className="composer-align-btn" title="Align center V" onClick={alignCenterV}>
                     <IconHorizontalAlignmentCenter size={16} />
                   </button>
-                  <button type="button" className="composer-align-btn" title="Align bottom" onClick={() => { onPropertyChange("bottom", "0px"); onPropertyChange("top", "auto"); }}>
+                  <button type="button" className="composer-align-btn" title="Align bottom" onClick={alignBottom}>
                     <IconHorizontalAlignmentBottom size={16} />
                   </button>
                 </div>
@@ -175,7 +249,11 @@ export function PropertyPanel({
               right={s.right}
               bottom={s.bottom}
               left={s.left}
+              pins={pins}
+              centered={centered}
               onChange={onPropertyChange}
+              onPinChange={handlePinChange}
+              onCenterChange={setCentered}
             />
           </Row>
         )}
