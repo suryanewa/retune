@@ -592,19 +592,22 @@ function ColorProp({
   return (
     <div className="composer-prop color">
       <div className="composer-color-swatch">
-        <div className="composer-color-swatch-fill" style={{ background: localValue }} />
-        <input
-          type="color"
-          className="composer-color-picker"
-          value={hexValue}
-          onChange={(e) => {
-            setLocalValue(e.target.value);
-            onChange(prop, e.target.value);
-          }}
-        />
+        <div className="composer-color-swatch-inner">
+          <div className="composer-color-swatch-fill" style={{ background: localValue }} />
+          <input
+            type="color"
+            className="composer-color-picker"
+            value={hexValue}
+            onChange={(e) => {
+              setLocalValue(e.target.value);
+              onChange(prop, e.target.value);
+            }}
+          />
+        </div>
       </div>
       <input
         className="composer-prop-input"
+        style={{ paddingLeft: 0 }}
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
         onBlur={() => onChange(prop, localValue)}

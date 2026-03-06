@@ -124,36 +124,40 @@ const OVERLAY_STYLES = `
     position: sticky;
     top: 0;
     background: #fff;
-    padding: 10px 12px 8px;
-    border-bottom: 1px solid #f0f0f0;
+    padding: 8px 16px;
+    border-bottom: 1px solid #e7e5e4;
     z-index: 1;
   }
 
   .composer-el-tag {
-    font-size: 12px;
-    font-weight: 600;
-    color: #1a1a1a;
+    font-size: 11px;
+    font-weight: 550;
+    letter-spacing: 0.055px;
+    color: #1c1917;
   }
 
   .composer-el-component {
     font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
     color: #3b82f6;
-    font-weight: 500;
-    margin-top: 2px;
+    margin-top: 1px;
   }
 
   .composer-el-text {
     font-size: 11px;
-    color: #999;
-    margin-top: 2px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    color: #78716c;
+    margin-top: 1px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  /* ── Section structure (mirrors portfolio editor) ── */
+  /* ── Section structure (matches portfolio editor) ── */
   .composer-section {
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #e7e5e4;
     user-select: none;
   }
 
@@ -171,7 +175,7 @@ const OVERLAY_STYLES = `
     font-size: 11px;
     font-weight: 550;
     letter-spacing: 0.055px;
-    color: #1a1a1a;
+    color: #1c1917;
   }
 
   .composer-section-body {
@@ -204,7 +208,7 @@ const OVERLAY_STYLES = `
     font-size: 9px;
     font-weight: 500;
     letter-spacing: 0.045px;
-    color: #999;
+    color: #78716c;
     line-height: 16px;
   }
 
@@ -213,36 +217,50 @@ const OVERLAY_STYLES = `
     font-size: 9px;
     font-weight: 500;
     letter-spacing: 0.045px;
-    color: #999;
+    color: #78716c;
     line-height: 16px;
     padding: 0 16px;
   }
 
-  /* Property cell */
+  /* Property cell — matches portfolio NumberInput */
   .composer-prop {
     display: flex;
     align-items: center;
-    gap: 4px;
-    height: 28px;
-    padding: 0 6px;
-    border-radius: 5px;
-    background: #fafafa;
-    border: 1px solid transparent;
-    transition: border-color 0.12s ease;
+    gap: 0;
+    height: 24px;
+    padding: 0;
+    border-radius: 6px;
+    background: #f5f5f4;
+    border: none;
     min-width: 0;
     overflow: hidden;
+    position: relative;
+    transition: background-color 0.15s ease;
   }
 
-  .composer-prop:hover { border-color: #e0e0e0; }
-  .composer-prop:focus-within { border-color: #3b82f6; background: #fff; }
+  .composer-prop:hover { background: #e7e5e4; }
+  .composer-prop:focus-within {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+    background: #f5f5f4;
+  }
 
   .composer-prop-label {
-    font-size: 10px;
-    color: #999;
+    position: absolute;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    color: #78716c;
     flex-shrink: 0;
-    min-width: 20px;
     user-select: none;
     cursor: ew-resize;
+    z-index: 1;
   }
 
   .composer-prop-input {
@@ -253,10 +271,12 @@ const OVERLAY_STYLES = `
     border: none;
     background: transparent;
     font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
     font-family: inherit;
-    color: #1a1a1a;
+    color: #1c1917;
     outline: none;
-    padding: 0;
+    padding: 0 6px 0 24px;
   }
 
   .composer-prop-input::selection { background: #bfdbfe; }
@@ -264,26 +284,39 @@ const OVERLAY_STYLES = `
 
   /* Color property */
   .composer-prop.color {
-    gap: 6px;
+    gap: 0;
+    padding: 0;
   }
 
   .composer-color-swatch {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    cursor: pointer;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
     position: relative;
+  }
+
+  .composer-color-swatch-inner {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    position: relative;
     overflow: hidden;
+    cursor: pointer;
   }
 
   /* Checkerboard for transparent colors */
-  .composer-color-swatch::before {
+  .composer-color-swatch-inner::before {
     content: '';
     position: absolute;
     inset: 0;
-    background: conic-gradient(#ddd 25%, #fff 25% 50%, #ddd 50% 75%, #fff 75%) 0 0 / 8px 8px;
+    background:
+      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
+      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%);
+    background-size: 4px 4px;
+    background-position: 0 0, 2px 2px;
     z-index: 0;
   }
 
@@ -291,6 +324,8 @@ const OVERLAY_STYLES = `
     position: absolute;
     inset: 0;
     z-index: 1;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
   }
 
   .composer-color-picker {
@@ -301,11 +336,6 @@ const OVERLAY_STYLES = `
     cursor: pointer;
   }
 
-  /* Full-width prop (for long values like box-shadow) */
-  .composer-prop.full {
-    grid-column: 1 / -1;
-  }
-
   /* Select input */
   .composer-prop-select {
     flex: 1;
@@ -314,10 +344,13 @@ const OVERLAY_STYLES = `
     border: none;
     background: transparent;
     font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
     font-family: inherit;
-    color: #1a1a1a;
+    color: #1c1917;
     outline: none;
     cursor: pointer;
+    padding: 0 6px 0 24px;
     -webkit-appearance: none;
     appearance: none;
   }
@@ -325,18 +358,17 @@ const OVERLAY_STYLES = `
   /* ── Slider ── */
   .composer-slider {
     position: relative;
-    height: 28px;
-    border-radius: 5px;
-    background: #fafafa;
+    height: 24px;
+    border-radius: 6px;
+    background: #f5f5f4;
     cursor: ew-resize;
     user-select: none;
     overflow: hidden;
-    border: 1px solid transparent;
-    transition: border-color 0.12s ease;
+    transition: background-color 0.15s ease;
   }
 
-  .composer-slider:hover { border-color: #e0e0e0; }
-  .composer-slider:focus-visible { outline: 1px solid #3b82f6; outline-offset: -1px; }
+  .composer-slider:hover { background: #e7e5e4; }
+  .composer-slider:focus-visible { outline: 1px solid #1c1917; outline-offset: -1px; }
 
   .composer-slider-fill {
     position: absolute;
@@ -383,14 +415,18 @@ const OVERLAY_STYLES = `
   }
 
   .composer-slider-label {
-    font-size: 10px;
-    color: #999;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    color: #78716c;
   }
 
   .composer-slider-value {
     font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
     font-family: inherit;
-    color: #1a1a1a;
+    color: #1c1917;
   }
 `;
 
