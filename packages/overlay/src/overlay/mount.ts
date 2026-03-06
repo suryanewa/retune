@@ -305,10 +305,22 @@ const OVERLAY_STYLES = `
   .composer-prop-input::selection { background: #bfdbfe; }
   .composer-prop-input:focus { outline: none; }
 
-  /* Color property */
-  .composer-prop.color {
-    gap: 0;
-    padding: 0;
+  /* ── Color Input (split: [swatch|hex] [opacity%]) ── */
+  .composer-color-row {
+    display: flex;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .composer-color-hex-section {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    background: #f5f5f4;
+    border-radius: 6px 0 0 6px;
   }
 
   .composer-color-swatch {
@@ -318,16 +330,15 @@ const OVERLAY_STYLES = `
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    position: relative;
+    cursor: pointer;
   }
 
   .composer-color-swatch-inner {
-    width: 18px;
-    height: 18px;
+    width: 14px;
+    height: 14px;
     border-radius: 2px;
     position: relative;
     overflow: hidden;
-    cursor: pointer;
   }
 
   /* Checkerboard for transparent colors */
@@ -349,6 +360,60 @@ const OVERLAY_STYLES = `
     z-index: 1;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
     border-radius: 2px;
+  }
+
+  .composer-color-hex-input {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    color: #1c1917;
+    outline: none;
+    padding: 0;
+  }
+
+  .composer-color-hex-input::selection { background: #bfdbfe; }
+
+  .composer-color-opacity-section {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 8px 0 4px;
+    height: 32px;
+    background: #f5f5f4;
+    border-radius: 0 6px 6px 0;
+    flex-shrink: 0;
+  }
+
+  .composer-color-opacity-input {
+    width: 28px;
+    height: 32px;
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    color: #1c1917;
+    text-align: center;
+    outline: none;
+    padding: 0;
+    -moz-appearance: textfield;
+  }
+
+  .composer-color-opacity-input::-webkit-outer-spin-button,
+  .composer-color-opacity-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .composer-color-opacity-unit {
+    font-size: 10px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
   }
 
   /* ── Color Picker Panel ── */

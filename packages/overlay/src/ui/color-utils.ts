@@ -122,20 +122,57 @@ export function hsvaToHex(hsva: HSVA): string {
   return hsvToHex(hsva.h, hsva.s, hsva.v);
 }
 
-// ── CSS color string -> hex ─────────────────────────────────────────────
+// ── CSS color string -> hex + alpha ──────────────────────────────────────
 
 export function cssColorToHex(color: string): string {
-  if (!color) return "#000000";
+  const { hex } = parseCssColor(color);
+  return hex;
+}
+
+/**
+ * Parse a CSS color string into hex + opacity (0-100).
+ * Supports: #hex, rgb(), rgba(), named colors.
+ */
+export function parseCssColor(color: string): { hex: string; opacity: number } {
+  if (!color) return { hex: "#000000", opacity: 100 };
+
   // Already hex
   if (color.startsWith("#")) {
     const h = color.replace("#", "");
-    if (h.length === 3) return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`;
-    return color;
+    const fullHex = h.length === 3
+      ? `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`
+      : `#${h}`;
+    return { hex: fullHex, opacity: 100 };
   }
-  // rgb(r, g, b) or rgba(r, g, b, a)
-  const rgbMatch = color.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+
+  // rgba(r, g, b, a)
+  const rgbaMatch = color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+  if (rgbaMatch) {
+    const hex = rgbToHex(parseInt(rgbaMatch[1]), parseInt(rgbaMatch[2]), parseInt(rgbaMatch[3]));
+    const alpha = parseFloat(rgbaMatch[4]);
+    return { hex, opacity: Math.round(alpha * 100) };
+  }
+
+  // rgb(r, g, b)
+  const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
   if (rgbMatch) {
-    return rgbToHex(parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3]));
+    const hex = rgbToHex(parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3]));
+    return { hex, opacity: 100 };
   }
-  return "#000000";
+
+  // transparent
+  if (color === "transparent") {
+    return { hex: "#000000", opacity: 0 };
+  }
+
+  return { hex: "#000000", opacity: 100 };
+}
+
+/**
+ * Build a CSS rgba() string from hex + opacity (0-100).
+ */
+export function hexToRgba(hex: string, opacity: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  if (opacity >= 100) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${(opacity / 100).toFixed(2)})`;
 }

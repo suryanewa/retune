@@ -15,6 +15,6 @@ export { DropdownMenu } from "./dropdown-menu";
 export type { DropdownMenuOption, DropdownMenuProps } from "./dropdown-menu";
 export { ColorPicker } from "./color-picker";
 export type { ColorPickerProps } from "./color-picker";
-export { cssColorToHex } from "./color-utils";
+export { cssColorToHex, parseCssColor, hexToRgba } from "./color-utils";
 export type { HSVA, RGB } from "./color-utils";
 export { inspectElement, matchesHotkey, truncate, rgbToHex } from "./helpers";
