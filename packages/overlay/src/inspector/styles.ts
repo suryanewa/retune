@@ -34,8 +34,8 @@ const BACKGROUND_PROPS = [
 
 const LAYOUT_PROPS = [
   "display", "position",
-  "flexDirection", "flexWrap", "alignItems", "justifyContent", "gap",
-  "gridTemplateColumns", "gridTemplateRows", "gridGap",
+  "flexDirection", "flexWrap", "alignItems", "justifyContent", "gap", "rowGap", "columnGap",
+  "gridTemplateColumns", "gridTemplateRows",
   "top", "right", "bottom", "left",
   "zIndex",
 ] as const;

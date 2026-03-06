@@ -326,6 +326,132 @@ const OVERLAY_STYLES = `
     background: #d6d3d1;
   }
 
+  /* ── Alignment grid (layout section) ── */
+  .composer-alignment-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    background: #f5f5f4;
+    border-radius: 6px;
+    width: 100%;
+    height: 64px;
+    outline: none;
+  }
+
+  .composer-alignment-grid:focus-visible {
+    outline: 1px solid #000;
+    outline-offset: -1px;
+  }
+
+  .composer-alignment-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    overflow: hidden;
+  }
+
+  .composer-alignment-cell:hover {
+    background: rgba(0, 0, 0, 0.04);
+  }
+
+  /* ── Grid picker ── */
+  .composer-grid-picker-wrap {
+    position: relative;
+  }
+
+  .composer-grid-picker-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 72px;
+    padding: 4px;
+    background: #f5f5f4;
+    border: 1px solid #e7e5e4;
+    border-radius: 6px;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+
+  .composer-grid-picker-preview:hover {
+    background: #eeeceb;
+  }
+
+  .composer-grid-picker-mini {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+    height: 100%;
+    position: relative;
+  }
+
+  .composer-grid-picker-mini-cell {
+    background: #fff;
+    border-radius: 2px;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .composer-grid-picker-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: #78716c;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .composer-grid-picker-dialog {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 4px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid #e7e5e4;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .composer-grid-picker-dialog-header {
+    font-size: 11px;
+    font-family: ui-monospace, monospace;
+    color: #78716c;
+    text-align: center;
+  }
+
+  .composer-grid-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 18px);
+    grid-template-rows: repeat(10, 18px);
+    gap: 2px;
+    cursor: pointer;
+  }
+
+  .composer-grid-picker-cell {
+    border-radius: 2px;
+    background: #e7e5e4;
+  }
+
+  .composer-grid-picker-cell.selected {
+    background: #3b82f6;
+  }
+
+  .composer-grid-picker-cell.preview {
+    background: #93c5fd;
+  }
+
   /* ── Constraints visual (position section) ── */
   .composer-constraints {
     display: flex;
@@ -771,7 +897,7 @@ const OVERLAY_STYLES = `
   }
 
   .composer-cp-input {
-    height: 26px;
+    height: 32px;
     border-radius: 4px;
     background: #f5f5f4;
     border: none;
@@ -862,6 +988,7 @@ const OVERLAY_STYLES = `
   .composer-select-dropdown-anchor {
     position: fixed;
     z-index: 2147483647;
+    width: max-content;
   }
 
   /* ── Slider ── */
@@ -1140,6 +1267,8 @@ const OVERLAY_STYLES = `
   /* ── Dropdown Menu ── */
   .composer-menu-wrapper {
     position: relative;
+    width: fit-content;
+    min-width: max(120px, 100%);
     border-radius: 12px;
     overflow: hidden;
     user-select: none;
@@ -1189,7 +1318,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     min-height: 28px;
-    padding: 0 8px;
+    padding: 4px 24px 4px 8px;
     border: none;
     background: transparent;
     border-radius: 5px;

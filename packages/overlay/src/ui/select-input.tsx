@@ -121,7 +121,7 @@ export function SelectInput({ label, prop, value, options, onChange }: SelectInp
       {open && menuPos && (
         <div
           className="composer-select-dropdown-anchor"
-          style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+          style={{ top: menuPos.top, left: menuPos.left, minWidth: menuPos.width }}
         >
           <DropdownMenu
             options={menuOptions}

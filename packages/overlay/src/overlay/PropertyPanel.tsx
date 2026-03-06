@@ -14,6 +14,8 @@ import { SliderInput } from "../ui/slider-input";
 import { TextInput } from "../ui/text-input";
 import { FontInput } from "../ui/font-input";
 import { ConstraintsInput, type PinState } from "../ui/constraints-input";
+import { AlignmentGrid } from "../ui/alignment-grid";
+import { GridPicker, parseGridCount } from "../ui/grid-picker";
 import { SegmentedControl } from "../ui/segmented-control";
 import type { SegmentedOption } from "../ui/segmented-control";
 import { IconAlignmentLeft } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentLeft";
@@ -25,6 +27,9 @@ import { IconVerticalAlignmentRight } from "@central-icons-react/round-outlined-
 import { IconHorizontalAlignmentTop } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentTop";
 import { IconHorizontalAlignmentCenter } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentCenter";
 import { IconHorizontalAlignmentBottom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentBottom";
+import { IconFormSquare } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconFormSquare";
+import { IconBento } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBento";
+import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconLayoutGrid2";
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
   { value: "left", icon: <IconAlignmentLeft size={16} />, label: "Left" },
@@ -102,6 +107,12 @@ const GAP_OPTIONS: ComboOption[] = [
   { value: "normal", label: "Normal" },
 ];
 
+const DISPLAY_OPTIONS: SegmentedOption[] = [
+  { value: "block", icon: <IconFormSquare size={20} />, label: "Block" },
+  { value: "flex", icon: <IconBento size={20} />, label: "Flex" },
+  { value: "grid", icon: <IconLayoutGrid2 size={20} />, label: "Grid" },
+];
+
 export function PropertyPanel({
   element,
   position,
@@ -112,9 +123,14 @@ export function PropertyPanel({
   onPropertyChange: (property: string, value: string) => void;
 }) {
   const s = element.computedStyles;
-  const isText = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH", "FIGCAPTION", "BLOCKQUOTE", "CITE", "EM", "STRONG", "SMALL"].includes(element.tagName);
-  const isFlex = element.layoutMode === "flex";
-  const isGrid = element.layoutMode === "grid";
+  const TEXT_TAGS = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH", "FIGCAPTION", "BLOCKQUOTE", "CITE", "EM", "STRONG", "SMALL"];
+  const hasDirectText = element.element ? Array.from(element.element.childNodes).some(
+    (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()
+  ) : false;
+  const isText = TEXT_TAGS.includes(element.tagName) || hasDirectText;
+  const displayValue = s.display || "block";
+  const isFlex = displayValue.includes("flex");
+  const isGrid = displayValue.includes("grid");
   const positionType = s.position || "static";
   const isPositioned = positionType !== "static";
   const showOffsets = positionType === "absolute" || positionType === "fixed" || positionType === "relative";
@@ -281,44 +297,56 @@ export function PropertyPanel({
 
       {/* Layout */}
       <Section label="Layout">
+        <Row>
+          <Field label="Display">
+            <SegmentedControl
+              options={DISPLAY_OPTIONS}
+              value={displayValue.includes("flex") ? "flex" : displayValue.includes("grid") ? "grid" : "block"}
+              onChange={(v) => onPropertyChange("display", v)}
+            />
+          </Field>
+        </Row>
         {isFlex && (
           <>
             <Row>
-              <Field label="Direction">
-                <SelectInput prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
+              <Field label="Alignment">
+                <AlignmentGrid
+                  justifyContent={s.justifyContent || "flex-start"}
+                  alignItems={s.alignItems || "stretch"}
+                  flexDirection={s.flexDirection || "row"}
+                  onChange={onPropertyChange}
+                />
               </Field>
               <Field label="Gap">
                 <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
               </Field>
             </Row>
             <Row>
-              <Field label="Align Items">
-                <SelectInput prop="alignItems" value={s.alignItems} options={["stretch", "flex-start", "center", "flex-end", "baseline"]} onChange={onPropertyChange} />
+              <Field label="Direction">
+                <SelectInput prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
               </Field>
-              <Field label="Justify">
-                <SelectInput prop="justifyContent" value={s.justifyContent} options={["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]} onChange={onPropertyChange} />
+              <Field label="Wrap">
+                <SelectInput prop="flexWrap" value={s.flexWrap} options={["nowrap", "wrap", "wrap-reverse"]} onChange={onPropertyChange} />
               </Field>
             </Row>
           </>
         )}
         {isGrid && (
-          <>
-            <Row>
-              <Field label="Columns">
-                <TextInput prop="gridTemplateColumns" value={s.gridTemplateColumns} onChange={onPropertyChange} />
-              </Field>
-            </Row>
-            <Row>
-              <Field label="Rows">
-                <TextInput prop="gridTemplateRows" value={s.gridTemplateRows} onChange={onPropertyChange} />
-              </Field>
-            </Row>
-            <Row>
-              <Field label="Gap">
-                <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
-              </Field>
-            </Row>
-          </>
+          <Row>
+            <Field label="Grid">
+              <GridPicker
+                columns={parseGridCount(s.gridTemplateColumns)}
+                rows={parseGridCount(s.gridTemplateRows)}
+                onChange={onPropertyChange}
+              />
+            </Field>
+            <Field label="Gap">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <NumberInput label="H" prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
+                <NumberInput label="V" prop="rowGap" value={s.rowGap} onChange={onPropertyChange} />
+              </div>
+            </Field>
+          </Row>
         )}
         <RowGroup label="Padding">
           <div className="composer-row">
