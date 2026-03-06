@@ -32,6 +32,41 @@ const DEFAULT_CONFIG: Required<ComposerConfig> = {
   position: "bottom-right",
 };
 
+const PANEL_ANIMATION_MS = 200;
+
+function AnimatedPanel({ visible, children }: { visible: boolean; children: React.ReactNode }) {
+  const [state, setState] = useState<"hidden" | "entering" | "visible" | "exiting">("hidden");
+  const prevVisibleRef = useRef(false);
+  const childrenRef = useRef<React.ReactNode>(children);
+
+  // Keep a snapshot of children while visible so exit animation shows content
+  if (visible) childrenRef.current = children;
+
+  if (visible && !prevVisibleRef.current) {
+    prevVisibleRef.current = true;
+    setState("entering");
+  } else if (!visible && prevVisibleRef.current) {
+    prevVisibleRef.current = false;
+    setState("exiting");
+  }
+
+  useEffect(() => {
+    if (state === "entering") {
+      const timer = setTimeout(() => setState("visible"), PANEL_ANIMATION_MS);
+      return () => clearTimeout(timer);
+    }
+    if (state === "exiting") {
+      const timer = setTimeout(() => setState("hidden"), PANEL_ANIMATION_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [state]);
+
+  if (state === "hidden") return null;
+
+  const animClass = state === "entering" ? "entering" : state === "exiting" ? "exiting" : "";
+  return <div className={`composer-panel-anim ${animClass}`}>{childrenRef.current}</div>;
+}
+
 export function DevOverlay(props: ComposerConfig = {}) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
@@ -277,13 +312,15 @@ export function DevOverlay(props: ComposerConfig = {}) {
       </div>
 
       {/* Property panel */}
-      {active && selectedElement && (
-        <PropertyPanel
-          element={selectedElement}
-          position={config.position.includes("right") ? "right" : "left"}
-          onPropertyChange={handlePropertyChange}
-        />
-      )}
+      <AnimatedPanel visible={!!(active && selectedElement)}>
+        {selectedElement && (
+          <PropertyPanel
+            element={selectedElement}
+            position={config.position.includes("right") ? "right" : "left"}
+            onPropertyChange={handlePropertyChange}
+          />
+        )}
+      </AnimatedPanel>
     </>,
     portalTarget
   );

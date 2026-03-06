@@ -83,6 +83,7 @@ const OVERLAY_STYLES = `
 
   /* When expanded: collapse button shrinks away */
   .composer-toolbar.expanded .composer-toolbar-collapse-btn {
+    position: absolute;
     width: 0;
     height: 0;
     padding: 0;
@@ -195,6 +196,45 @@ const OVERLAY_STYLES = `
     max-height: calc(100vh - 84px);
     overflow-y: auto;
     overflow-x: hidden;
+    overscroll-behavior: none;
+  }
+
+  .composer-panel-anim {
+    display: contents;
+  }
+
+  .composer-panel-anim.entering .composer-panel {
+    animation: composer-panel-in 0.2s ease-out both;
+  }
+
+  .composer-panel-anim.exiting .composer-panel {
+    animation: composer-panel-out 0.2s ease-in both;
+  }
+
+  @keyframes composer-panel-in {
+    from {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translate(8px, 8px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0px);
+      transform: translate(0, 0);
+    }
+  }
+
+  @keyframes composer-panel-out {
+    from {
+      opacity: 1;
+      filter: blur(0px);
+      transform: translate(0, 0);
+    }
+    to {
+      opacity: 0;
+      filter: blur(12px);
+      transform: translate(8px, 8px);
+    }
   }
 
   .composer-panel.right { right: 16px; top: 16px; }
