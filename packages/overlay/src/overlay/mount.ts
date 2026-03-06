@@ -280,6 +280,77 @@ const OVERLAY_STYLES = `
     -webkit-appearance: none;
     appearance: none;
   }
+
+  /* ── Slider ── */
+  .composer-slider {
+    position: relative;
+    height: 28px;
+    border-radius: 5px;
+    background: #fafafa;
+    cursor: ew-resize;
+    user-select: none;
+    overflow: hidden;
+    border: 1px solid transparent;
+    transition: border-color 0.12s ease;
+  }
+
+  .composer-slider:hover { border-color: #e0e0e0; }
+  .composer-slider:focus-visible { outline: 1px solid #3b82f6; outline-offset: -1px; }
+
+  .composer-slider-fill {
+    position: absolute;
+    inset: 0;
+    right: auto;
+    background: #ebebeb;
+    pointer-events: none;
+  }
+
+  .composer-slider-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 1px;
+    height: 4px;
+    border-radius: 1px;
+    background: rgba(0, 0, 0, 0.12);
+    pointer-events: none;
+  }
+
+  .composer-slider-handle {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 2px;
+    height: 16px;
+    border-radius: 1px;
+    background: #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+    pointer-events: none;
+    margin-left: -1px;
+  }
+
+  .composer-slider-labels {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 6px;
+    pointer-events: none;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .composer-slider-label {
+    font-size: 10px;
+    color: #999;
+  }
+
+  .composer-slider-value {
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+    color: #1a1a1a;
+  }
 `;
 
 export interface MountResult {

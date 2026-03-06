@@ -9,7 +9,7 @@
  *   {process.env.NODE_ENV === "development" && <DevOverlay />}
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { ComposerConfig, InspectedElement } from "../types";
 import { mountOverlay, unmountOverlay } from "./mount";
@@ -331,9 +331,7 @@ function PropertyPanel({
       <Section label="Fill">
         <div className="composer-grid single">
           <ColorProp label="BG" prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
-        </div>
-        <div className="composer-grid" style={{ marginTop: 4 }}>
-          <Prop label="Opacity" prop="opacity" value={s.opacity} onChange={onPropertyChange} />
+          <SliderProp label="Opacity" prop="opacity" value={s.opacity} min={0} max={1} step={0.01} onChange={onPropertyChange} />
         </div>
       </Section>
 
@@ -547,6 +545,115 @@ function SelectProp({
           <option key={opt} value={opt}>{opt}</option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function SliderProp({
+  label, prop, value, min, max, step = 0.01, onChange,
+}: {
+  label: string;
+  prop: string;
+  value: string | undefined;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (prop: string, value: string) => void;
+}) {
+  const numValue = parseFloat(value || "0") || 0;
+  const range = max - min;
+  const fillPercent = range > 0 ? Math.max(0, Math.min(1, (numValue - min) / range)) * 100 : 0;
+
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  const computeFromX = useCallback((clientX: number) => {
+    const track = trackRef.current;
+    if (!track) return numValue;
+    const rect = track.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    let raw = min + ratio * range;
+    raw = Math.round(raw / step) * step;
+    raw = Math.max(min, Math.min(max, raw));
+    const precision = step < 1 ? Math.max(0, -Math.floor(Math.log10(step))) : 0;
+    return Number(raw.toFixed(precision));
+  }, [min, max, range, step, numValue]);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    onChange(prop, String(computeFromX(e.clientX)));
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    onChange(prop, String(computeFromX(e.clientX)));
+  };
+
+  const handlePointerUp = () => setIsDragging(false);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const precision = step < 1 ? Math.max(0, -Math.floor(Math.log10(step))) : 0;
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onChange(prop, String(Number(Math.max(min, numValue - step).toFixed(precision))));
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onChange(prop, String(Number(Math.min(max, numValue + step).toFixed(precision))));
+    }
+  };
+
+  const showDetails = isHovered || isDragging;
+  const displayValue = step >= 1 ? String(Math.round(numValue)) : numValue.toFixed(Math.max(0, -Math.floor(Math.log10(step))));
+
+  // Compute indicator positions
+  const indicators = useMemo(() => {
+    if (range <= 0) return [];
+    const rawInterval = range / 8;
+    const mag = Math.pow(10, Math.floor(Math.log10(rawInterval)));
+    const normalized = rawInterval / mag;
+    const nice = normalized < 1.5 ? 1 : normalized < 3.5 ? 2 : normalized < 7.5 ? 5 : 10;
+    const interval = nice * mag;
+    const positions: number[] = [];
+    let v = Math.ceil(min / interval) * interval;
+    while (v <= max + interval * 0.001) {
+      const frac = (v - min) / range;
+      if (frac > 0.03 && frac < 0.97) positions.push(frac);
+      v = +(v + interval).toFixed(10);
+    }
+    return positions;
+  }, [min, max, range]);
+
+  return (
+    <div
+      ref={trackRef}
+      className="composer-slider"
+      tabIndex={0}
+      role="slider"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={numValue}
+      aria-label={label}
+      onPointerEnter={() => setIsHovered(true)}
+      onPointerLeave={() => { if (!isDragging) setIsHovered(false); }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onKeyDown={handleKeyDown}
+    >
+      <div className="composer-slider-fill" style={{ width: `${fillPercent}%` }} />
+      {showDetails && indicators.map((pos, i) => (
+        <div key={i} className="composer-slider-indicator" style={{ left: `${pos * 100}%` }} />
+      ))}
+      {showDetails && (
+        <div className="composer-slider-handle" style={{ left: `${fillPercent}%` }} />
+      )}
+      <div className="composer-slider-labels">
+        <span className="composer-slider-label">{label}</span>
+        <span className="composer-slider-value">{displayValue}</span>
+      </div>
     </div>
   );
 }
