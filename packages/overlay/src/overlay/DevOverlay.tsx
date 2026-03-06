@@ -29,7 +29,7 @@ const DEFAULT_CONFIG: Required<ComposerConfig> = {
   port: 9223,
   hotkey: "alt+d",
   fidelity: "standard",
-  position: "top-right",
+  position: "bottom-right",
 };
 
 export function DevOverlay(props: ComposerConfig = {}) {

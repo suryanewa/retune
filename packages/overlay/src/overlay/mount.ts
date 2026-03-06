@@ -190,15 +190,15 @@ const OVERLAY_STYLES = `
     background: #fff;
     border: none;
     border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
     width: 280px;
-    max-height: calc(100vh - 80px);
+    max-height: calc(100vh - 92px);
     overflow-y: auto;
     overflow-x: hidden;
   }
 
-  .composer-panel.right { right: 16px; top: 60px; }
-  .composer-panel.left { left: 16px; top: 60px; }
+  .composer-panel.right { right: 16px; top: 16px; }
+  .composer-panel.left { left: 16px; top: 16px; }
 
   /* Hide scrollbar */
   .composer-panel { scrollbar-width: none; }
