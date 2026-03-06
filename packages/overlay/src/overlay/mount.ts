@@ -104,7 +104,7 @@ const OVERLAY_STYLES = `
     border: 1px solid #e2e2e2;
     border-radius: 10px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
-    width: 260px;
+    width: 280px;
     max-height: calc(100vh - 80px);
     overflow-y: auto;
     overflow-x: hidden;
@@ -151,32 +151,65 @@ const OVERLAY_STYLES = `
     white-space: nowrap;
   }
 
-  /* Section */
+  /* ── Section structure (mirrors portfolio editor) ── */
   .composer-section {
-    padding: 8px 12px;
     border-bottom: 1px solid #f0f0f0;
+    user-select: none;
   }
 
   .composer-section:last-child { border-bottom: none; }
 
-  .composer-section-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  .composer-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 32px;
+  }
+
+  .composer-section-title {
+    font-size: 11px;
+    font-weight: 550;
+    letter-spacing: 0.055px;
+    color: #1a1a1a;
+  }
+
+  .composer-section-body {
+    padding-bottom: 12px;
+  }
+
+  .composer-section-row {
+    padding: 4px 16px;
+  }
+
+  /* Row layout: flex with gap for side-by-side fields */
+  .composer-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* Field: flex-1 column with label above input */
+  .composer-field {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .composer-field-label {
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.045px;
     color: #999;
-    margin-bottom: 8px;
+    line-height: 16px;
   }
 
-  /* Property grid: 2 columns */
-  .composer-grid {
+  /* 4-column grid for padding/margin values */
+  .composer-grid-4 {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
-  }
-
-  .composer-grid.single {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   /* Property cell */
@@ -209,6 +242,7 @@ const OVERLAY_STYLES = `
   .composer-prop-input {
     flex: 1;
     min-width: 0;
+    width: 100%;
     height: 100%;
     border: none;
     background: transparent;
@@ -220,6 +254,7 @@ const OVERLAY_STYLES = `
   }
 
   .composer-prop-input::selection { background: #bfdbfe; }
+  .composer-prop-input:focus { outline: none; }
 
   /* Color property */
   .composer-prop.color {

@@ -285,100 +285,178 @@ function PropertyPanel({
         )}
       </div>
 
-      {/* Spacing */}
-      <Section label="Spacing">
-        <div className="composer-grid">
-          <Prop label="PT" prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
-          <Prop label="PR" prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
-          <Prop label="PB" prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
-          <Prop label="PL" prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
-          <Prop label="MT" prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
-          <Prop label="MR" prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
-          <Prop label="MB" prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
-          <Prop label="ML" prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
-        </div>
+      {/* Layout */}
+      <Section label="Layout">
+        {/* Padding */}
+        <Row>
+          <div className="composer-field">
+            <span className="composer-field-label">Padding</span>
+            <div className="composer-grid-4">
+              <Prop label="T" prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
+              <Prop label="R" prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
+              <Prop label="B" prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
+              <Prop label="L" prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
+            </div>
+          </div>
+        </Row>
+        {/* Margin */}
+        <Row>
+          <div className="composer-field">
+            <span className="composer-field-label">Margin</span>
+            <div className="composer-grid-4">
+              <Prop label="T" prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
+              <Prop label="R" prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
+              <Prop label="B" prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
+              <Prop label="L" prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
+            </div>
+          </div>
+        </Row>
       </Section>
 
       {/* Size */}
       <Section label="Size">
-        <div className="composer-grid">
-          <Prop label="W" prop="width" value={s.width} onChange={onPropertyChange} />
-          <Prop label="H" prop="height" value={s.height} onChange={onPropertyChange} />
-          <Prop label="TL" prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
-          <Prop label="TR" prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
-          <Prop label="BL" prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
-          <Prop label="BR" prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
-        </div>
+        <Row>
+          <Field label="Width">
+            <Prop label="W" prop="width" value={s.width} onChange={onPropertyChange} />
+          </Field>
+          <Field label="Height">
+            <Prop label="H" prop="height" value={s.height} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Corner Radius">
+            <div className="composer-grid-4">
+              <Prop label="TL" prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
+              <Prop label="TR" prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
+              <Prop label="BL" prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
+              <Prop label="BR" prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
+            </div>
+          </Field>
+        </Row>
       </Section>
 
       {/* Typography */}
       {isText && (
         <Section label="Typography">
-          <div className="composer-grid">
-            <Prop label="Size" prop="fontSize" value={s.fontSize} onChange={onPropertyChange} />
-            <Prop label="Weight" prop="fontWeight" value={s.fontWeight} onChange={onPropertyChange} />
-            <Prop label="Height" prop="lineHeight" value={s.lineHeight} onChange={onPropertyChange} />
-            <Prop label="Spacing" prop="letterSpacing" value={s.letterSpacing} onChange={onPropertyChange} />
-          </div>
-          <div className="composer-grid single" style={{ marginTop: 4 }}>
-            <ColorProp label="Color" prop="color" value={s.color} onChange={onPropertyChange} />
-            <SelectProp label="Align" prop="textAlign" value={s.textAlign} options={["left", "center", "right", "justify"]} onChange={onPropertyChange} />
-          </div>
+          <Row>
+            <Field label="Size">
+              <Prop label="Sz" prop="fontSize" value={s.fontSize} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Weight">
+              <Prop label="Wt" prop="fontWeight" value={s.fontWeight} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Line Height">
+              <Prop label="LH" prop="lineHeight" value={s.lineHeight} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Letter Spacing">
+              <Prop label="LS" prop="letterSpacing" value={s.letterSpacing} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Color">
+              <ColorProp label="Color" prop="color" value={s.color} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Alignment">
+              <SelectProp label="Align" prop="textAlign" value={s.textAlign} options={["left", "center", "right", "justify"]} onChange={onPropertyChange} />
+            </Field>
+          </Row>
         </Section>
       )}
 
       {/* Fill */}
       <Section label="Fill">
-        <div className="composer-grid single">
-          <ColorProp label="BG" prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
-          <SliderProp label="Opacity" prop="opacity" value={s.opacity} min={0} max={1} step={0.01} onChange={onPropertyChange} />
-        </div>
+        <Row>
+          <Field label="Background">
+            <ColorProp label="BG" prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Opacity">
+            <SliderProp label="Opacity" prop="opacity" value={s.opacity} min={0} max={1} step={0.01} onChange={onPropertyChange} />
+          </Field>
+        </Row>
       </Section>
 
       {/* Flex Layout */}
       {isFlex && (
         <Section label="Flex">
-          <div className="composer-grid">
-            <SelectProp label="Dir" prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
-            <Prop label="Gap" prop="gap" value={s.gap} onChange={onPropertyChange} />
-            <SelectProp label="Align" prop="alignItems" value={s.alignItems} options={["stretch", "flex-start", "center", "flex-end", "baseline"]} onChange={onPropertyChange} />
-            <SelectProp label="Justify" prop="justifyContent" value={s.justifyContent} options={["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]} onChange={onPropertyChange} />
-          </div>
+          <Row>
+            <Field label="Direction">
+              <SelectProp label="Dir" prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Gap">
+              <Prop label="Gap" prop="gap" value={s.gap} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Align Items">
+              <SelectProp label="Align" prop="alignItems" value={s.alignItems} options={["stretch", "flex-start", "center", "flex-end", "baseline"]} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Justify">
+              <SelectProp label="Justify" prop="justifyContent" value={s.justifyContent} options={["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]} onChange={onPropertyChange} />
+            </Field>
+          </Row>
         </Section>
       )}
 
       {/* Grid Layout */}
       {isGrid && (
         <Section label="Grid">
-          <div className="composer-grid single">
-            <Prop label="Columns" prop="gridTemplateColumns" value={s.gridTemplateColumns} onChange={onPropertyChange} />
-            <Prop label="Rows" prop="gridTemplateRows" value={s.gridTemplateRows} onChange={onPropertyChange} />
-          </div>
-          <div className="composer-grid" style={{ marginTop: 4 }}>
-            <Prop label="Gap" prop="gap" value={s.gap} onChange={onPropertyChange} />
-          </div>
+          <Row>
+            <Field label="Columns">
+              <Prop label="Cols" prop="gridTemplateColumns" value={s.gridTemplateColumns} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Rows">
+              <Prop label="Rows" prop="gridTemplateRows" value={s.gridTemplateRows} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Gap">
+              <Prop label="Gap" prop="gap" value={s.gap} onChange={onPropertyChange} />
+            </Field>
+          </Row>
         </Section>
       )}
 
       {/* Position */}
       {isPositioned && (
         <Section label="Position">
-          <div className="composer-grid">
-            <Prop label="Top" prop="top" value={s.top} onChange={onPropertyChange} />
-            <Prop label="Right" prop="right" value={s.right} onChange={onPropertyChange} />
-            <Prop label="Bottom" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
-            <Prop label="Left" prop="left" value={s.left} onChange={onPropertyChange} />
-            <Prop label="Z" prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
-          </div>
+          <Row>
+            <Field label="Top">
+              <Prop label="T" prop="top" value={s.top} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Right">
+              <Prop label="R" prop="right" value={s.right} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Bottom">
+              <Prop label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Left">
+              <Prop label="L" prop="left" value={s.left} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Z Index">
+              <Prop label="Z" prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
+            </Field>
+          </Row>
         </Section>
       )}
 
       {/* Effects */}
       {s.boxShadow && s.boxShadow !== "none" && (
         <Section label="Effects">
-          <div className="composer-grid single">
-            <Prop label="Shadow" prop="boxShadow" value={s.boxShadow} onChange={onPropertyChange} full />
-          </div>
+          <Row>
+            <Field label="Box Shadow">
+              <Prop label="Shadow" prop="boxShadow" value={s.boxShadow} onChange={onPropertyChange} />
+            </Field>
+          </Row>
         </Section>
       )}
     </div>
@@ -390,20 +468,42 @@ function PropertyPanel({
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="composer-section">
-      <div className="composer-section-label">{label}</div>
+      <div className="composer-section-header">
+        <span className="composer-section-title">{label}</span>
+      </div>
+      <div className="composer-section-body">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Row({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="composer-section-row">
+      <div className="composer-row">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="composer-field">
+      <span className="composer-field-label">{label}</span>
       {children}
     </div>
   );
 }
 
 function Prop({
-  label, prop, value, onChange, full,
+  label, prop, value, onChange,
 }: {
   label: string;
   prop: string;
   value: string | undefined;
   onChange: (prop: string, value: string) => void;
-  full?: boolean;
 }) {
   const [localValue, setLocalValue] = useState(value || "");
   const labelRef = useRef<HTMLSpanElement>(null);
@@ -462,7 +562,7 @@ function Prop({
   };
 
   return (
-    <div className={`composer-prop${full ? " full" : ""}`}>
+    <div className="composer-prop">
       <span
         ref={labelRef}
         className="composer-prop-label"
@@ -560,9 +660,13 @@ function SliderProp({
   step?: number;
   onChange: (prop: string, value: string) => void;
 }) {
-  const numValue = parseFloat(value || "0") || 0;
+  const [localValue, setLocalValue] = useState(value || "0");
+  useEffect(() => { setLocalValue(value || "0"); }, [value]);
+
+  const numValue = parseFloat(localValue) || 0;
   const range = max - min;
   const fillPercent = range > 0 ? Math.max(0, Math.min(1, (numValue - min) / range)) * 100 : 0;
+  const precision = step < 1 ? Math.max(0, -Math.floor(Math.log10(step))) : 0;
 
   const trackRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -576,37 +680,41 @@ function SliderProp({
     let raw = min + ratio * range;
     raw = Math.round(raw / step) * step;
     raw = Math.max(min, Math.min(max, raw));
-    const precision = step < 1 ? Math.max(0, -Math.floor(Math.log10(step))) : 0;
     return Number(raw.toFixed(precision));
-  }, [min, max, range, step, numValue]);
+  }, [min, max, range, step, precision, numValue]);
+
+  const updateValue = useCallback((newNum: number) => {
+    const str = String(newNum);
+    setLocalValue(str);
+    onChange(prop, str);
+  }, [prop, onChange]);
 
   const handlePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
     setIsDragging(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    onChange(prop, String(computeFromX(e.clientX)));
+    updateValue(computeFromX(e.clientX));
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
-    onChange(prop, String(computeFromX(e.clientX)));
+    updateValue(computeFromX(e.clientX));
   };
 
   const handlePointerUp = () => setIsDragging(false);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const precision = step < 1 ? Math.max(0, -Math.floor(Math.log10(step))) : 0;
     if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       e.preventDefault();
-      onChange(prop, String(Number(Math.max(min, numValue - step).toFixed(precision))));
+      updateValue(Number(Math.max(min, numValue - step).toFixed(precision)));
     } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
-      onChange(prop, String(Number(Math.min(max, numValue + step).toFixed(precision))));
+      updateValue(Number(Math.min(max, numValue + step).toFixed(precision)));
     }
   };
 
   const showDetails = isHovered || isDragging;
-  const displayValue = step >= 1 ? String(Math.round(numValue)) : numValue.toFixed(Math.max(0, -Math.floor(Math.log10(step))));
+  const displayValue = step >= 1 ? String(Math.round(numValue)) : numValue.toFixed(precision);
 
   // Compute indicator positions
   const indicators = useMemo(() => {
