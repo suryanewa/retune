@@ -47,6 +47,8 @@ export interface DropdownMenuProps {
   minWidth?: number;
   /** Initial scroll position (for macOS-style selected-item alignment) */
   initialScrollTop?: number;
+  /** Custom label renderer for items */
+  renderLabel?: (option: DropdownMenuOption) => ReactNode;
 }
 
 const SCROLL_SPEED = 150; // px/sec
@@ -82,6 +84,7 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
       style,
       minWidth,
       initialScrollTop,
+      renderLabel,
     },
     ref
   ) => {
@@ -202,7 +205,7 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
                       </span>
                     )}
                     <span className="composer-menu-item-label">
-                      {option.label}
+                      {renderLabel ? renderLabel(option) : option.label}
                     </span>
                     {option.shortcut && (
                       <span className="composer-menu-item-shortcut">

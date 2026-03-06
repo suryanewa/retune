@@ -11,6 +11,7 @@ import { ColorInput } from "../ui/color-input";
 import { SelectInput } from "../ui/select-input";
 import { SliderInput } from "../ui/slider-input";
 import { TextInput } from "../ui/text-input";
+import { FontInput } from "../ui/font-input";
 import { SegmentedControl } from "../ui/segmented-control";
 import { truncate } from "../ui/helpers";
 import type { SegmentedOption } from "../ui/segmented-control";
@@ -163,8 +164,74 @@ export function PropertyPanel({
         )}
       </div>
 
+      {/* Position */}
+      {isPositioned && (
+        <Section label="Position">
+          <Row>
+            <Field label="Top">
+              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Right">
+              <NumberInput label="R" prop="right" value={s.right} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Bottom">
+              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Left">
+              <NumberInput label="L" prop="left" value={s.left} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Z Index">
+              <NumberInput label="Z" prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+        </Section>
+      )}
+
       {/* Layout */}
       <Section label="Layout">
+        {isFlex && (
+          <>
+            <Row>
+              <Field label="Direction">
+                <SelectInput prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
+              </Field>
+              <Field label="Gap">
+                <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+            <Row>
+              <Field label="Align Items">
+                <SelectInput prop="alignItems" value={s.alignItems} options={["stretch", "flex-start", "center", "flex-end", "baseline"]} onChange={onPropertyChange} />
+              </Field>
+              <Field label="Justify">
+                <SelectInput prop="justifyContent" value={s.justifyContent} options={["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+          </>
+        )}
+        {isGrid && (
+          <>
+            <Row>
+              <Field label="Columns">
+                <TextInput prop="gridTemplateColumns" value={s.gridTemplateColumns} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+            <Row>
+              <Field label="Rows">
+                <TextInput prop="gridTemplateRows" value={s.gridTemplateRows} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+            <Row>
+              <Field label="Gap">
+                <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+          </>
+        )}
         <RowGroup label="Padding">
           <div className="composer-row">
             <NumberInput label="T" prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
@@ -197,16 +264,6 @@ export function PropertyPanel({
             <ComboInput label="H" prop="height" value={s.height} options={SIZE_OPTIONS} onChange={onPropertyChange} />
           </Field>
         </Row>
-        <RowGroup label="Corner Radius">
-          <div className="composer-row">
-            <NumberInput label="TL" prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label="TR" prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
-          </div>
-          <div className="composer-row">
-            <NumberInput label="BL" prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label="BR" prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
-          </div>
-        </RowGroup>
       </Section>
 
       {/* Typography */}
@@ -214,7 +271,7 @@ export function PropertyPanel({
         <Section label="Typography">
           <Row>
             <Field label="Font">
-              <TextInput prop="fontFamily" value={s.fontFamily} onChange={onPropertyChange} />
+              <FontInput prop="fontFamily" value={s.fontFamily} onChange={onPropertyChange} />
             </Field>
           </Row>
           <Row>
@@ -223,14 +280,6 @@ export function PropertyPanel({
             </Field>
             <Field label="Weight">
               <ComboInput prop="fontWeight" value={s.fontWeight} options={FONT_WEIGHT_OPTIONS} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Style">
-              <SelectInput prop="fontStyle" value={s.fontStyle} options={["normal", "italic", "oblique"]} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Decoration">
-              <SelectInput prop="textDecoration" value={s.textDecoration} options={["none", "underline", "line-through", "overline"]} onChange={onPropertyChange} />
             </Field>
           </Row>
           <Row>
@@ -264,6 +313,14 @@ export function PropertyPanel({
             </Field>
           </Row>
           <Row>
+            <Field label="Style">
+              <SelectInput prop="fontStyle" value={s.fontStyle} options={["normal", "italic", "oblique"]} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Decoration">
+              <SelectInput prop="textDecoration" value={s.textDecoration} options={["none", "underline", "line-through", "overline"]} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
             <Field label="Transform">
               <SelectInput prop="textTransform" value={s.textTransform} options={["none", "uppercase", "lowercase", "capitalize"]} onChange={onPropertyChange} />
             </Field>
@@ -282,6 +339,30 @@ export function PropertyPanel({
         </Section>
       )}
 
+      {/* Appearance */}
+      <Section label="Appearance">
+        <Row>
+          <Field label="Opacity">
+            <SliderInput label="Opacity" prop="opacity" value={s.opacity} min={0} max={1} step={0.01} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+        <RowGroup label="Corner Radius">
+          <div className="composer-row">
+            <NumberInput label="TL" prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
+            <NumberInput label="TR" prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
+          </div>
+          <div className="composer-row">
+            <NumberInput label="BL" prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
+            <NumberInput label="BR" prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
+          </div>
+        </RowGroup>
+        <Row>
+          <Field label="Overflow">
+            <SelectInput prop="overflow" value={s.overflow} options={["visible", "hidden", "auto", "scroll"]} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+      </Section>
+
       {/* Fill */}
       <Section label="Fill">
         <Row>
@@ -289,86 +370,28 @@ export function PropertyPanel({
             <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
           </Field>
         </Row>
+      </Section>
+
+      {/* Border */}
+      <Section label="Border">
         <Row>
-          <Field label="Opacity">
-            <SliderInput label="Opacity" prop="opacity" value={s.opacity} min={0} max={1} step={0.01} onChange={onPropertyChange} />
+          <Field label="Color">
+            <ColorInput prop="borderColor" value={s.borderTopColor} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Width">
+            <NumberInput prop="borderWidth" value={s.borderTopWidth} onChange={onPropertyChange} />
+          </Field>
+          <Field label="Style">
+            <SelectInput prop="borderStyle" value={s.borderTopStyle} options={["none", "solid", "dashed", "dotted", "double", "groove", "ridge"]} onChange={onPropertyChange} />
           </Field>
         </Row>
       </Section>
 
-      {/* Flex Layout */}
-      {isFlex && (
-        <Section label="Flex">
-          <Row>
-            <Field label="Direction">
-              <SelectInput prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Gap">
-              <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Align Items">
-              <SelectInput prop="alignItems" value={s.alignItems} options={["stretch", "flex-start", "center", "flex-end", "baseline"]} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Justify">
-              <SelectInput prop="justifyContent" value={s.justifyContent} options={["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-        </Section>
-      )}
-
-      {/* Grid Layout */}
-      {isGrid && (
-        <Section label="Grid">
-          <Row>
-            <Field label="Columns">
-              <TextInput prop="gridTemplateColumns" value={s.gridTemplateColumns} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Rows">
-              <TextInput prop="gridTemplateRows" value={s.gridTemplateRows} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Gap">
-              <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-        </Section>
-      )}
-
-      {/* Position */}
-      {isPositioned && (
-        <Section label="Position">
-          <Row>
-            <Field label="Top">
-              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Right">
-              <NumberInput label="R" prop="right" value={s.right} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Bottom">
-              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Left">
-              <NumberInput label="L" prop="left" value={s.left} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Z Index">
-              <NumberInput label="Z" prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-        </Section>
-      )}
-
-      {/* Effects */}
+      {/* Shadow */}
       {s.boxShadow && s.boxShadow !== "none" && (
-        <Section label="Effects">
+        <Section label="Shadow">
           <Row>
             <Field label="Box Shadow">
               <TextInput prop="boxShadow" value={s.boxShadow} onChange={onPropertyChange} />
@@ -376,6 +399,7 @@ export function PropertyPanel({
           </Row>
         </Section>
       )}
+
     </div>
   );
 }

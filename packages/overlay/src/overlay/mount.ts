@@ -207,7 +207,8 @@ const OVERLAY_STYLES = `
   .composer-row > .composer-prop,
   .composer-row > .composer-combo,
   .composer-row > .composer-select,
-  .composer-row > .composer-text-input { flex: 1; }
+  .composer-row > .composer-text-input,
+  .composer-row > .composer-font-input { flex: 1; }
 
   /* Field: flex-1 column with label above input */
   .composer-field {
@@ -777,6 +778,41 @@ const OVERLAY_STYLES = `
   .composer-segmented-item svg {
     width: 16px;
     height: 16px;
+  }
+
+  /* ── FontInput ── */
+  .composer-font-input {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    border-radius: 6px;
+    background: #f5f5f4;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    transition: background-color 0.15s ease;
+  }
+
+  .composer-font-input:hover { background: #e7e5e4; }
+  .composer-font-input:focus-within {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+    background: #f5f5f4;
+  }
+
+  .composer-font-input-field {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    color: #1c1917;
+    outline: none;
+    padding: 0 8px;
   }
 
   /* ── TextInput ── */
