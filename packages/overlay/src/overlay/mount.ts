@@ -563,29 +563,6 @@ const OVERLAY_STYLES = `
     width: 14px;
     height: 14px;
     border-radius: 2px;
-    position: relative;
-    overflow: hidden;
-  }
-
-  /* Checkerboard for transparent colors */
-  .composer-color-swatch-inner::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
-      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%);
-    background-size: 4px 4px;
-    background-position: 0 0, 2px 2px;
-    z-index: 0;
-  }
-
-  .composer-color-swatch-fill {
-    position: absolute;
-    inset: 0;
-    z-index: 1;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
-    border-radius: 2px;
   }
 
   .composer-color-hex-input {

@@ -123,10 +123,22 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
     }
   }, [opacityLocal, emitColor]);
 
-  // Swatch display: show color with opacity
-  const swatchColor = currentOpacityRef.current < 100
-    ? hexToRgba(currentHexRef.current, currentOpacityRef.current)
-    : currentHexRef.current;
+  // Swatch display: split view when opacity < 100 (left=solid, right=with opacity over checkerboard)
+  const swatchStyle = (() => {
+    const hex = currentHexRef.current;
+    const op = currentOpacityRef.current;
+    if (op >= 100) {
+      return { backgroundColor: hex, boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.1)" } as React.CSSProperties;
+    }
+    const checkerboard = "linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%)";
+    const transparentColor = hexToRgba(hex, op);
+    return {
+      backgroundImage: `linear-gradient(to right, ${hex} 50%, ${transparentColor} 50%), ${checkerboard}`,
+      backgroundSize: "100% 100%, 4px 4px, 4px 4px",
+      backgroundPosition: "0 0, 0 0, 2px 2px",
+      boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.1)",
+    } as React.CSSProperties;
+  })();
 
   return (
     <div className="composer-color-row">
@@ -137,9 +149,7 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
           className="composer-color-swatch"
           onClick={handleSwatchClick}
         >
-          <div className="composer-color-swatch-inner">
-            <div className="composer-color-swatch-fill" style={{ background: swatchColor }} />
-          </div>
+          <div className="composer-color-swatch-inner" style={swatchStyle} />
         </div>
         <input
           className="composer-color-hex-input"
