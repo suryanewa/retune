@@ -16,6 +16,12 @@ import { FontInput } from "../ui/font-input";
 import { ConstraintsInput, type PinState } from "../ui/constraints-input";
 import { AlignmentGrid } from "../ui/alignment-grid";
 import { GridPicker, parseGridCount } from "../ui/grid-picker";
+import { GradientEditor } from "../ui/gradient-editor";
+import { type FillMode, type GradientFill, detectFillMode, defaultGradient, parseCssGradient, gradientToCss } from "../ui/gradient-utils";
+import {
+  IconSpacingVerticalTop, IconSpacingVerticalBottom,
+  IconSpacingHorizontalLeft, IconSpacingHorizontalRight,
+} from "../ui/spacing-icons";
 import { SegmentedControl } from "../ui/segmented-control";
 import type { SegmentedOption } from "../ui/segmented-control";
 import { IconAlignmentLeft } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentLeft";
@@ -28,6 +34,7 @@ import { IconHorizontalAlignmentTop } from "@central-icons-react/round-outlined-
 import { IconHorizontalAlignmentCenter } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentCenter";
 import { IconHorizontalAlignmentBottom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentBottom";
 import { IconFormSquare } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconFormSquare";
+import { IconCornerRadius } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCornerRadius";
 import { IconBento } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBento";
 import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconLayoutGrid2";
 
@@ -140,6 +147,47 @@ export function PropertyPanel({
   const [pins, setPins] = useState<PinState>({ top: true, right: false, bottom: false, left: true });
   const [centered, setCentered] = useState(false);
   const centeredAxes = useRef({ h: false, v: false });
+
+  // ── Fill mode (solid vs gradient) ──
+  const detectedFillMode = detectFillMode(s.backgroundColor, s.backgroundImage);
+  const [fillMode, setFillMode] = useState<FillMode>(detectedFillMode);
+  const [gradient, setGradient] = useState<GradientFill>(() => {
+    if (s.backgroundImage && s.backgroundImage !== "none") {
+      const parsed = parseCssGradient(s.backgroundImage);
+      if (parsed) return parsed;
+    }
+    return defaultGradient();
+  });
+
+  // Sync fill mode from element changes
+  const [prevBgImage, setPrevBgImage] = useState(s.backgroundImage);
+  if (s.backgroundImage !== prevBgImage) {
+    setPrevBgImage(s.backgroundImage);
+    const newMode = detectFillMode(s.backgroundColor, s.backgroundImage);
+    if (newMode !== "solid") {
+      setFillMode(newMode);
+      const parsed = parseCssGradient(s.backgroundImage || "");
+      if (parsed) setGradient(parsed);
+    }
+  }
+
+  const handleFillModeChange = useCallback((prop: string, value: string) => {
+    const mode = value as FillMode;
+    setFillMode(mode);
+    if (mode === "solid") {
+      onPropertyChange("backgroundImage", "none");
+    } else {
+      const newGradient = { ...gradient, type: mode as GradientFill["type"] };
+      setGradient(newGradient);
+      onPropertyChange("backgroundImage", gradientToCss(newGradient));
+      onPropertyChange("backgroundColor", "transparent");
+    }
+  }, [gradient, onPropertyChange]);
+
+  const handleGradientChange = useCallback((newGradient: GradientFill) => {
+    setGradient(newGradient);
+    onPropertyChange("backgroundImage", gradientToCss(newGradient));
+  }, [onPropertyChange]);
 
   const handlePinChange = useCallback((side: "top" | "right" | "bottom" | "left", pinned: boolean) => {
     setPins((prev) => ({ ...prev, [side]: pinned }));
@@ -350,22 +398,22 @@ export function PropertyPanel({
         )}
         <RowGroup label="Padding">
           <div className="composer-row">
-            <NumberInput label="T" prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
-            <NumberInput label="R" prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingVerticalTop />} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingHorizontalRight />} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
           </div>
           <div className="composer-row">
-            <NumberInput label="B" prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
-            <NumberInput label="L" prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingVerticalBottom />} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingHorizontalLeft />} prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
           </div>
         </RowGroup>
         <RowGroup label="Margin">
           <div className="composer-row">
-            <NumberInput label="T" prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
-            <NumberInput label="R" prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingVerticalTop />} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingHorizontalRight />} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
           </div>
           <div className="composer-row">
-            <NumberInput label="B" prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
-            <NumberInput label="L" prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingVerticalBottom />} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
+            <NumberInput label={<IconSpacingHorizontalLeft />} prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
           </div>
         </RowGroup>
       </Section>
@@ -467,12 +515,12 @@ export function PropertyPanel({
         </Row>
         <RowGroup label="Corner Radius">
           <div className="composer-row">
-            <NumberInput label="TL" prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label="TR" prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
+            <NumberInput label={<IconCornerRadius size={14} />} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
+            <NumberInput label={<span style={{ display: "inline-flex", transform: "rotate(90deg)" }}><IconCornerRadius size={14} /></span>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
           </div>
           <div className="composer-row">
-            <NumberInput label="BL" prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label="BR" prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
+            <NumberInput label={<span style={{ display: "inline-flex", transform: "rotate(270deg)" }}><IconCornerRadius size={14} /></span>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
+            <NumberInput label={<span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><IconCornerRadius size={14} /></span>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
           </div>
         </RowGroup>
         <Row>
@@ -485,10 +533,20 @@ export function PropertyPanel({
       {/* Fill */}
       <Section label="Fill">
         <Row>
-          <Field label="Background">
-            <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
-          </Field>
+          <SelectInput
+            prop="fillMode"
+            value={fillMode === "solid" ? "solid" : gradient.type}
+            options={["solid", "linear", "radial", "conic"]}
+            onChange={handleFillModeChange}
+          />
         </Row>
+        {fillMode === "solid" ? (
+          <Row>
+            <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
+          </Row>
+        ) : (
+          <GradientEditor gradient={gradient} onChange={handleGradientChange} />
+        )}
       </Section>
 
       {/* Border */}

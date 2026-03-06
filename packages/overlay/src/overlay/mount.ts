@@ -259,7 +259,7 @@ const OVERLAY_STYLES = `
 
   .composer-section-title {
     font-size: 13px;
-    font-weight: 400;
+    font-weight: 500;
     line-height: 20px;
     color: #1c1917;
   }
@@ -917,6 +917,205 @@ const OVERLAY_STYLES = `
   }
 
   .composer-cp-input::selection { background: #bfdbfe; }
+
+  /* ── Gradient Editor ── */
+  .composer-gradient-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 16px;
+  }
+
+  .composer-gradient-bar-wrap {
+    position: relative;
+    height: 56px;
+    cursor: crosshair;
+  }
+
+  .composer-gradient-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 32px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.1);
+  }
+
+  .composer-gradient-bar-checker {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
+      linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%);
+    background-size: 6px 6px;
+    background-position: 0 0, 3px 3px;
+  }
+
+  .composer-gradient-bar-fill {
+    position: absolute;
+    inset: 0;
+  }
+
+  .composer-gradient-stop-handle {
+    position: absolute;
+    top: 14px;
+    transform: translateX(-50%);
+    cursor: grab;
+    touch-action: none;
+  }
+
+  .composer-gradient-stop-handle:active { cursor: grabbing; }
+
+  .composer-gradient-stop-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    filter: drop-shadow(0 0 0.5px rgba(0,0,0,0.18)) drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+  }
+
+  .composer-gradient-stop-chit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+  }
+
+  .composer-gradient-stop-chit-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+  }
+
+  .composer-gradient-stop-caret {
+    width: 8px;
+    height: 4px;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    margin-top: -1px;
+  }
+
+  .composer-gradient-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .composer-gradient-angle-input {
+    width: 64px;
+    height: 32px;
+    border-radius: 6px;
+    background: #f5f5f4;
+    border: none;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: 0.055px;
+    color: #1c1917;
+    padding: 0 8px;
+    text-align: left;
+  }
+
+  .composer-gradient-angle-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.5);
+  }
+
+  .composer-gradient-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .composer-gradient-action-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    color: #78716c;
+    cursor: pointer;
+    transition: background-color 0.08s ease, color 0.08s ease;
+  }
+
+  .composer-gradient-action-btn:hover { background: #f5f5f4; color: #1c1917; }
+  .composer-gradient-action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .composer-gradient-action-btn:disabled:hover { background: transparent; color: #78716c; }
+
+  .composer-gradient-stops-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+
+  .composer-gradient-stops-label {
+    font-size: 11px;
+    font-weight: 550;
+    letter-spacing: 0.055px;
+    color: #1c1917;
+  }
+
+  .composer-gradient-stops-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .composer-gradient-stop-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 2px 0;
+  }
+
+  .composer-gradient-stop-pos {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 48px;
+    flex-shrink: 0;
+  }
+
+  .composer-gradient-stop-pos-input {
+    width: 100%;
+    height: 32px;
+    border-radius: 6px;
+    background: #f5f5f4;
+    border: none;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: 0.055px;
+    color: #1c1917;
+    padding: 0 18px 0 6px;
+    text-align: left;
+  }
+
+  .composer-gradient-stop-pos-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.5);
+  }
+
+  .composer-gradient-stop-pos-unit {
+    position: absolute;
+    right: 6px;
+    font-size: 11px;
+    color: #a8a29e;
+    pointer-events: none;
+  }
+
+  .composer-gradient-stop-color {
+    flex: 1;
+    min-width: 0;
+  }
 
   /* ── SelectInput ── */
   .composer-select {

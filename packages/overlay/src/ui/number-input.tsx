@@ -3,10 +3,10 @@
  * Equivalent to the portfolio editor's NumberInput component.
  */
 
-import { useState, useRef } from "react";
+import { useState, useRef, type ReactNode } from "react";
 
 export interface NumberInputProps {
-  label?: string;
+  label?: ReactNode;
   prop: string;
   value: string | undefined;
   onChange: (prop: string, value: string) => void;
