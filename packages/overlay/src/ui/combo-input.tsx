@@ -1,0 +1,214 @@
+/**
+ * ComboInput — number input with a dropdown for preset values.
+ * Equivalent to the portfolio editor's ComboInput component.
+ *
+ * Supports typing numeric values (with units) and selecting
+ * from a list of CSS keyword options (e.g. auto, fit-content).
+ */
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { DropdownMenu, type DropdownMenuOption } from "./dropdown-menu";
+
+export interface ComboOption {
+  value: string;
+  label: string;
+}
+
+export interface ComboInputProps {
+  label?: string;
+  prop: string;
+  value: string | undefined;
+  options: ComboOption[];
+  onChange: (prop: string, value: string) => void;
+}
+
+export function ComboInput({ label, prop, value, options, onChange }: ComboInputProps) {
+  const [localValue, setLocalValue] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => { setLocalValue(value || ""); }, [value]);
+
+  const openDropdown = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    // Estimate dropdown height (~28px per item + 12px padding)
+    const estimatedHeight = options.length * 28 + 12;
+    const spaceBelow = window.innerHeight - rect.bottom - 4;
+    const flipUp = spaceBelow < estimatedHeight && rect.top > spaceBelow;
+    const top = flipUp ? rect.top - estimatedHeight - 4 : rect.bottom + 4;
+    setDropdownPos({ top: Math.max(4, top), left: rect.left, width: rect.width });
+    setOpen(true);
+    setHighlightedIndex(-1);
+  }, [options.length]);
+
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+    setHighlightedIndex(-1);
+    setDropdownPos(null);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const container = containerRef.current;
+      if (!container) return;
+      const path = e.composedPath();
+      if (!path.includes(container)) {
+        closeDropdown();
+      }
+    };
+    const root = containerRef.current?.getRootNode() as ShadowRoot | Document;
+    root.addEventListener("pointerdown", handlePointerDown as EventListener);
+    return () => root.removeEventListener("pointerdown", handlePointerDown as EventListener);
+  }, [open]);
+
+  // Get display value: show option label if value matches an option
+  const displayValue = (() => {
+    const match = options.find((opt) => opt.value === localValue);
+    return match ? match.label : localValue;
+  })();
+
+  // Scrub-to-adjust on label
+  const scrubRef = useRef({ startX: 0, startVal: 0, active: false });
+
+  const handleLabelPointerDown = (e: React.PointerEvent) => {
+    const num = parseFloat(localValue);
+    if (isNaN(num)) return;
+    scrubRef.current = { startX: e.clientX, startVal: num, active: true };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleLabelPointerMove = (e: React.PointerEvent) => {
+    if (!scrubRef.current.active) return;
+    const delta = Math.round(e.clientX - scrubRef.current.startX);
+    const unit = localValue.replace(/[\d.-]+/, "") || "";
+    const newVal = `${scrubRef.current.startVal + delta}${unit}`;
+    setLocalValue(newVal);
+    onChange(prop, newVal);
+  };
+
+  const handleLabelPointerUp = () => {
+    scrubRef.current.active = false;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setLocalValue(newValue);
+
+    const match = options.find(
+      (opt) =>
+        opt.label.toLowerCase() === newValue.toLowerCase() ||
+        opt.value.toLowerCase() === newValue.toLowerCase()
+    );
+    if (match) {
+      onChange(prop, match.value);
+    }
+  };
+
+  const handleBlur = () => {
+    onChange(prop, localValue);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (open && highlightedIndex >= 0) {
+        const opt = options[highlightedIndex];
+        setLocalValue(opt.value);
+        onChange(prop, opt.value);
+        closeDropdown();
+      } else {
+        onChange(prop, localValue);
+        (e.target as HTMLInputElement).blur();
+      }
+      return;
+    }
+
+    if (e.key === "Escape") {
+      closeDropdown();
+      return;
+    }
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (open) {
+        if (e.key === "ArrowDown") {
+          setHighlightedIndex((prev) => prev < options.length - 1 ? prev + 1 : prev);
+        } else {
+          setHighlightedIndex((prev) => prev > 0 ? prev - 1 : prev);
+        }
+      } else {
+        const num = parseFloat(localValue);
+        if (isNaN(num)) return;
+        const step = e.shiftKey ? 10 : 1;
+        const delta = e.key === "ArrowUp" ? step : -step;
+        const unit = localValue.replace(/[\d.-]+/, "") || "";
+        const newVal = `${num + delta}${unit}`;
+        setLocalValue(newVal);
+        onChange(prop, newVal);
+      }
+    }
+  };
+
+  const handleOptionSelect = (option: DropdownMenuOption) => {
+    setLocalValue(option.value);
+    onChange(prop, option.value);
+    closeDropdown();
+  };
+
+  return (
+    <div className="composer-combo" ref={containerRef}>
+      {label && (
+        <span
+          ref={labelRef}
+          className="composer-combo-label"
+          onPointerDown={handleLabelPointerDown}
+          onPointerMove={handleLabelPointerMove}
+          onPointerUp={handleLabelPointerUp}
+        >
+          {label}
+        </span>
+      )}
+      <input
+        className="composer-combo-input"
+        style={label ? undefined : { paddingLeft: 8 }}
+        value={displayValue}
+        onChange={handleInputChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        spellCheck={false}
+      />
+      <button
+        type="button"
+        className="composer-combo-trigger"
+        onClick={() => { open ? closeDropdown() : openDropdown(); }}
+        aria-label="Toggle options"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2.5 4L5 6.5L7.5 4" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && dropdownPos && (
+        <div
+          className="composer-combo-dropdown-anchor"
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+        >
+          <DropdownMenu
+            options={options}
+            value={localValue}
+            highlightedIndex={highlightedIndex}
+            onSelect={handleOptionSelect}
+            onHighlight={setHighlightedIndex}
+            showCheckmark
+          />
+        </div>
+      )}
+    </div>
+  );
+}

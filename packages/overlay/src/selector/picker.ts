@@ -96,6 +96,12 @@ export function createPicker(
 
   function handleClick(e: MouseEvent) {
     if (!active) return;
+
+    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns)
+    const path = e.composedPath();
+    const host = shadowRoot.host;
+    if (path.includes(host)) return;
+
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();

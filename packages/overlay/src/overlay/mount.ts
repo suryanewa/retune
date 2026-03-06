@@ -101,9 +101,9 @@ const OVERLAY_STYLES = `
     z-index: 2147483647;
     pointer-events: auto;
     background: #fff;
-    border: 1px solid #e2e2e2;
-    border-radius: 10px;
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+    border: none;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
     width: 280px;
     max-height: calc(100vh - 80px);
     overflow-y: auto;
@@ -126,7 +126,7 @@ const OVERLAY_STYLES = `
     background: #fff;
     padding: 8px 16px;
     border-bottom: 1px solid #e7e5e4;
-    z-index: 1;
+    z-index: 10;
   }
 
   .composer-el-tag {
@@ -168,23 +168,33 @@ const OVERLAY_STYLES = `
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    height: 32px;
+    height: 40px;
   }
 
   .composer-section-title {
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 550;
-    letter-spacing: 0.055px;
+    line-height: 20px;
     color: #1c1917;
   }
 
   .composer-section-body {
-    padding-bottom: 12px;
+    padding-bottom: 8px;
   }
 
   .composer-section-row {
-    padding: 4px 16px;
+    padding: 8px 16px;
   }
+
+  /* Row group: wraps multiple rows with equal vertical + horizontal gaps */
+  .composer-row-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 16px;
+  }
+
+  .composer-row-group > .composer-row { /* rows inside group have no extra padding */ }
 
   /* Row layout: flex with gap for side-by-side fields */
   .composer-row {
@@ -193,8 +203,11 @@ const OVERLAY_STYLES = `
     gap: 8px;
   }
 
-  /* Props directly in a row get flex: 1 */
-  .composer-row > .composer-prop { flex: 1; }
+  /* Direct children in a row get flex: 1 */
+  .composer-row > .composer-prop,
+  .composer-row > .composer-combo,
+  .composer-row > .composer-select,
+  .composer-row > .composer-text-input { flex: 1; }
 
   /* Field: flex-1 column with label above input */
   .composer-field {
@@ -202,24 +215,34 @@ const OVERLAY_STYLES = `
     min-width: 0;
     display: flex;
     flex-direction: column;
+    gap: 4px;
   }
 
   .composer-field-label {
-    font-size: 9px;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     letter-spacing: 0.045px;
-    color: #78716c;
+    color: rgba(0, 0, 0, 0.5);
     line-height: 16px;
   }
 
   /* Group label: single label above a set of related inputs */
   .composer-group-label {
-    font-size: 9px;
-    font-weight: 500;
+    font-size: 11px;
+    font-weight: 400;
     letter-spacing: 0.045px;
-    color: #78716c;
+    color: rgba(0, 0, 0, 0.5);
     line-height: 16px;
     padding: 0 16px;
+  }
+
+  /* Group label inside a RowGroup (no extra horizontal padding) */
+  .composer-group-label-inline {
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.045px;
+    color: rgba(0, 0, 0, 0.5);
+    line-height: 16px;
   }
 
   /* Property cell — matches portfolio NumberInput */
@@ -227,7 +250,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     gap: 0;
-    height: 24px;
+    height: 32px;
     padding: 0;
     border-radius: 6px;
     background: #f5f5f4;
@@ -248,8 +271,8 @@ const OVERLAY_STYLES = `
   .composer-prop-label {
     position: absolute;
     left: 0;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -276,7 +299,7 @@ const OVERLAY_STYLES = `
     font-family: inherit;
     color: #1c1917;
     outline: none;
-    padding: 0 6px 0 24px;
+    padding: 0 6px 0 32px;
   }
 
   .composer-prop-input::selection { background: #bfdbfe; }
@@ -289,8 +312,8 @@ const OVERLAY_STYLES = `
   }
 
   .composer-color-swatch {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -299,8 +322,8 @@ const OVERLAY_STYLES = `
   }
 
   .composer-color-swatch-inner {
-    width: 14px;
-    height: 14px;
+    width: 18px;
+    height: 18px;
     border-radius: 2px;
     position: relative;
     overflow: hidden;
@@ -328,37 +351,209 @@ const OVERLAY_STYLES = `
     border-radius: 2px;
   }
 
-  .composer-color-picker {
-    position: absolute;
-    opacity: 0;
-    width: 100%;
-    height: 100%;
-    cursor: pointer;
+  /* ── Color Picker Panel ── */
+  .composer-color-picker-panel {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.12),
+      0 8px 24px rgba(0, 0, 0, 0.08),
+      0 0 0 1px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
 
-  /* Select input */
-  .composer-prop-select {
+  .composer-cp-sv {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1;
+    cursor: crosshair;
+    touch-action: none;
+    overflow: hidden;
+  }
+
+  .composer-cp-sv-white {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right, #fff, transparent);
+  }
+
+  .composer-cp-sv-black {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, transparent, #000);
+  }
+
+  .composer-cp-handle {
+    position: absolute;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    will-change: transform;
+  }
+
+  .composer-cp-handle-inner {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow:
+      0 0 0.5px rgba(0, 0, 0, 0.2),
+      0 2px 6px rgba(0, 0, 0, 0.12);
+  }
+
+  .composer-cp-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .composer-cp-preview {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  }
+
+  .composer-cp-hue {
+    position: relative;
+    flex: 1;
+    height: 14px;
+    border-radius: 7px;
+    background: linear-gradient(to right, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+    cursor: pointer;
+    touch-action: none;
+    overflow: visible;
+    box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+  }
+
+  .composer-cp-inputs {
+    display: flex;
+    gap: 4px;
+    padding: 0 12px 10px;
+  }
+
+  .composer-cp-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     flex: 1;
     min-width: 0;
-    height: 100%;
+  }
+
+  .composer-cp-input-group:first-child {
+    flex: 1.8;
+  }
+
+  .composer-cp-label {
+    font-size: 9px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding-left: 2px;
+  }
+
+  .composer-cp-input {
+    height: 26px;
+    border-radius: 4px;
+    background: #f5f5f4;
     border: none;
-    background: transparent;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    color: #1c1917;
+    padding: 0 6px;
+    outline: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .composer-cp-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.5);
+  }
+
+  .composer-cp-input::selection { background: #bfdbfe; }
+
+  /* ── SelectInput ── */
+  .composer-select {
+    position: relative;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .composer-select-button {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 32px;
+    border-radius: 6px;
+    background: #f5f5f4;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+    transition: background-color 0.15s ease;
+    position: relative;
+  }
+
+  .composer-select-button:hover { background: #e7e5e4; }
+  .composer-select-button:focus-visible {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+  }
+
+  .composer-select-label {
+    position: absolute;
+    left: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 11px;
     font-weight: 450;
     letter-spacing: -0.055px;
-    font-family: inherit;
+    color: #78716c;
+    flex-shrink: 0;
+  }
+
+  .composer-select-value {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
     color: #1c1917;
-    outline: none;
-    cursor: pointer;
-    padding: 0 6px 0 24px;
-    -webkit-appearance: none;
-    appearance: none;
+    text-align: left;
+    padding-left: 32px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .composer-select-chevron {
+    width: 24px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #78716c;
+    flex-shrink: 0;
+  }
+
+  .composer-select-dropdown-anchor {
+    position: fixed;
+    z-index: 2147483647;
   }
 
   /* ── Slider ── */
   .composer-slider {
     position: relative;
-    height: 24px;
+    height: 32px;
     border-radius: 6px;
     background: #f5f5f4;
     cursor: ew-resize;
@@ -427,6 +622,251 @@ const OVERLAY_STYLES = `
     letter-spacing: -0.055px;
     font-family: inherit;
     color: #1c1917;
+  }
+
+  /* ── TextInput ── */
+  .composer-text-input {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    border-radius: 6px;
+    background: #f5f5f4;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
+    transition: background-color 0.15s ease;
+  }
+
+  .composer-text-input:hover { background: #e7e5e4; }
+  .composer-text-input:focus-within {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+    background: #f5f5f4;
+  }
+
+  .composer-text-input-field {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    font-family: inherit;
+    color: #1c1917;
+    outline: none;
+    padding: 0 8px;
+  }
+
+  .composer-text-input-field::selection { background: #bfdbfe; }
+  .composer-text-input-field:focus { outline: none; }
+
+  /* ── ComboInput ── */
+  .composer-combo {
+    display: flex;
+    align-items: center;
+    height: 32px;
+    min-width: 0;
+    overflow: visible;
+    position: relative;
+    gap: 1px;
+  }
+
+  .composer-combo-label {
+    position: absolute;
+    left: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    color: #78716c;
+    flex-shrink: 0;
+    user-select: none;
+    cursor: ew-resize;
+    z-index: 1;
+  }
+
+  .composer-combo-input {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    border: none;
+    background: #f5f5f4;
+    border-radius: 6px 0 0 6px;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: -0.055px;
+    font-family: inherit;
+    color: #1c1917;
+    outline: none;
+    padding: 0 6px 0 32px;
+    transition: background-color 0.15s ease;
+  }
+
+  .composer-combo-input:hover { background: #e7e5e4; }
+  .composer-combo-input:focus {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+    background: #f5f5f4;
+  }
+  .composer-combo-input::selection { background: #bfdbfe; }
+
+  .composer-combo-trigger {
+    width: 28px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f4;
+    border-radius: 0 6px 6px 0;
+    border: none;
+    cursor: pointer;
+    color: #78716c;
+    flex-shrink: 0;
+    padding: 0;
+    transition: background-color 0.15s ease, color 0.12s ease;
+  }
+
+  .composer-combo-trigger:hover { background: #e7e5e4; color: #1c1917; }
+  .composer-combo-trigger:focus-visible {
+    outline: 1px solid #1c1917;
+    outline-offset: -1px;
+  }
+
+  .composer-combo-dropdown-anchor {
+    position: fixed;
+    z-index: 2147483647;
+  }
+
+  /* ── Dropdown Menu ── */
+  .composer-menu-wrapper {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    user-select: none;
+    box-shadow: 0 0 0.5px rgba(0,0,0,0.12), 0 10px 16px rgba(0,0,0,0.12), 0 2px 5px rgba(0,0,0,0.15);
+  }
+
+  .composer-menu-scroll {
+    max-height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 0;
+    background: #1c1917;
+    scrollbar-width: none;
+    overscroll-behavior: none;
+  }
+
+  .composer-menu-scroll::-webkit-scrollbar { display: none; }
+
+  .composer-menu-separator {
+    height: 16px;
+    display: flex;
+    align-items: center;
+  }
+
+  .composer-menu-separator-line {
+    width: 100%;
+    height: 1px;
+    background: #292524;
+  }
+
+  .composer-menu-heading {
+    padding: 4px 16px;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: 0.055px;
+    line-height: 16px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .composer-menu-item-wrap {
+    padding: 0 6px;
+  }
+
+  .composer-menu-item {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 8px;
+    border: none;
+    background: transparent;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 450;
+    letter-spacing: 0.055px;
+    font-family: inherit;
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.08s ease;
+  }
+
+  .composer-menu-item.has-check { padding-left: 28px; }
+
+  .composer-menu-item.highlighted { background: rgba(255,255,255,0.1); }
+  .composer-menu-item.selected { color: #60a5fa; }
+  .composer-menu-item.disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .composer-menu-check {
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+  }
+
+  .composer-menu-item-label {
+    line-height: 16px;
+    white-space: nowrap;
+  }
+
+  .composer-menu-item-shortcut {
+    margin-left: auto;
+    padding-left: 16px;
+    color: rgba(255,255,255,0.7);
+    white-space: nowrap;
+  }
+
+  .composer-menu-empty {
+    padding: 4px 16px;
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .composer-menu-scroll-indicator {
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 24px;
+    background: #1c1917;
+    cursor: default;
+    color: #fff;
+  }
+
+  .composer-menu-scroll-indicator.top {
+    top: 0;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .composer-menu-scroll-indicator.bottom {
+    bottom: 0;
+    border-radius: 0 0 12px 12px;
   }
 `;
 
