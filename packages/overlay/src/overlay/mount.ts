@@ -338,7 +338,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 8px 0 16px;
+    padding: 0 16px;
     height: 44px;
   }
 
@@ -859,6 +859,7 @@ const OVERLAY_STYLES = `
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    width: 248px;
   }
 
   .composer-cp-sv {
@@ -1031,7 +1032,7 @@ const OVERLAY_STYLES = `
 
   .composer-gradient-bar-wrap {
     position: relative;
-    height: 56px;
+    height: 40px;
     cursor: crosshair;
   }
 
@@ -1063,7 +1064,7 @@ const OVERLAY_STYLES = `
 
   .composer-gradient-stop-handle {
     position: absolute;
-    top: 14px;
+    top: 0px;
     transform: translateX(-50%);
     cursor: grab;
     touch-action: none;
@@ -1131,15 +1132,15 @@ const OVERLAY_STYLES = `
   .composer-gradient-actions {
     display: flex;
     align-items: center;
-    gap: 2px;
+    gap: 8px;
   }
 
   .composer-gradient-action-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     border: none;
     background: transparent;
     border-radius: 6px;
@@ -1175,7 +1176,7 @@ const OVERLAY_STYLES = `
   .composer-gradient-stop-row {
     display: flex;
     align-items: flex-start;
-    gap: 4px;
+    gap: 8px;
     padding: 2px 0;
   }
 

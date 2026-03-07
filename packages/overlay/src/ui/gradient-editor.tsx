@@ -14,6 +14,8 @@ import { ColorInput } from "./color-input";
 import { hexToRgba, parseCssColor } from "./color-utils";
 import { IconArrowLeftRight } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconArrowLeftRight";
 import { IconArrowRotateClockwise } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconArrowRotateClockwise";
+import { IconPlusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusLarge";
+import { IconMinusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusLarge";
 
 export interface GradientEditorProps {
   gradient: GradientFill;
@@ -188,7 +190,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             onClick={handleReverse}
             title="Reverse"
           >
-            <IconArrowLeftRight size={16} />
+            <IconArrowLeftRight size={20} />
           </button>
           <button
             type="button"
@@ -196,7 +198,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             onClick={handleRotate}
             title="Rotate +45°"
           >
-            <IconArrowRotateClockwise size={16} />
+            <IconArrowRotateClockwise size={20} />
           </button>
         </div>
       </div>
@@ -210,9 +212,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
           onClick={handleAddStop}
           title="Add stop"
         >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
+          <IconPlusLarge size={20} />
         </button>
       </div>
 
@@ -251,9 +251,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
               onClick={() => handleRemoveStop(index)}
               title="Remove stop"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M4 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <IconMinusLarge size={20} />
             </button>
           </div>
         ))}

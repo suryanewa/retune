@@ -38,8 +38,8 @@ import { IconFormSquare } from "@central-icons-react/round-outlined-radius-2-str
 import { IconCornerRadius } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCornerRadius";
 import { IconBento } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBento";
 import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconLayoutGrid2";
-import { IconPlusSmall } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusSmall";
-import { IconMinusSmall } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusSmall";
+import { IconPlusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusLarge";
+import { IconMinusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusLarge";
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
   { value: "left", icon: <IconAlignmentLeft size={16} />, label: "Left" },
@@ -571,11 +571,11 @@ export function PropertyPanel({
         action={
           hasFill ? (
             <button className="composer-section-action" onClick={handleRemoveFill} title="Remove fill">
-              <IconMinusSmall size={20} />
+              <IconMinusLarge size={20} />
             </button>
           ) : (
             <button className="composer-section-action" onClick={handleAddFill} title="Add fill">
-              <IconPlusSmall size={20} />
+              <IconPlusLarge size={20} />
             </button>
           )
         }
@@ -607,11 +607,11 @@ export function PropertyPanel({
         action={
           hasBorder ? (
             <button className="composer-section-action" onClick={handleRemoveBorder} title="Remove border">
-              <IconMinusSmall size={20} />
+              <IconMinusLarge size={20} />
             </button>
           ) : (
             <button className="composer-section-action" onClick={handleAddBorder} title="Add border">
-              <IconPlusSmall size={20} />
+              <IconPlusLarge size={20} />
             </button>
           )
         }

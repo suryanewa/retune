@@ -92,14 +92,14 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
   }, [onClose]);
 
   // Position the panel
-  const panelWidth = anchorRect.width;
+  const panelWidth = Math.max(anchorRect.width, 248);
   const panelEstimatedHeight = 320;
   const spaceBelow = window.innerHeight - anchorRect.top - anchorRect.height - 4;
   const flipUp = spaceBelow < panelEstimatedHeight && anchorRect.top > spaceBelow;
   const top = flipUp
     ? anchorRect.top - panelEstimatedHeight - 4
     : anchorRect.top + anchorRect.height + 4;
-  const left = anchorRect.left;
+  const left = Math.min(anchorRect.left, window.innerWidth - panelWidth - 4);
 
   // ── SV Picker ───────────────────────────────────────────────────────
 
