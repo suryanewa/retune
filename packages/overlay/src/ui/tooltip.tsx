@@ -80,10 +80,18 @@ export function Tooltip({
     }
 
     // Clamp to viewport
-    left = Math.max(4, Math.min(left, window.innerWidth - tt.width - 4));
-    top = Math.max(4, Math.min(top, window.innerHeight - tt.height - 4));
+    const clampedLeft = Math.max(8, Math.min(left, window.innerWidth - tt.width - 8));
+    const clampedTop = Math.max(8, Math.min(top, window.innerHeight - tt.height - 8));
 
-    setCoords({ top, left });
+    // Compute caret position relative to tooltip when clamped
+    const triggerCenterX = tr.left + tr.width / 2;
+    const triggerCenterY = tr.top + tr.height / 2;
+    const caretX = triggerCenterX - clampedLeft;
+    const caretY = triggerCenterY - clampedTop;
+    tooltip.style.setProperty("--caret-x", `${caretX}px`);
+    tooltip.style.setProperty("--caret-y", `${caretY}px`);
+
+    setCoords({ top: clampedTop, left: clampedLeft });
   }, [visible, side, sideOffset]);
 
   const tooltipEl = visible ? (

@@ -698,6 +698,109 @@ const OVERLAY_STYLES = `
     letter-spacing: 0.045px;
     color: rgba(0, 0, 0, 0.5);
     line-height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  /* Split toggle button (expand/collapse shorthand) */
+  .composer-split-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .composer-split-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+    color: rgba(0, 0, 0, 0.6);
+  }
+  .composer-split-btn.active {
+    color: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.08);
+  }
+
+  /* "More" expand row for typography */
+  .composer-more-row {
+    padding: 0 16px;
+  }
+  .composer-more-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+    height: 28px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 11px;
+    font-weight: 400;
+    cursor: pointer;
+    padding: 0 8px;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .composer-more-btn:hover {
+    background: rgba(0, 0, 0, 0.04);
+    color: rgba(0, 0, 0, 0.65);
+  }
+  .composer-more-btn svg {
+    transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .composer-more-btn.expanded svg {
+    transform: rotate(180deg);
+  }
+
+  /* Dropdown menu (size + button) */
+  .composer-dropdown-anchor {
+    position: relative;
+  }
+  .composer-dropdown-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    min-width: 140px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.06);
+    padding: 4px;
+    z-index: 100;
+    animation: composer-dropdown-in 0.15s cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  @keyframes composer-dropdown-in {
+    from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .composer-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #1a1a1a;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0 10px;
+    transition: background 0.1s ease;
+  }
+  .composer-dropdown-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+  .composer-dropdown-item .composer-dropdown-check {
+    margin-left: auto;
+    color: rgba(0, 0, 0, 0.3);
   }
 
   /* Property cell — matches portfolio NumberInput */
@@ -1441,8 +1544,9 @@ const OVERLAY_STYLES = `
   }
 
   .composer-segmented-item svg {
-    width: 16px;
-    height: 16px;
+    width: 24px;
+    height: 24px;
+    display: block;
   }
 
   .composer-segmented-text {
@@ -1769,25 +1873,25 @@ const OVERLAY_STYLES = `
 
   .composer-tooltip-bottom::before {
     top: -6px;
-    left: 50%;
+    left: var(--caret-x, 50%);
     transform: translateX(-50%);
   }
 
   .composer-tooltip-top::before {
     bottom: -6px;
-    left: 50%;
+    left: var(--caret-x, 50%);
     transform: translateX(-50%) rotate(180deg);
   }
 
   .composer-tooltip-left::before {
     right: -9px;
-    top: 50%;
+    top: var(--caret-y, 50%);
     transform: translateY(-50%) rotate(90deg);
   }
 
   .composer-tooltip-right::before {
     left: -9px;
-    top: 50%;
+    top: var(--caret-y, 50%);
     transform: translateY(-50%) rotate(-90deg);
   }
 

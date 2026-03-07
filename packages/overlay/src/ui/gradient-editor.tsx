@@ -12,10 +12,7 @@ import { interpolateColor, gradientBarCss } from "./gradient-utils";
 import { GradientStopBar } from "./gradient-stop-bar";
 import { ColorInput } from "./color-input";
 import { hexToRgba, parseCssColor } from "./color-utils";
-import { IconArrowLeftRight } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconArrowLeftRight";
-import { IconArrowRotateClockwise } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconArrowRotateClockwise";
-import { IconPlusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusLarge";
-import { IconMinusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusLarge";
+import { FlipHorizontalSmall, Rotate, Plus, Minus } from "./icons";
 import { Tooltip } from "./tooltip";
 
 export interface GradientEditorProps {
@@ -191,7 +188,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
               className="composer-gradient-action-btn"
               onClick={handleReverse}
             >
-              <IconArrowLeftRight size={20} />
+              <FlipHorizontalSmall />
             </button>
           </Tooltip>
           <Tooltip content="Rotate gradient 45°">
@@ -200,7 +197,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
               className="composer-gradient-action-btn"
               onClick={handleRotate}
             >
-              <IconArrowRotateClockwise size={20} />
+              <Rotate />
             </button>
           </Tooltip>
         </div>
@@ -215,7 +212,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             className="composer-gradient-action-btn"
             onClick={handleAddStop}
           >
-            <IconPlusLarge size={20} />
+            <Plus />
           </button>
         </Tooltip>
       </div>
@@ -255,7 +252,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
                 disabled={gradient.stops.length <= 2}
                 onClick={() => handleRemoveStop(index)}
               >
-                <IconMinusLarge size={20} />
+                <Minus />
               </button>
             </Tooltip>
           </div>

@@ -3,7 +3,7 @@
  * editable properties for the selected element.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { InspectedElement } from "../types";
 import type { BoxModelProperty } from "../ui/box-model-overlay";
 import { Section, Row, RowGroup, Field } from "../ui/section";
@@ -11,6 +11,7 @@ import { NumberInput } from "../ui/number-input";
 import { ComboInput, type ComboOption } from "../ui/combo-input";
 import { ColorInput } from "../ui/color-input";
 import { SelectInput } from "../ui/select-input";
+import { DropdownMenu, type DropdownMenuOption } from "../ui/dropdown-menu";
 import { SliderInput } from "../ui/slider-input";
 import { TextInput } from "../ui/text-input";
 import { FontInput } from "../ui/font-input";
@@ -20,42 +21,35 @@ import { GridPicker, parseGridCount } from "../ui/grid-picker";
 import { GradientEditor } from "../ui/gradient-editor";
 import { type FillMode, type GradientFill, detectFillMode, defaultGradient, parseCssGradient, gradientToCss } from "../ui/gradient-utils";
 import { computeSizingChanges, type SizingMode } from "../ui/sizing-utils";
-import {
-  IconSpacingVerticalTop, IconSpacingVerticalBottom,
-  IconSpacingHorizontalLeft, IconSpacingHorizontalRight,
-  IconGapHorizontal, IconGapVertical,
-} from "../ui/spacing-icons";
 import { SegmentedControl } from "../ui/segmented-control";
 import { detectTruncation, computeTruncationChanges } from "../ui/truncation-utils";
 import type { SegmentedOption } from "../ui/segmented-control";
-import { IconAlignmentLeft } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentLeft";
-import { IconAlignmentCenter } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentCenter";
-import { IconAlignmentRight } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconAlignmentRight";
-import { IconVerticalAlignmentLeft } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconVerticalAlignmentLeft";
-import { IconVerticalAlignmentCenter } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconVerticalAlignmentCenter";
-import { IconVerticalAlignmentRight } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconVerticalAlignmentRight";
-import { IconHorizontalAlignmentTop } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentTop";
-import { IconHorizontalAlignmentCenter } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentCenter";
-import { IconHorizontalAlignmentBottom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconHorizontalAlignmentBottom";
-import { IconFormSquare } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconFormSquare";
-import { IconCornerRadius } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCornerRadius";
-import { IconBento } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBento";
-import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconLayoutGrid2";
-import { IconPlusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusLarge";
-import { IconMinusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusLarge";
+import {
+  TextAlignLeft, TextAlignCenter, TextAlignRight,
+  TextAlignTop, TextAlignMiddle, TextAlignBottom,
+  LayoutAlignLeft, LayoutAlignRight, LayoutAlignHorizontalCenter,
+  LayoutAlignTop, LayoutAlignBottom, LayoutAlignVerticalCenter,
+  AlPaddingTop, AlPaddingBottom, AlPaddingLeft, AlPaddingRight,
+  AlPaddingHorizontal, AlPaddingVertical, AlPaddingSides,
+  AlSpacingHorizontal, AlSpacingVertical,
+  RadiusTopLeft, RadiusTopRight, RadiusBottomLeft, RadiusBottomRight,
+  RectangleSmall, AutolayoutAddHorizontal, AutolayoutAddVertical, GridView,
+  Plus, Minus, ChevronDownLarge,
+} from "../ui/icons";
 import { Tooltip } from "../ui/tooltip";
+import { ShorthandInput } from "../ui/shorthand-input";
 import { parseBoxShadow, shadowToCss, defaultShadow, type ShadowValue } from "../ui/shadow-utils";
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
-  { value: "left", icon: <IconAlignmentLeft size={16} />, label: "Left" },
-  { value: "center", icon: <IconAlignmentCenter size={16} />, label: "Center" },
-  { value: "right", icon: <IconAlignmentRight size={16} />, label: "Right" },
+  { value: "left", icon: <TextAlignLeft />, label: "Left" },
+  { value: "center", icon: <TextAlignCenter />, label: "Center" },
+  { value: "right", icon: <TextAlignRight />, label: "Right" },
 ];
 
 const VERTICAL_ALIGN_OPTIONS: SegmentedOption[] = [
-  { value: "top", icon: <IconHorizontalAlignmentTop size={16} />, label: "Top" },
-  { value: "middle", icon: <IconHorizontalAlignmentCenter size={16} />, label: "Middle" },
-  { value: "bottom", icon: <IconHorizontalAlignmentBottom size={16} />, label: "Bottom" },
+  { value: "top", icon: <TextAlignTop />, label: "Top" },
+  { value: "middle", icon: <TextAlignMiddle />, label: "Middle" },
+  { value: "bottom", icon: <TextAlignBottom />, label: "Bottom" },
 ];
 
 /** Map computed textAlign CSS value to our option values */
@@ -122,10 +116,13 @@ const LETTER_SPACING_OPTIONS: ComboOption[] = [
 
 
 
+type SizeExtra = "minWidth" | "minHeight" | "maxWidth" | "maxHeight";
+
 const DISPLAY_OPTIONS: SegmentedOption[] = [
-  { value: "block", icon: <IconFormSquare size={20} />, label: "Block" },
-  { value: "flex", icon: <IconBento size={20} />, label: "Flex" },
-  { value: "grid", icon: <IconLayoutGrid2 size={20} />, label: "Grid" },
+  { value: "block", icon: <RectangleSmall />, label: "Block" },
+  { value: "flex-row", icon: <AutolayoutAddHorizontal />, label: "Flex →" },
+  { value: "flex-column", icon: <AutolayoutAddVertical />, label: "Flex ↓" },
+  { value: "grid", icon: <GridView />, label: "Grid" },
 ];
 
 export function PropertyPanel({
@@ -170,6 +167,37 @@ export function PropertyPanel({
 
   // Shadow state
   const hasShadow = s.boxShadow && s.boxShadow !== "none";
+
+  // Progressive disclosure states
+  const [paddingExpanded, setPaddingExpanded] = useState(false);
+  const [marginExpanded, setMarginExpanded] = useState(false);
+  const [radiusExpanded, setRadiusExpanded] = useState(false);
+  const [typoExpanded, setTypoExpanded] = useState(false);
+  const [sizeExtras, setSizeExtras] = useState<Set<SizeExtra>>(new Set());
+  const [sizeMenuOpen, setSizeMenuOpen] = useState(false);
+  const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+  // Close size dropdown on outside click
+  const sizeMenuRef = useRef<HTMLDivElement>(null);
+  const sizeMenuBtnRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!sizeMenuOpen) return;
+    const handleClick = (e: PointerEvent) => {
+      const btn = sizeMenuBtnRef.current;
+      if (btn && btn.contains(e.target as Node)) return;
+      setSizeMenuOpen(false);
+    };
+    const root = sizeMenuBtnRef.current?.getRootNode() as ShadowRoot | Document;
+    root.addEventListener("pointerdown", handleClick as EventListener);
+    return () => root.removeEventListener("pointerdown", handleClick as EventListener);
+  }, [sizeMenuOpen]);
+
+  // Auto-show size extras that have non-default values
+  const visibleSizeExtras = new Set(sizeExtras);
+  if (s.minWidth && s.minWidth !== "0px" && s.minWidth !== "auto") visibleSizeExtras.add("minWidth");
+  if (s.minHeight && s.minHeight !== "0px" && s.minHeight !== "auto") visibleSizeExtras.add("minHeight");
+  if (s.maxWidth && s.maxWidth !== "none") visibleSizeExtras.add("maxWidth");
+  if (s.maxHeight && s.maxHeight !== "none") visibleSizeExtras.add("maxHeight");
 
   const [pins, setPins] = useState<PinState>({ top: true, right: false, bottom: false, left: true });
   const [centered, setCentered] = useState(false);
@@ -406,14 +434,14 @@ export function PropertyPanel({
                 <span className="composer-field-label">Alignment</span>
                 <div className="composer-align-row">
                   <div className="composer-btn-group" style={!hEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align left" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("start")}><IconVerticalAlignmentLeft size={16} /></button></Tooltip>
-                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("center")}><IconVerticalAlignmentCenter size={16} /></button></Tooltip>
-                    <Tooltip content="Align right" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("end")}><IconVerticalAlignmentRight size={16} /></button></Tooltip>
+                    <Tooltip content="Align left" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("start")}><LayoutAlignLeft /></button></Tooltip>
+                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("center")}><LayoutAlignHorizontalCenter /></button></Tooltip>
+                    <Tooltip content="Align right" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("end")}><LayoutAlignRight /></button></Tooltip>
                   </div>
                   <div className="composer-btn-group" style={!vEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align top" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("start")}><IconHorizontalAlignmentTop size={16} /></button></Tooltip>
-                    <Tooltip content="Align center vertically" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("center")}><IconHorizontalAlignmentCenter size={16} /></button></Tooltip>
-                    <Tooltip content="Align bottom" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("end")}><IconHorizontalAlignmentBottom size={16} /></button></Tooltip>
+                    <Tooltip content="Align top" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("start")}><LayoutAlignTop /></button></Tooltip>
+                    <Tooltip content="Align center vertically" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("center")}><LayoutAlignVerticalCenter /></button></Tooltip>
+                    <Tooltip content="Align bottom" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("end")}><LayoutAlignBottom /></button></Tooltip>
                   </div>
                 </div>
               </div>
@@ -468,8 +496,22 @@ export function PropertyPanel({
           <Field label="Display">
             <SegmentedControl
               options={DISPLAY_OPTIONS}
-              value={displayValue.includes("flex") ? "flex" : displayValue.includes("grid") ? "grid" : "block"}
-              onChange={(v) => onPropertyChange("display", v)}
+              value={
+                displayValue.includes("flex")
+                  ? (s.flexDirection || "row").startsWith("column") ? "flex-column" : "flex-row"
+                  : displayValue.includes("grid") ? "grid" : "block"
+              }
+              onChange={(v) => {
+                if (v === "flex-row") {
+                  onPropertyChange("display", "flex");
+                  onPropertyChange("flexDirection", "row");
+                } else if (v === "flex-column") {
+                  onPropertyChange("display", "flex");
+                  onPropertyChange("flexDirection", "column");
+                } else {
+                  onPropertyChange("display", v);
+                }
+              }}
             />
           </Field>
         </Row>
@@ -489,7 +531,7 @@ export function PropertyPanel({
               <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
                 <Field label="Gap">
                   <NumberInput
-                    label={<Tooltip content={(s.flexDirection || "row").startsWith("column") ? "Vertical gap between items" : "Horizontal gap between items"} side="top" sideOffset={14}>{(s.flexDirection || "row").startsWith("column") ? <IconGapVertical /> : <IconGapHorizontal />}</Tooltip>}
+                    label={<Tooltip content={(s.flexDirection || "row").startsWith("column") ? "Vertical gap between items" : "Horizontal gap between items"} side="top" sideOffset={14}>{(s.flexDirection || "row").startsWith("column") ? <AlSpacingVertical /> : <AlSpacingHorizontal />}</Tooltip>}
                     prop="gap"
                     value={s.gap}
                     onChange={onPropertyChange}
@@ -498,8 +540,16 @@ export function PropertyPanel({
               </div>
             </Row>
             <Row>
-              <Field label="Direction">
-                <SelectInput prop="flexDirection" value={s.flexDirection} options={["row", "row-reverse", "column", "column-reverse"]} onChange={onPropertyChange} />
+              <Field label="Reverse">
+                <SelectInput
+                  prop="flexDirection"
+                  value={(s.flexDirection || "row").includes("reverse") ? "yes" : "no"}
+                  options={["no", "yes"]}
+                  onChange={(_, v) => {
+                    const base = (s.flexDirection || "row").startsWith("column") ? "column" : "row";
+                    onPropertyChange("flexDirection", v === "yes" ? `${base}-reverse` : base);
+                  }}
+                />
               </Field>
               <Field label="Wrap">
                 <SelectInput prop="flexWrap" value={s.flexWrap} options={["nowrap", "wrap", "wrap-reverse"]} onChange={onPropertyChange} />
@@ -521,53 +571,173 @@ export function PropertyPanel({
             <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
               <Field label="Gap">
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <NumberInput label={<Tooltip content="Horizontal gap between columns" side="top" sideOffset={14}><IconGapHorizontal /></Tooltip>} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
-                  <NumberInput label={<Tooltip content="Vertical gap between rows" side="top" sideOffset={14}><IconGapVertical /></Tooltip>} prop="rowGap" value={s.rowGap} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Horizontal gap between columns" side="top" sideOffset={14}><AlSpacingHorizontal /></Tooltip>} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Vertical gap between rows" side="top" sideOffset={14}><AlSpacingVertical /></Tooltip>} prop="rowGap" value={s.rowGap} onChange={onPropertyChange} />
                 </div>
               </Field>
             </div>
           </Row>
         )}
         <RowGroup label="Padding">
-          <div className="composer-row">
-            <div onPointerEnter={() => onPropertyHover?.("paddingTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Padding top" side="top" sideOffset={14}><IconSpacingVerticalTop /></Tooltip>} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
+          {paddingExpanded ? (
+            <>
+              <div className="composer-row">
+                <div onPointerEnter={() => onPropertyHover?.("paddingTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Padding top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} />
+                </div>
+                <div onPointerEnter={() => onPropertyHover?.("paddingRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Padding right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
+                </div>
+                <Tooltip content="Collapse to axes" side="top">
+                  <button className="composer-split-btn active" onClick={() => setPaddingExpanded(false)}>
+                    <AlPaddingSides />
+                  </button>
+                </Tooltip>
+              </div>
+              <div className="composer-row">
+                <div onPointerEnter={() => onPropertyHover?.("paddingBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Padding bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
+                </div>
+                <div onPointerEnter={() => onPropertyHover?.("paddingLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Padding left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
+                </div>
+                <div style={{ width: 32 }} />
+              </div>
+            </>
+          ) : (
+            <div className="composer-row">
+              <div style={{ flex: 1 }}>
+                <ShorthandInput
+                  label={<Tooltip content="Vertical padding (top, bottom)" side="top" sideOffset={14}><AlPaddingVertical /></Tooltip>}
+                  props={["paddingTop", "paddingBottom"]}
+                  values={[s.paddingTop, s.paddingBottom]}
+                  onChange={onPropertyChange}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <ShorthandInput
+                  label={<Tooltip content="Horizontal padding (left, right)" side="top" sideOffset={14}><AlPaddingHorizontal /></Tooltip>}
+                  props={["paddingLeft", "paddingRight"]}
+                  values={[s.paddingLeft, s.paddingRight]}
+                  onChange={onPropertyChange}
+                />
+              </div>
+              <Tooltip content="Edit individual sides" side="top">
+                <button className="composer-split-btn" onClick={() => setPaddingExpanded(true)}>
+                  <AlPaddingSides />
+                </button>
+              </Tooltip>
             </div>
-            <div onPointerEnter={() => onPropertyHover?.("paddingRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Padding right" side="top" sideOffset={14}><IconSpacingHorizontalRight /></Tooltip>} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} />
-            </div>
-          </div>
-          <div className="composer-row">
-            <div onPointerEnter={() => onPropertyHover?.("paddingBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Padding bottom" side="top" sideOffset={14}><IconSpacingVerticalBottom /></Tooltip>} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} />
-            </div>
-            <div onPointerEnter={() => onPropertyHover?.("paddingLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Padding left" side="top" sideOffset={14}><IconSpacingHorizontalLeft /></Tooltip>} prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} />
-            </div>
-          </div>
+          )}
         </RowGroup>
         <RowGroup label="Margin">
-          <div className="composer-row">
-            <div onPointerEnter={() => onPropertyHover?.("marginTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Margin top" side="top" sideOffset={14}><IconSpacingVerticalTop /></Tooltip>} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
+          {marginExpanded ? (
+            <>
+              <div className="composer-row">
+                <div onPointerEnter={() => onPropertyHover?.("marginTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Margin top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
+                </div>
+                <div onPointerEnter={() => onPropertyHover?.("marginRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Margin right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
+                </div>
+                <Tooltip content="Collapse to axes" side="top">
+                  <button className="composer-split-btn active" onClick={() => setMarginExpanded(false)}>
+                    <AlPaddingSides />
+                  </button>
+                </Tooltip>
+              </div>
+              <div className="composer-row">
+                <div onPointerEnter={() => onPropertyHover?.("marginBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Margin bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
+                </div>
+                <div onPointerEnter={() => onPropertyHover?.("marginLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
+                  <NumberInput label={<Tooltip content="Margin left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
+                </div>
+                <div style={{ width: 32 }} />
+              </div>
+            </>
+          ) : (
+            <div className="composer-row">
+              <div style={{ flex: 1 }}>
+                <ShorthandInput
+                  label={<Tooltip content="Vertical margin (top, bottom)" side="top" sideOffset={14}><AlPaddingVertical /></Tooltip>}
+                  props={["marginTop", "marginBottom"]}
+                  values={[s.marginTop, s.marginBottom]}
+                  onChange={onPropertyChange}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <ShorthandInput
+                  label={<Tooltip content="Horizontal margin (left, right)" side="top" sideOffset={14}><AlPaddingHorizontal /></Tooltip>}
+                  props={["marginLeft", "marginRight"]}
+                  values={[s.marginLeft, s.marginRight]}
+                  onChange={onPropertyChange}
+                />
+              </div>
+              <Tooltip content="Edit individual sides" side="top">
+                <button className="composer-split-btn" onClick={() => setMarginExpanded(true)}>
+                  <AlPaddingSides />
+                </button>
+              </Tooltip>
             </div>
-            <div onPointerEnter={() => onPropertyHover?.("marginRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Margin right" side="top" sideOffset={14}><IconSpacingHorizontalRight /></Tooltip>} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
-            </div>
-          </div>
-          <div className="composer-row">
-            <div onPointerEnter={() => onPropertyHover?.("marginBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Margin bottom" side="top" sideOffset={14}><IconSpacingVerticalBottom /></Tooltip>} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
-            </div>
-            <div onPointerEnter={() => onPropertyHover?.("marginLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-              <NumberInput label={<Tooltip content="Margin left" side="top" sideOffset={14}><IconSpacingHorizontalLeft /></Tooltip>} prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
-            </div>
-          </div>
+          )}
         </RowGroup>
       </Section>
 
       {/* Size */}
-      <Section label="Size">
+      <Section
+        label="Size"
+        action={
+          <>
+            <Tooltip content="Add constraint" side="top">
+              <button
+                ref={sizeMenuBtnRef}
+                className="composer-section-action"
+                onClick={() => {
+                  if (sizeMenuOpen) {
+                    setSizeMenuOpen(false);
+                    return;
+                  }
+                  const el = sizeMenuBtnRef.current;
+                  if (!el) return;
+                  const rect = el.getBoundingClientRect();
+                  setSizeMenuPos({ top: rect.bottom + 4, left: rect.right });
+                  setSizeMenuOpen(true);
+                }}
+              >
+                <Plus />
+              </button>
+            </Tooltip>
+            {sizeMenuOpen && sizeMenuPos && (
+              <div
+                ref={sizeMenuRef}
+                style={{ position: "fixed", top: sizeMenuPos.top, left: sizeMenuPos.left, transform: "translateX(-100%)", zIndex: 2147483647 }}
+              >
+                <DropdownMenu
+                  options={([
+                    ["minWidth", "Min width"],
+                    ["minHeight", "Min height"],
+                    ["maxWidth", "Max width"],
+                    ["maxHeight", "Max height"],
+                  ] as const).map(([key, label]) => ({ value: key, label }))}
+                  value={undefined}
+                  showCheckmark={false}
+                  onSelect={(option) => {
+                    const key = option.value as SizeExtra;
+                    setSizeExtras((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(key)) next.delete(key);
+                      else next.add(key);
+                      return next;
+                    });
+                    setSizeMenuOpen(false);
+                  }}
+                />
+              </div>
+            )}
+          </>
+        }
+      >
         <Row>
           <Field label="Width">
             <ComboInput
@@ -602,22 +772,46 @@ export function PropertyPanel({
             />
           </Field>
         </Row>
-        <Row>
-          <Field label="Min W">
-            <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "0px")} />
-          </Field>
-          <Field label="Min H">
-            <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "0px")} />
-          </Field>
-        </Row>
-        <Row>
-          <Field label="Max W">
-            <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "none")} />
-          </Field>
-          <Field label="Max H">
-            <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "none")} />
-          </Field>
-        </Row>
+        {(visibleSizeExtras.has("minWidth") || visibleSizeExtras.has("minHeight")) && (
+          <Row>
+            {visibleSizeExtras.has("minWidth") ? (
+              <Field label="Min W">
+                <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => {
+                  if (!v) { onPropertyChange(p, "0px"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("minWidth"); return next; }); }
+                  else onPropertyChange(p, v);
+                }} />
+              </Field>
+            ) : <div style={{ flex: 1 }} />}
+            {visibleSizeExtras.has("minHeight") ? (
+              <Field label="Min H">
+                <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => {
+                  if (!v) { onPropertyChange(p, "0px"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("minHeight"); return next; }); }
+                  else onPropertyChange(p, v);
+                }} />
+              </Field>
+            ) : <div style={{ flex: 1 }} />}
+          </Row>
+        )}
+        {(visibleSizeExtras.has("maxWidth") || visibleSizeExtras.has("maxHeight")) && (
+          <Row>
+            {visibleSizeExtras.has("maxWidth") ? (
+              <Field label="Max W">
+                <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => {
+                  if (!v) { onPropertyChange(p, "none"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("maxWidth"); return next; }); }
+                  else onPropertyChange(p, v);
+                }} />
+              </Field>
+            ) : <div style={{ flex: 1 }} />}
+            {visibleSizeExtras.has("maxHeight") ? (
+              <Field label="Max H">
+                <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => {
+                  if (!v) { onPropertyChange(p, "none"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("maxHeight"); return next; }); }
+                  else onPropertyChange(p, v);
+                }} />
+              </Field>
+            ) : <div style={{ flex: 1 }} />}
+          </Row>
+        )}
       </Section>
 
       {/* Grid Child — Placement */}
@@ -680,30 +874,44 @@ export function PropertyPanel({
               />
             </Field>
           </Row>
-          <Row>
-            <Field label="Style">
-              <SelectInput prop="fontStyle" value={s.fontStyle} options={["normal", "italic", "oblique"]} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Decoration">
-              <SelectInput prop="textDecoration" value={s.textDecoration} options={["none", "underline", "line-through", "overline"]} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Transform">
-              <SelectInput prop="textTransform" value={s.textTransform} options={["none", "uppercase", "lowercase", "capitalize"]} onChange={onPropertyChange} />
-            </Field>
-            <Field label="White space">
-              <SelectInput prop="whiteSpace" value={s.whiteSpace} options={["normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces"]} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-          <Row>
-            <Field label="Word spacing">
-              <NumberInput prop="wordSpacing" value={s.wordSpacing} onChange={onPropertyChange} />
-            </Field>
-            <Field label="Text indent">
-              <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />
-            </Field>
-          </Row>
+          {/* "More" typography controls */}
+          <div className="composer-more-row">
+            <button
+              className={`composer-more-btn${typoExpanded ? " expanded" : ""}`}
+              onClick={() => setTypoExpanded((v) => !v)}
+            >
+              <ChevronDownLarge size={12} />
+              {typoExpanded ? "Less" : "More"}
+            </button>
+          </div>
+          {typoExpanded && (
+            <>
+              <Row>
+                <Field label="Style">
+                  <SelectInput prop="fontStyle" value={s.fontStyle} options={["normal", "italic", "oblique"]} onChange={onPropertyChange} />
+                </Field>
+                <Field label="Decoration">
+                  <SelectInput prop="textDecoration" value={s.textDecoration} options={["none", "underline", "line-through", "overline"]} onChange={onPropertyChange} />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Transform">
+                  <SelectInput prop="textTransform" value={s.textTransform} options={["none", "uppercase", "lowercase", "capitalize"]} onChange={onPropertyChange} />
+                </Field>
+                <Field label="White space">
+                  <SelectInput prop="whiteSpace" value={s.whiteSpace} options={["normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces"]} onChange={onPropertyChange} />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Word spacing">
+                  <NumberInput prop="wordSpacing" value={s.wordSpacing} onChange={onPropertyChange} />
+                </Field>
+                <Field label="Text indent">
+                  <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />
+                </Field>
+              </Row>
+            </>
+          )}
           {(() => {
             const truncation = detectTruncation(s);
             const ctx = { currentDisplay: s.display };
@@ -788,14 +996,38 @@ export function PropertyPanel({
           </Field>
         </Row>
         <RowGroup label="Corner radius">
-          <div className="composer-row">
-            <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><IconCornerRadius size={14} /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><span style={{ display: "inline-flex", transform: "rotate(90deg)" }}><IconCornerRadius size={14} /></span></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
-          </div>
-          <div className="composer-row">
-            <NumberInput label={<Tooltip content="Bottom left corner radius" side="top" sideOffset={14}><span style={{ display: "inline-flex", transform: "rotate(270deg)" }}><IconCornerRadius size={14} /></span></Tooltip>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
-            <NumberInput label={<Tooltip content="Bottom right corner radius" side="top" sideOffset={14}><span style={{ display: "inline-flex", transform: "rotate(180deg)" }}><IconCornerRadius size={14} /></span></Tooltip>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
-          </div>
+          {radiusExpanded ? (
+            <>
+              <div className="composer-row">
+                <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
+                <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><RadiusTopRight /></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
+                <Tooltip content="Collapse to single" side="top">
+                  <button className="composer-split-btn active" onClick={() => setRadiusExpanded(false)}>
+                    <AlPaddingSides />
+                  </button>
+                </Tooltip>
+              </div>
+              <div className="composer-row">
+                <NumberInput label={<Tooltip content="Bottom left corner radius" side="top" sideOffset={14}><RadiusBottomLeft /></Tooltip>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} />
+                <NumberInput label={<Tooltip content="Bottom right corner radius" side="top" sideOffset={14}><RadiusBottomRight /></Tooltip>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} />
+                <div style={{ width: 32 }} />
+              </div>
+            </>
+          ) : (
+            <div className="composer-row">
+              <ShorthandInput
+                label={<Tooltip content="Corner radius (TL, TR, BR, BL)" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>}
+                props={["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"]}
+                values={[s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius]}
+                onChange={onPropertyChange}
+              />
+              <Tooltip content="Edit individual corners" side="top">
+                <button className="composer-split-btn" onClick={() => setRadiusExpanded(true)}>
+                  <AlPaddingSides />
+                </button>
+              </Tooltip>
+            </div>
+          )}
         </RowGroup>
         <Row>
           <Field label="Overflow">
@@ -810,9 +1042,9 @@ export function PropertyPanel({
         gap={8}
         action={
           hasFill ? (
-            <Tooltip content="Remove fill" side="top"><button className="composer-section-action" onClick={handleRemoveFill}><IconMinusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Remove fill" side="top"><button className="composer-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add fill" side="top"><button className="composer-section-action" onClick={handleAddFill}><IconPlusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Add fill" side="top"><button className="composer-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
           )
         }
       >
@@ -842,9 +1074,9 @@ export function PropertyPanel({
         label="Border"
         action={
           hasBorder ? (
-            <Tooltip content="Remove border" side="top"><button className="composer-section-action" onClick={handleRemoveBorder}><IconMinusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Remove border" side="top"><button className="composer-section-action" onClick={handleRemoveBorder}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add border" side="top"><button className="composer-section-action" onClick={handleAddBorder}><IconPlusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Add border" side="top"><button className="composer-section-action" onClick={handleAddBorder}><Plus /></button></Tooltip>
           )
         }
       >
@@ -872,9 +1104,9 @@ export function PropertyPanel({
         label="Shadow"
         action={
           hasShadow ? (
-            <Tooltip content="Remove shadow" side="top"><button className="composer-section-action" onClick={handleRemoveShadow}><IconMinusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Remove shadow" side="top"><button className="composer-section-action" onClick={handleRemoveShadow}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add shadow" side="top"><button className="composer-section-action" onClick={handleAddShadow}><IconPlusLarge size={20} /></button></Tooltip>
+            <Tooltip content="Add shadow" side="top"><button className="composer-section-action" onClick={handleAddShadow}><Plus /></button></Tooltip>
           )
         }
       >
