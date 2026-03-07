@@ -18,10 +18,19 @@ const UNITLESS_PROPS = new Set([
 const UNIT_RE = /[a-z%]+$/i;
 const BARE_NUMBER_RE = /^-?\d+(\.\d+)?$/;
 
+const VALID_CSS_UNITS = new Set([
+  "px", "em", "rem", "%", "vh", "vw", "vmin", "vmax",
+  "ch", "ex", "cap", "ic", "lh", "rlh",
+  "svh", "svw", "lvh", "lvw", "dvh", "dvw",
+  "cm", "mm", "in", "pt", "pc", "q",
+  "deg", "rad", "grad", "turn", "s", "ms", "fr",
+]);
+
 /**
  * If the user typed a bare number, infer the unit from the previous value.
  * Explicit units (50%, 2em) and keywords (auto) pass through unchanged.
  * Unitless CSS properties never get a unit appended.
+ * Defaults to px when previous value has no valid CSS unit.
  */
 export function inferCssUnit(input: string, prevValue: string, prop: string): string {
   const trimmed = input.trim();
@@ -29,7 +38,9 @@ export function inferCssUnit(input: string, prevValue: string, prop: string): st
   if (UNITLESS_PROPS.has(prop)) return trimmed;
 
   const unitMatch = prevValue.match(UNIT_RE);
-  if (unitMatch) return trimmed + unitMatch[0];
+  if (unitMatch && VALID_CSS_UNITS.has(unitMatch[0].toLowerCase())) {
+    return trimmed + unitMatch[0];
+  }
 
-  return trimmed;
+  return trimmed + "px";
 }

@@ -1445,6 +1445,12 @@ const OVERLAY_STYLES = `
     height: 16px;
   }
 
+  .composer-segmented-text {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
   /* ── FontInput ── */
   .composer-font-input {
     display: flex;

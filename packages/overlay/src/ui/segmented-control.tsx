@@ -9,8 +9,8 @@ import { Tooltip } from "./tooltip";
 
 export interface SegmentedOption<T extends string = string> {
   value: T;
-  icon: ReactNode;
-  label?: string; // tooltip / aria-label
+  icon?: ReactNode;
+  label?: string; // tooltip / aria-label, also used as text content when no icon
   disabled?: boolean;
 }
 
@@ -102,10 +102,10 @@ export function SegmentedControl<T extends string = string>({
             aria-label={opt.label}
             aria-pressed={isSelected}
           >
-            {opt.icon}
+            {opt.icon || <span className="composer-segmented-text">{opt.label}</span>}
           </button>
         );
-        return opt.label ? (
+        return opt.icon && opt.label ? (
           <Tooltip key={opt.value} content={opt.label}>
             {button}
           </Tooltip>

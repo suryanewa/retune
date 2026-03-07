@@ -42,6 +42,7 @@ import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-st
 import { IconPlusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusLarge";
 import { IconMinusLarge } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusLarge";
 import { Tooltip } from "../ui/tooltip";
+import { parseBoxShadow, shadowToCss, defaultShadow, type ShadowValue } from "../ui/shadow-utils";
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
   { value: "left", icon: <IconAlignmentLeft size={16} />, label: "Left" },
@@ -75,11 +76,25 @@ function mapVerticalAlign(value: string | undefined): string {
 }
 
 const SIZE_OPTIONS: ComboOption[] = [
+  { value: "__fill", label: "Fill" },
+  { value: "__hug", label: "Hug" },
+  { value: "auto", label: "Auto" },
+];
+
+const MIN_MAX_OPTIONS: ComboOption[] = [
+  { value: "none", label: "None" },
   { value: "auto", label: "Auto" },
   { value: "fit-content", label: "Fit Content" },
   { value: "min-content", label: "Min Content" },
   { value: "max-content", label: "Max Content" },
   { value: "100%", label: "100%" },
+];
+
+const FLEX_BASIS_OPTIONS: ComboOption[] = [
+  { value: "auto", label: "Auto" },
+  { value: "0", label: "0" },
+  { value: "100%", label: "100%" },
+  { value: "fit-content", label: "Fit Content" },
 ];
 
 const FONT_WEIGHT_OPTIONS: ComboOption[] = [
@@ -112,6 +127,8 @@ const LETTER_SPACING_OPTIONS: ComboOption[] = [
 
 
 
+type SizingMode = "fixed" | "fill" | "hug";
+
 const DISPLAY_OPTIONS: SegmentedOption[] = [
   { value: "block", icon: <IconFormSquare size={20} />, label: "Block" },
   { value: "flex", icon: <IconBento size={20} />, label: "Flex" },
@@ -143,6 +160,21 @@ export function PropertyPanel({
   const showOffsets = positionType === "absolute" || positionType === "fixed" || positionType === "relative";
   const isSticky = positionType === "sticky";
   const hasVerticalAlign = isText || ["IMG", "INPUT", "SELECT", "TEXTAREA"].includes(element.tagName) || isFlex || isGrid;
+
+  // Detect if element is a child of a flex/grid container
+  const parentDisplay = element.element?.parentElement
+    ? getComputedStyle(element.element.parentElement).display
+    : "";
+  const isFlexChild = parentDisplay.includes("flex");
+  const isGridChild = parentDisplay.includes("grid");
+
+  // Parent flex direction (for sizing mode)
+  const parentFlexDir = isFlexChild && element.element?.parentElement
+    ? getComputedStyle(element.element.parentElement).flexDirection || "row"
+    : "row";
+
+  // Shadow state
+  const hasShadow = s.boxShadow && s.boxShadow !== "none";
 
   const [pins, setPins] = useState<PinState>({ top: true, right: false, bottom: false, left: true });
   const [centered, setCentered] = useState(false);
@@ -229,6 +261,94 @@ export function PropertyPanel({
     onPropertyChange("backgroundImage", gradientToCss(newGradient));
   }, [onPropertyChange]);
 
+  const handleSizingModeChange = useCallback((axis: "width" | "height", mode: SizingMode) => {
+    if (!isFlexChild) {
+      // Non-flex (including grid children): Fill = 100%, Hug = fit-content
+      switch (mode) {
+        case "fill":
+          onPropertyChange(axis, "100%");
+          if (isGridChild) onPropertyChange(axis === "width" ? "justifySelf" : "alignSelf", "stretch");
+          break;
+        case "hug":
+          onPropertyChange(axis, "fit-content");
+          break;
+        case "fixed": {
+          const rect = element.element?.getBoundingClientRect();
+          const val = rect ? Math.round(axis === "width" ? rect.width : rect.height) : 200;
+          onPropertyChange(axis, `${val}px`);
+          break;
+        }
+      }
+      return;
+    }
+
+    const isMainAxis =
+      (axis === "width" && !parentFlexDir.startsWith("column")) ||
+      (axis === "height" && parentFlexDir.startsWith("column"));
+
+    if (isMainAxis) {
+      switch (mode) {
+        case "fill":
+          onPropertyChange("flexGrow", "1");
+          onPropertyChange("flexShrink", "1");
+          onPropertyChange("flexBasis", "0px");
+          onPropertyChange(axis, "auto");
+          break;
+        case "hug":
+          onPropertyChange("flexGrow", "0");
+          onPropertyChange("flexShrink", "0");
+          onPropertyChange("flexBasis", "auto");
+          onPropertyChange(axis, "auto");
+          break;
+        case "fixed":
+          onPropertyChange("flexGrow", "0");
+          onPropertyChange("flexShrink", "0");
+          if (!s[axis] || s[axis] === "auto") {
+            const rect = element.element?.getBoundingClientRect();
+            const val = rect ? Math.round(axis === "width" ? rect.width : rect.height) : 200;
+            onPropertyChange(axis, `${val}px`);
+          }
+          break;
+      }
+    } else {
+      // Cross axis
+      switch (mode) {
+        case "fill":
+          onPropertyChange(axis, "100%");
+          onPropertyChange("alignSelf", "stretch");
+          break;
+        case "hug":
+          onPropertyChange(axis, "auto");
+          // Only override alignment if currently stretching, otherwise preserve user's alignment
+          if (!s.alignSelf || s.alignSelf === "auto" || s.alignSelf === "stretch") {
+            onPropertyChange("alignSelf", "flex-start");
+          }
+          break;
+        case "fixed":
+          if (!s[axis] || s[axis] === "auto" || s[axis] === "100%") {
+            const rect = element.element?.getBoundingClientRect();
+            const val = rect ? Math.round(axis === "width" ? rect.width : rect.height) : 200;
+            onPropertyChange(axis, `${val}px`);
+          }
+          break;
+      }
+    }
+  }, [isFlexChild, isGridChild, parentFlexDir, s, element.element, onPropertyChange]);
+
+  const handleAddShadow = useCallback(() => {
+    onPropertyChange("boxShadow", shadowToCss(defaultShadow()));
+  }, [onPropertyChange]);
+
+  const handleRemoveShadow = useCallback(() => {
+    onPropertyChange("boxShadow", "none");
+  }, [onPropertyChange]);
+
+  const handleShadowFieldChange = useCallback((field: keyof ShadowValue, value: string | number | boolean) => {
+    const parsed = parseBoxShadow(s.boxShadow) || defaultShadow();
+    const updated = { ...parsed, [field]: value };
+    onPropertyChange("boxShadow", shadowToCss(updated));
+  }, [s.boxShadow, onPropertyChange]);
+
   const handlePinChange = useCallback((side: "top" | "right" | "bottom" | "left", pinned: boolean) => {
     setPins((prev) => ({ ...prev, [side]: pinned }));
   }, []);
@@ -310,25 +430,61 @@ export function PropertyPanel({
 
       {/* Position */}
       <Section label="Position">
-        {(positionType === "absolute" || positionType === "fixed") && (
-          <Row>
-            <div className="composer-field">
-              <span className="composer-field-label">Alignment</span>
-              <div className="composer-align-row">
-                <div className="composer-btn-group">
-                  <Tooltip content="Align left" side="top"><button type="button" className="composer-align-btn" onClick={alignLeft}><IconVerticalAlignmentLeft size={16} /></button></Tooltip>
-                  <Tooltip content="Align center horizontally" side="top"><button type="button" className="composer-align-btn" onClick={alignCenterH}><IconVerticalAlignmentCenter size={16} /></button></Tooltip>
-                  <Tooltip content="Align right" side="top"><button type="button" className="composer-align-btn" onClick={alignRight}><IconVerticalAlignmentRight size={16} /></button></Tooltip>
-                </div>
-                <div className="composer-btn-group">
-                  <Tooltip content="Align top" side="top"><button type="button" className="composer-align-btn" onClick={alignTop}><IconHorizontalAlignmentTop size={16} /></button></Tooltip>
-                  <Tooltip content="Align center vertically" side="top"><button type="button" className="composer-align-btn" onClick={alignCenterV}><IconHorizontalAlignmentCenter size={16} /></button></Tooltip>
-                  <Tooltip content="Align bottom" side="top"><button type="button" className="composer-align-btn" onClick={alignBottom}><IconHorizontalAlignmentBottom size={16} /></button></Tooltip>
+        {/* Unified alignment row — always visible, disabled when not applicable */}
+        {(() => {
+          const isAbsoluteOrFixed = positionType === "absolute" || positionType === "fixed";
+          const isFlexColumn = isFlexChild && parentFlexDir.startsWith("column");
+          const isFlexRow = isFlexChild && !parentFlexDir.startsWith("column");
+
+          // Horizontal group: absolute/fixed, grid child, or flex-column child (cross axis)
+          const hEnabled = isAbsoluteOrFixed || isGridChild || isFlexColumn;
+          // Vertical group: absolute/fixed, grid child, or flex-row child (cross axis)
+          const vEnabled = isAbsoluteOrFixed || isGridChild || isFlexRow;
+
+          const onHClick = (alignment: "start" | "center" | "end") => {
+            if (isAbsoluteOrFixed) {
+              if (alignment === "start") alignLeft();
+              else if (alignment === "center") alignCenterH();
+              else alignRight();
+            } else if (isGridChild) {
+              onPropertyChange("justifySelf", alignment);
+            } else if (isFlexColumn) {
+              onPropertyChange("alignSelf", alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center");
+            }
+          };
+
+          const onVClick = (alignment: "start" | "center" | "end") => {
+            if (isAbsoluteOrFixed) {
+              if (alignment === "start") alignTop();
+              else if (alignment === "center") alignCenterV();
+              else alignBottom();
+            } else if (isGridChild) {
+              onPropertyChange("alignSelf", alignment);
+            } else if (isFlexRow) {
+              onPropertyChange("alignSelf", alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center");
+            }
+          };
+
+          return (
+            <Row>
+              <div className="composer-field">
+                <span className="composer-field-label">Alignment</span>
+                <div className="composer-align-row">
+                  <div className="composer-btn-group" style={!hEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
+                    <Tooltip content="Align left" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("start")}><IconVerticalAlignmentLeft size={16} /></button></Tooltip>
+                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("center")}><IconVerticalAlignmentCenter size={16} /></button></Tooltip>
+                    <Tooltip content="Align right" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("end")}><IconVerticalAlignmentRight size={16} /></button></Tooltip>
+                  </div>
+                  <div className="composer-btn-group" style={!vEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
+                    <Tooltip content="Align top" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("start")}><IconHorizontalAlignmentTop size={16} /></button></Tooltip>
+                    <Tooltip content="Align center vertically" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("center")}><IconHorizontalAlignmentCenter size={16} /></button></Tooltip>
+                    <Tooltip content="Align bottom" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("end")}><IconHorizontalAlignmentBottom size={16} /></button></Tooltip>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Row>
-        )}
+            </Row>
+          );
+        })()}
         <Row>
           <Field label="Type">
             <SelectInput prop="position" value={positionType} options={["static", "relative", "absolute", "fixed", "sticky"]} onChange={onPropertyChange} />
@@ -385,15 +541,17 @@ export function PropertyPanel({
         {isFlex && (
           <>
             <Row>
-              <Field label="Alignment">
-                <AlignmentGrid
-                  justifyContent={s.justifyContent || "flex-start"}
-                  alignItems={s.alignItems || "stretch"}
-                  flexDirection={s.flexDirection || "row"}
-                  onChange={onPropertyChange}
-                />
-              </Field>
-              <div onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
+              <div style={{ flex: 1 }}>
+                <Field label="Alignment">
+                  <AlignmentGrid
+                    justifyContent={s.justifyContent || "flex-start"}
+                    alignItems={s.alignItems || "stretch"}
+                    flexDirection={s.flexDirection || "row"}
+                    onChange={onPropertyChange}
+                  />
+                </Field>
+              </div>
+              <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
                 <Field label="Gap">
                   <NumberInput
                     label={<Tooltip content={(s.flexDirection || "row").startsWith("column") ? "Vertical gap between items" : "Horizontal gap between items"} side="top" sideOffset={14}>{(s.flexDirection || "row").startsWith("column") ? <IconGapVertical /> : <IconGapHorizontal />}</Tooltip>}
@@ -416,14 +574,16 @@ export function PropertyPanel({
         )}
         {isGrid && (
           <Row>
-            <Field label="Grid">
-              <GridPicker
-                columns={parseGridCount(s.gridTemplateColumns)}
-                rows={parseGridCount(s.gridTemplateRows)}
-                onChange={onPropertyChange}
-              />
-            </Field>
-            <div onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
+            <div style={{ flex: 1 }}>
+              <Field label="Grid">
+                <GridPicker
+                  columns={parseGridCount(s.gridTemplateColumns)}
+                  rows={parseGridCount(s.gridTemplateRows)}
+                  onChange={onPropertyChange}
+                />
+              </Field>
+            </div>
+            <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
               <Field label="Gap">
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <NumberInput label={<Tooltip content="Horizontal gap between columns" side="top" sideOffset={14}><IconGapHorizontal /></Tooltip>} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
@@ -475,13 +635,69 @@ export function PropertyPanel({
       <Section label="Size">
         <Row>
           <Field label="Width">
-            <ComboInput label="W" prop="width" value={s.width} options={SIZE_OPTIONS} onChange={onPropertyChange} />
+            <ComboInput
+              label="W"
+              prop="width"
+              value={s.width}
+              options={SIZE_OPTIONS}
+              onChange={(prop, val) => {
+                if (val === "__fill") handleSizingModeChange("width", "fill");
+                else if (val === "__hug") handleSizingModeChange("width", "hug");
+                else {
+                  if (isFlexChild) handleSizingModeChange("width", "fixed");
+                  onPropertyChange(prop, val);
+                }
+              }}
+            />
           </Field>
           <Field label="Height">
-            <ComboInput label="H" prop="height" value={s.height} options={SIZE_OPTIONS} onChange={onPropertyChange} />
+            <ComboInput
+              label="H"
+              prop="height"
+              value={s.height}
+              options={SIZE_OPTIONS}
+              onChange={(prop, val) => {
+                if (val === "__fill") handleSizingModeChange("height", "fill");
+                else if (val === "__hug") handleSizingModeChange("height", "hug");
+                else {
+                  if (isFlexChild) handleSizingModeChange("height", "fixed");
+                  onPropertyChange(prop, val);
+                }
+              }}
+            />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Min W">
+            <ComboInput prop="minWidth" value={s.minWidth} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+          </Field>
+          <Field label="Max W">
+            <ComboInput prop="maxWidth" value={s.maxWidth} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Min H">
+            <ComboInput prop="minHeight" value={s.minHeight} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+          </Field>
+          <Field label="Max H">
+            <ComboInput prop="maxHeight" value={s.maxHeight} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
           </Field>
         </Row>
       </Section>
+
+      {/* Grid Child — Placement */}
+      {isGridChild && (
+        <Section label="Grid Placement">
+          <Row>
+            <Field label="Column">
+              <TextInput prop="gridColumn" value={s.gridColumn} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Row">
+              <TextInput prop="gridRow" value={s.gridRow} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+        </Section>
+      )}
 
       {/* Typography */}
       {isText && (
@@ -551,6 +767,14 @@ export function PropertyPanel({
             </Field>
             <Field label="Text Indent">
               <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />
+            </Field>
+          </Row>
+          <Row>
+            <Field label="Overflow">
+              <SelectInput prop="textOverflow" value={s.textOverflow} options={["clip", "ellipsis"]} onChange={onPropertyChange} />
+            </Field>
+            <Field label="Word Break">
+              <SelectInput prop="overflowWrap" value={s.overflowWrap} options={["normal", "break-word", "anywhere"]} onChange={onPropertyChange} />
             </Field>
           </Row>
         </Section>
@@ -647,15 +871,76 @@ export function PropertyPanel({
       </Section>
 
       {/* Shadow */}
-      {s.boxShadow && s.boxShadow !== "none" && (
-        <Section label="Shadow">
-          <Row>
-            <Field label="Box Shadow">
-              <TextInput prop="boxShadow" value={s.boxShadow} onChange={onPropertyChange} />
-            </Field>
-          </Row>
-        </Section>
-      )}
+      <Section
+        label="Shadow"
+        action={
+          hasShadow ? (
+            <Tooltip content="Remove shadow" side="top"><button className="composer-section-action" onClick={handleRemoveShadow}><IconMinusLarge size={20} /></button></Tooltip>
+          ) : (
+            <Tooltip content="Add shadow" side="top"><button className="composer-section-action" onClick={handleAddShadow}><IconPlusLarge size={20} /></button></Tooltip>
+          )
+        }
+      >
+        {hasShadow && (() => {
+          const shadow = parseBoxShadow(s.boxShadow);
+          if (!shadow) return null;
+          return (
+            <>
+              <Row>
+                <Field label="Color">
+                  <ColorInput
+                    prop="shadowColor"
+                    value={shadow.color}
+                    onChange={(_p, val) => handleShadowFieldChange("color", val)}
+                  />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="X Offset">
+                  <NumberInput
+                    prop="shadowOffsetX"
+                    value={`${shadow.offsetX}px`}
+                    onChange={(_p, val) => handleShadowFieldChange("offsetX", parseFloat(val) || 0)}
+                  />
+                </Field>
+                <Field label="Y Offset">
+                  <NumberInput
+                    prop="shadowOffsetY"
+                    value={`${shadow.offsetY}px`}
+                    onChange={(_p, val) => handleShadowFieldChange("offsetY", parseFloat(val) || 0)}
+                  />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Blur">
+                  <NumberInput
+                    prop="shadowBlur"
+                    value={`${shadow.blur}px`}
+                    onChange={(_p, val) => handleShadowFieldChange("blur", Math.max(0, parseFloat(val) || 0))}
+                  />
+                </Field>
+                <Field label="Spread">
+                  <NumberInput
+                    prop="shadowSpread"
+                    value={`${shadow.spread}px`}
+                    onChange={(_p, val) => handleShadowFieldChange("spread", parseFloat(val) || 0)}
+                  />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Type">
+                  <SelectInput
+                    prop="shadowInset"
+                    value={shadow.inset ? "inside" : "outside"}
+                    options={["outside", "inside"]}
+                    onChange={(_p, val) => handleShadowFieldChange("inset", val === "inside")}
+                  />
+                </Field>
+              </Row>
+            </>
+          );
+        })()}
+      </Section>
 
     </div>
   );

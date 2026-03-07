@@ -38,10 +38,18 @@ const LAYOUT_PROPS = [
   "gridTemplateColumns", "gridTemplateRows",
   "top", "right", "bottom", "left",
   "zIndex",
+  // Flex child
+  "flexGrow", "flexShrink", "flexBasis", "alignSelf", "order",
+  // Grid child
+  "gridColumn", "gridRow", "justifySelf",
 ] as const;
 
 const VISUAL_PROPS = [
-  "opacity", "overflow", "boxShadow", "transform",
+  "opacity", "overflow", "boxShadow", "textShadow", "transform",
+] as const;
+
+const TEXT_OVERFLOW_PROPS = [
+  "textOverflow", "overflowWrap", "wordBreak",
 ] as const;
 
 const ALL_PROPS = [
@@ -52,6 +60,7 @@ const ALL_PROPS = [
   ...BACKGROUND_PROPS,
   ...LAYOUT_PROPS,
   ...VISUAL_PROPS,
+  ...TEXT_OVERFLOW_PROPS,
 ] as const;
 
 export type LayoutMode = "block" | "flex" | "grid" | "inline" | "absolute" | "fixed" | "relative" | "sticky";
