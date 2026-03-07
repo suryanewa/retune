@@ -134,5 +134,37 @@ export class ChangeTracker {
     this.tracked.clear();
     this.undoStack = [];
     this.redoStack = [];
+    this.persist();
+  }
+
+  private static STORAGE_KEY = "composer-pending-changes";
+
+  /** Save state to localStorage */
+  persist() {
+    try {
+      const data = {
+        tracked: Array.from(this.tracked.entries()),
+        undoStack: this.undoStack,
+        redoStack: this.redoStack,
+      };
+      localStorage.setItem(ChangeTracker.STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      // localStorage may be unavailable
+    }
+  }
+
+  /** Restore state from localStorage */
+  restore(): boolean {
+    try {
+      const raw = localStorage.getItem(ChangeTracker.STORAGE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      this.tracked = new Map(data.tracked);
+      this.undoStack = data.undoStack || [];
+      this.redoStack = data.redoStack || [];
+      return this.hasPendingChanges();
+    } catch {
+      return false;
+    }
   }
 }

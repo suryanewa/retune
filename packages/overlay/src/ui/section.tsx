@@ -5,15 +5,18 @@
 
 import type { ReactNode } from "react";
 
-export function Section({ label, gap, children }: { label: string; gap?: number; children: ReactNode }) {
+export function Section({ label, gap, action, children }: { label: string; gap?: number; action?: ReactNode; children?: ReactNode }) {
   return (
     <div className="composer-section">
       <div className="composer-section-header">
         <span className="composer-section-title">{label}</span>
+        {action}
       </div>
-      <div className="composer-section-body" style={gap != null ? { gap } : undefined}>
-        {children}
-      </div>
+      {children && (
+        <div className="composer-section-body" style={gap != null ? { gap } : undefined}>
+          {children}
+        </div>
+      )}
     </div>
   );
 }

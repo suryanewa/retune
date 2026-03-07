@@ -306,14 +306,32 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px;
-    height: 40px;
+    padding: 0 8px 0 16px;
+    height: 44px;
   }
 
   .composer-section-title {
     font-size: 13px;
     font-weight: 500;
     line-height: 20px;
+    color: #1c1917;
+  }
+
+  .composer-section-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #a8a29e;
+    cursor: pointer;
+    padding: 0;
+  }
+  .composer-section-action:hover {
+    background: #f5f5f4;
     color: #1c1917;
   }
 

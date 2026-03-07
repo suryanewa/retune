@@ -125,6 +125,19 @@ export function DevOverlay(props: ComposerConfig = {}) {
 
     bridge.connect();
 
+    // Restore persisted changes from previous session
+    if (tracker.restore()) {
+      preview.attach();
+      for (const change of tracker.getPendingChanges()) {
+        for (const c of change.changes) {
+          preview.applyChange(change.selector, c.property, c.to);
+        }
+      }
+      setChangeCount(tracker.getPendingChanges().reduce((s, c) => s + c.changes.length, 0));
+      setCanUndo(tracker.canUndo);
+      setCanRedo(tracker.canRedo);
+    }
+
     const picker = createPicker(mount.root, {
       onHover: () => {},
       onSelect: (element) => {
@@ -204,6 +217,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
     setChangeCount(tracker.getPendingChanges().reduce((s, c) => s + c.changes.length, 0));
     setCanUndo(tracker.canUndo);
     setCanRedo(tracker.canRedo);
+    tracker.persist();
   }, []);
 
   const refreshSelectedElement = useCallback(() => {

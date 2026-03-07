@@ -38,6 +38,8 @@ import { IconFormSquare } from "@central-icons-react/round-outlined-radius-2-str
 import { IconCornerRadius } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCornerRadius";
 import { IconBento } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBento";
 import { IconLayoutGrid2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconLayoutGrid2";
+import { IconPlusSmall } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPlusSmall";
+import { IconMinusSmall } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconMinusSmall";
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
   { value: "left", icon: <IconAlignmentLeft size={16} />, label: "Left" },
@@ -164,6 +166,39 @@ export function PropertyPanel({
       if (parsed) setGradient(parsed);
     }
   }
+
+  // ── Fill (null-or-active) ──
+  const hasFill = (() => {
+    const bg = s.backgroundColor;
+    const bgImg = s.backgroundImage;
+    if (bgImg && bgImg !== "none") return true;
+    if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") return false;
+    return true;
+  })();
+
+  const handleAddFill = useCallback(() => {
+    onPropertyChange("backgroundColor", "#ffffff");
+  }, [onPropertyChange]);
+
+  const handleRemoveFill = useCallback(() => {
+    onPropertyChange("backgroundColor", "transparent");
+    onPropertyChange("backgroundImage", "none");
+    setFillMode("solid");
+  }, [onPropertyChange]);
+
+  // ── Border (null-or-active) ──
+  const hasBorder = s.borderTopStyle !== "none" && parseFloat(s.borderTopWidth) > 0;
+
+  const handleAddBorder = useCallback(() => {
+    onPropertyChange("borderWidth", "1px");
+    onPropertyChange("borderStyle", "solid");
+    onPropertyChange("borderColor", "#000000");
+  }, [onPropertyChange]);
+
+  const handleRemoveBorder = useCallback(() => {
+    onPropertyChange("borderWidth", "0px");
+    onPropertyChange("borderStyle", "none");
+  }, [onPropertyChange]);
 
   const handleFillModeChange = useCallback((prop: string, value: string) => {
     const mode = value as FillMode;
@@ -530,39 +565,74 @@ export function PropertyPanel({
       </Section>
 
       {/* Fill */}
-      <Section label="Fill" gap={8}>
-        <Row>
-          <SelectInput
-            prop="fillMode"
-            value={fillMode === "solid" ? "solid" : gradient.type}
-            options={["solid", "linear", "radial", "conic"]}
-            onChange={handleFillModeChange}
-          />
-        </Row>
-        {fillMode === "solid" ? (
-          <Row>
-            <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
-          </Row>
-        ) : (
-          <GradientEditor gradient={gradient} onChange={handleGradientChange} />
+      <Section
+        label="Fill"
+        gap={8}
+        action={
+          hasFill ? (
+            <button className="composer-section-action" onClick={handleRemoveFill} title="Remove fill">
+              <IconMinusSmall size={20} />
+            </button>
+          ) : (
+            <button className="composer-section-action" onClick={handleAddFill} title="Add fill">
+              <IconPlusSmall size={20} />
+            </button>
+          )
+        }
+      >
+        {hasFill && (
+          <>
+            <Row>
+              <SelectInput
+                prop="fillMode"
+                value={fillMode === "solid" ? "solid" : gradient.type}
+                options={["solid", "linear", "radial", "conic"]}
+                onChange={handleFillModeChange}
+              />
+            </Row>
+            {fillMode === "solid" ? (
+              <Row>
+                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
+              </Row>
+            ) : (
+              <GradientEditor gradient={gradient} onChange={handleGradientChange} />
+            )}
+          </>
         )}
       </Section>
 
       {/* Border */}
-      <Section label="Border">
-        <Row>
-          <Field label="Color">
-            <ColorInput prop="borderColor" value={s.borderTopColor} onChange={onPropertyChange} />
-          </Field>
-        </Row>
-        <Row>
-          <Field label="Width">
-            <NumberInput prop="borderWidth" value={s.borderTopWidth} onChange={onPropertyChange} />
-          </Field>
-          <Field label="Style">
-            <SelectInput prop="borderStyle" value={s.borderTopStyle} options={["none", "solid", "dashed", "dotted", "double", "groove", "ridge"]} onChange={onPropertyChange} />
-          </Field>
-        </Row>
+      <Section
+        label="Border"
+        action={
+          hasBorder ? (
+            <button className="composer-section-action" onClick={handleRemoveBorder} title="Remove border">
+              <IconMinusSmall size={20} />
+            </button>
+          ) : (
+            <button className="composer-section-action" onClick={handleAddBorder} title="Add border">
+              <IconPlusSmall size={20} />
+            </button>
+          )
+        }
+      >
+        {hasBorder && (
+          <>
+            <Row>
+              <Field label="Color">
+                <ColorInput prop="borderColor" value={s.borderTopColor} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+            <Row>
+              <Field label="Width">
+                <NumberInput prop="borderWidth" value={s.borderTopWidth} onChange={onPropertyChange} />
+              </Field>
+              <Field label="Style">
+                <SelectInput prop="borderStyle" value={s.borderTopStyle} options={["solid", "dashed", "dotted", "double", "groove", "ridge"]} onChange={onPropertyChange} />
+              </Field>
+            </Row>
+          </>
+        )}
       </Section>
 
       {/* Shadow */}
