@@ -102,7 +102,7 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     };
   }, [onClose]);
 
-  // Position the panel
+  // Position the panel — center within the property panel if available
   const panelWidth = Math.max(anchorRect.width, 248);
   const panelEstimatedHeight = 320;
   const spaceBelow = window.innerHeight - anchorRect.top - anchorRect.height - 4;
@@ -110,7 +110,14 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
   const top = flipUp
     ? anchorRect.top - panelEstimatedHeight - 4
     : anchorRect.top + anchorRect.height + 4;
-  const left = Math.min(anchorRect.left, window.innerWidth - panelWidth - 4);
+
+  // Try to center within the property panel
+  const host = document.querySelector("[data-composer-host]");
+  const parentPanel = host?.shadowRoot?.querySelector(".composer-panel");
+  const parentRect = parentPanel?.getBoundingClientRect();
+  const left = parentRect
+    ? parentRect.left + (parentRect.width - panelWidth) / 2
+    : Math.min(anchorRect.left, window.innerWidth - panelWidth - 4);
 
   // ── SV Picker ───────────────────────────────────────────────────────
 
@@ -278,6 +285,7 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
       }}
     >
       {/* SV Picker */}
+      <div className="composer-cp-sv-wrap">
       <div
         ref={svRef}
         className="composer-cp-sv"
@@ -301,6 +309,7 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
             style={{ backgroundColor: currentHex }}
           />
         </div>
+      </div>
       </div>
 
       {/* Sliders */}

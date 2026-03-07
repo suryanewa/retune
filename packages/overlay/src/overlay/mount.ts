@@ -356,7 +356,7 @@ const OVERLAY_STYLES = `
     width: 32px;
     height: 32px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     color: #a8a29e;
     cursor: pointer;
@@ -398,7 +398,7 @@ const OVERLAY_STYLES = `
     display: flex;
     flex: 1;
     background: #f5f5f4;
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
   }
 
@@ -435,7 +435,7 @@ const OVERLAY_STYLES = `
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: repeat(3, 1fr);
     background: #f5f5f4;
-    border-radius: 6px;
+    border-radius: 8px;
     width: 100%;
     height: 64px;
     outline: none;
@@ -475,7 +475,7 @@ const OVERLAY_STYLES = `
     padding: 4px;
     background: #f5f5f4;
     border: 1px solid #e7e5e4;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     box-sizing: border-box;
   }
@@ -582,7 +582,7 @@ const OVERLAY_STYLES = `
   .composer-pin-box {
     position: relative;
     background: #f5f5f4;
-    border-radius: 6px;
+    border-radius: 8px;
     width: 100%;
     height: 64px;
   }
@@ -631,7 +631,7 @@ const OVERLAY_STYLES = `
     height: 24px;
     background: #fff;
     border: 1px solid #e7e5e4;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -707,7 +707,7 @@ const OVERLAY_STYLES = `
     gap: 0;
     height: 32px;
     padding: 0;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     border: none;
     min-width: 0;
@@ -775,7 +775,7 @@ const OVERLAY_STYLES = `
     min-width: 0;
     height: 32px;
     background: #f5f5f4;
-    border-radius: 6px 0 0 6px;
+    border-radius: 8px 0 0 8px;
   }
 
   .composer-color-swatch {
@@ -789,8 +789,8 @@ const OVERLAY_STYLES = `
   }
 
   .composer-color-swatch-inner {
-    width: 14px;
-    height: 14px;
+    width: 20px;
+    height: 20px;
     border-radius: 2px;
   }
 
@@ -817,7 +817,7 @@ const OVERLAY_STYLES = `
     padding: 0 8px 0 4px;
     height: 32px;
     background: #f5f5f4;
-    border-radius: 0 6px 6px 0;
+    border-radius: 0 8px 8px 0;
     flex-shrink: 0;
   }
 
@@ -856,10 +856,14 @@ const OVERLAY_STYLES = `
       0 2px 8px rgba(0, 0, 0, 0.12),
       0 8px 24px rgba(0, 0, 0, 0.08),
       0 0 0 1px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     width: 248px;
+  }
+
+  .composer-cp-sv-wrap {
+    padding: 12px 12px 0 12px;
   }
 
   .composer-cp-sv {
@@ -869,6 +873,7 @@ const OVERLAY_STYLES = `
     cursor: crosshair;
     touch-action: none;
     overflow: hidden;
+    border-radius: 8px;
   }
 
   .composer-cp-sv-white {
@@ -977,6 +982,8 @@ const OVERLAY_STYLES = `
     display: flex;
     gap: 4px;
     padding: 0 12px 10px;
+    background: #fff;
+    border-radius: 0 0 12px 12px;
   }
 
   .composer-cp-input-group {
@@ -1002,7 +1009,7 @@ const OVERLAY_STYLES = `
 
   .composer-cp-input {
     height: 32px;
-    border-radius: 4px;
+    border-radius: 8px;
     background: #f5f5f4;
     border: none;
     font-family: inherit;
@@ -1026,13 +1033,13 @@ const OVERLAY_STYLES = `
   .composer-gradient-editor {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 4px 16px;
+    gap: 8px;
+    padding: 0 16px;
   }
 
   .composer-gradient-bar-wrap {
     position: relative;
-    height: 40px;
+    height: 32px;
     cursor: crosshair;
   }
 
@@ -1042,7 +1049,7 @@ const OVERLAY_STYLES = `
     left: 0;
     right: 0;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     border: 1px solid rgba(0,0,0,0.1);
   }
@@ -1064,7 +1071,7 @@ const OVERLAY_STYLES = `
 
   .composer-gradient-stop-handle {
     position: absolute;
-    top: 8px;
+    top: 0px;
     transform: translateX(-50%);
     cursor: grab;
     touch-action: none;
@@ -1109,7 +1116,7 @@ const OVERLAY_STYLES = `
   .composer-gradient-angle-input {
     width: 64px;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     border: none;
     font-family: inherit;
@@ -1140,7 +1147,7 @@ const OVERLAY_STYLES = `
     height: 32px;
     border: none;
     background: transparent;
-    border-radius: 6px;
+    border-radius: 8px;
     color: #78716c;
     cursor: pointer;
     transition: background-color 0.08s ease, color 0.08s ease;
@@ -1154,7 +1161,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 2px 0;
+    padding: 0;
   }
 
   .composer-gradient-stops-label {
@@ -1167,14 +1174,14 @@ const OVERLAY_STYLES = `
   .composer-gradient-stops-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 8px;
   }
 
   .composer-gradient-stop-row {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 2px 0;
+    padding: 0;
   }
 
   .composer-gradient-stop-pos {
@@ -1188,7 +1195,7 @@ const OVERLAY_STYLES = `
   .composer-gradient-stop-pos-input {
     width: 100%;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     border: none;
     font-family: inherit;
@@ -1230,7 +1237,7 @@ const OVERLAY_STYLES = `
     align-items: center;
     width: 100%;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     border: none;
     cursor: pointer;
@@ -1295,7 +1302,7 @@ const OVERLAY_STYLES = `
   .composer-slider {
     position: relative;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     cursor: ew-resize;
     user-select: none;
@@ -1370,7 +1377,7 @@ const OVERLAY_STYLES = `
     display: flex;
     height: 32px;
     background: #f5f5f4;
-    border-radius: 6px;
+    border-radius: 8px;
     overflow: hidden;
     flex: 1;
   }
@@ -1382,7 +1389,7 @@ const OVERLAY_STYLES = `
     flex: 1;
     height: 32px;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: 8px;
     background: transparent;
     cursor: pointer;
     padding: 0;
@@ -1396,7 +1403,6 @@ const OVERLAY_STYLES = `
     background: #fff;
     border-color: rgba(0, 0, 0, 0.1);
     color: #1c1917;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
   }
 
   .composer-segmented-item.disabled {
@@ -1414,7 +1420,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     min-width: 0;
     overflow: hidden;
@@ -1449,7 +1455,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     height: 32px;
-    border-radius: 6px;
+    border-radius: 8px;
     background: #f5f5f4;
     min-width: 0;
     overflow: hidden;
@@ -1518,7 +1524,7 @@ const OVERLAY_STYLES = `
     height: 100%;
     border: none;
     background: #f5f5f4;
-    border-radius: 6px 0 0 6px;
+    border-radius: 8px 0 0 8px;
     font-size: 11px;
     font-weight: 450;
     letter-spacing: -0.055px;
@@ -1544,7 +1550,7 @@ const OVERLAY_STYLES = `
     align-items: center;
     justify-content: center;
     background: #f5f5f4;
-    border-radius: 0 6px 6px 0;
+    border-radius: 0 8px 8px 0;
     border: none;
     cursor: pointer;
     color: #78716c;

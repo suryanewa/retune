@@ -210,6 +210,7 @@ export function PropertyPanel({
     setFillMode(mode);
     if (mode === "solid") {
       onPropertyChange("backgroundImage", "none");
+      onPropertyChange("backgroundColor", "#ffffff");
     } else {
       const newGradient = { ...gradient, type: mode as GradientFill["type"] };
       setGradient(newGradient);
