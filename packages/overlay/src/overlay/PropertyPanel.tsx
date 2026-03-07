@@ -530,7 +530,7 @@ export function PropertyPanel({
       </Section>
 
       {/* Fill */}
-      <Section label="Fill">
+      <Section label="Fill" gap={8}>
         <Row>
           <SelectInput
             prop="fillMode"
