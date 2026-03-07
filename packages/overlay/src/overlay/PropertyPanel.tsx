@@ -34,7 +34,7 @@ import {
   AlSpacingHorizontal, AlSpacingVertical,
   RadiusTopLeft, RadiusTopRight, RadiusBottomLeft, RadiusBottomRight,
   RectangleSmall, AutolayoutAddHorizontal, AutolayoutAddVertical, GridView,
-  Plus, Minus, ChevronDownLarge,
+  Plus, Minus, ChevronDownLarge, AdjustSmall, ListView, NumberList,
 } from "../ui/icons";
 import { Tooltip } from "../ui/tooltip";
 import { ShorthandInput } from "../ui/shorthand-input";
@@ -123,6 +123,12 @@ const DISPLAY_OPTIONS: SegmentedOption[] = [
   { value: "flex-row", icon: <AutolayoutAddHorizontal />, label: "Flex →" },
   { value: "flex-column", icon: <AutolayoutAddVertical />, label: "Flex ↓" },
   { value: "grid", icon: <GridView />, label: "Grid" },
+];
+
+const LIST_STYLE_OPTIONS: SegmentedOption[] = [
+  { value: "none", icon: <Minus />, label: "None" },
+  { value: "disc", icon: <ListView />, label: "Bullet" },
+  { value: "decimal", icon: <NumberList />, label: "Numbered" },
 ];
 
 export function PropertyPanel({
@@ -865,17 +871,14 @@ export function PropertyPanel({
                 disabled={!hasVerticalAlign}
               />
             </Field>
+            <div style={{ alignSelf: "flex-end" }}>
+              <Tooltip content={typoExpanded ? "Show less" : "More options"} side="top">
+                <button className={`composer-split-btn${typoExpanded ? " active" : ""}`} onClick={() => setTypoExpanded((v) => !v)}>
+                  <AdjustSmall />
+                </button>
+              </Tooltip>
+            </div>
           </Row>
-          {/* "More" typography controls */}
-          <div className="composer-more-row">
-            <button
-              className={`composer-more-btn${typoExpanded ? " expanded" : ""}`}
-              onClick={() => setTypoExpanded((v) => !v)}
-            >
-              <ChevronDownLarge size={12} />
-              {typoExpanded ? "Less" : "More"}
-            </button>
-          </div>
           {typoExpanded && (
             <>
               <Row>
@@ -894,86 +897,84 @@ export function PropertyPanel({
                   <SelectInput prop="whiteSpace" value={s.whiteSpace} options={["normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces"]} onChange={onPropertyChange} />
                 </Field>
               </Row>
-              <Row>
-                <Field label="Word spacing">
-                  <NumberInput prop="wordSpacing" value={s.wordSpacing} onChange={onPropertyChange} />
-                </Field>
-                <Field label="Text indent">
-                  <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />
-                </Field>
-              </Row>
+              {(() => {
+                const truncation = detectTruncation(s);
+                const ctx = { currentDisplay: s.display };
+
+                const applyChanges = (changes: Record<string, string>) => {
+                  for (const [prop, value] of Object.entries(changes)) {
+                    onPropertyChange(prop, value);
+                  }
+                };
+
+                const fixAncestorMinWidth = (enabled: boolean) => {
+                  if (!onApplyToElement) return;
+                  let el = element.element?.parentElement;
+                  while (el && el !== document.body) {
+                    const parentDisplay = getComputedStyle(el.parentElement || el).display;
+                    const isGridOrFlexChild = parentDisplay.includes("grid") || parentDisplay.includes("flex");
+                    if (isGridOrFlexChild) {
+                      onApplyToElement(el, "minWidth", enabled ? "0px" : "");
+                    }
+                    el = el.parentElement;
+                  }
+                };
+
+                return (
+                  <>
+                    <Row>
+                      <Field label="Truncate">
+                        <SelectInput
+                          prop="truncate"
+                          value={truncation.enabled ? "ellipsis" : "none"}
+                          options={["none", "ellipsis"]}
+                          onChange={(_p, val) => {
+                            const enabled = val === "ellipsis";
+                            const changes = computeTruncationChanges(
+                              { enabled, lines: 1 },
+                              ctx,
+                            );
+                            applyChanges(changes);
+                            fixAncestorMinWidth(enabled);
+                          }}
+                        />
+                      </Field>
+                      {truncation.enabled && (
+                        <Field label="Max lines">
+                          <NumberInput
+                            prop="lineClamp"
+                            value={String(truncation.lines)}
+                            onChange={(_p, val) => {
+                              const n = parseInt(val) || 1;
+                              const changes = computeTruncationChanges(
+                                { enabled: true, lines: n },
+                                ctx,
+                              );
+                              applyChanges(changes);
+                            }}
+                          />
+                        </Field>
+                      )}
+                    </Row>
+                    <Row>
+                      <Field label="Word break">
+                        <SelectInput prop="overflowWrap" value={s.overflowWrap} options={["normal", "break-word", "anywhere"]} onChange={onPropertyChange} />
+                      </Field>
+                      {["UL", "OL", "LI"].includes(element.tagName) && (
+                        <Field label="List style">
+                          <SegmentedControl
+                            options={LIST_STYLE_OPTIONS}
+                            value={s.listStyleType || "none"}
+                            onChange={(val) => onPropertyChange("listStyleType", val)}
+                          />
+                        </Field>
+                      )}
+                    </Row>
+                  </>
+                );
+              })()}
             </>
           )}
-          {(() => {
-            const truncation = detectTruncation(s);
-            const ctx = { currentDisplay: s.display };
-
-            const applyChanges = (changes: Record<string, string>) => {
-              for (const [prop, value] of Object.entries(changes)) {
-                onPropertyChange(prop, value);
-              }
-            };
-
-            // In grid/flex layouts, ancestors with min-width:auto prevent
-            // truncation from working. Walk up and set min-width:0 on any
-            // grid/flex children so they can shrink below content size.
-            const fixAncestorMinWidth = (enabled: boolean) => {
-              if (!onApplyToElement) return;
-              let el = element.element?.parentElement;
-              while (el && el !== document.body) {
-                const parentDisplay = getComputedStyle(el.parentElement || el).display;
-                const isGridOrFlexChild = parentDisplay.includes("grid") || parentDisplay.includes("flex");
-                if (isGridOrFlexChild) {
-                  onApplyToElement(el, "minWidth", enabled ? "0px" : "");
-                }
-                el = el.parentElement;
-              }
-            };
-
-            return (
-              <>
-                <Row>
-                  <Field label="Truncate">
-                    <SelectInput
-                      prop="truncate"
-                      value={truncation.enabled ? "ellipsis" : "none"}
-                      options={["none", "ellipsis"]}
-                      onChange={(_p, val) => {
-                        const enabled = val === "ellipsis";
-                        const changes = computeTruncationChanges(
-                          { enabled, lines: 1 },
-                          ctx,
-                        );
-                        applyChanges(changes);
-                        fixAncestorMinWidth(enabled);
-                      }}
-                    />
-                  </Field>
-                  {truncation.enabled && (
-                    <Field label="Max lines">
-                      <NumberInput
-                        prop="lineClamp"
-                        value={String(truncation.lines)}
-                        onChange={(_p, val) => {
-                          const n = parseInt(val) || 1;
-                          const changes = computeTruncationChanges(
-                            { enabled: true, lines: n },
-                            ctx,
-                          );
-                          applyChanges(changes);
-                        }}
-                      />
-                    </Field>
-                  )}
-                </Row>
-                <Row>
-                  <Field label="Word break">
-                    <SelectInput prop="overflowWrap" value={s.overflowWrap} options={["normal", "break-word", "anywhere"]} onChange={onPropertyChange} />
-                  </Field>
-                </Row>
-              </>
-            );
-          })()}
         </Section>
       )}
 
