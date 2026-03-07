@@ -10,10 +10,11 @@ export interface NumberInputProps {
   label?: ReactNode;
   prop: string;
   value: string | undefined;
+  placeholder?: string;
   onChange: (prop: string, value: string) => void;
 }
 
-export function NumberInput({ label, prop, value, onChange }: NumberInputProps) {
+export function NumberInput({ label, prop, value, placeholder, onChange }: NumberInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const labelRef = useRef<HTMLSpanElement>(null);
 
@@ -99,6 +100,7 @@ export function NumberInput({ label, prop, value, onChange }: NumberInputProps) 
         className="composer-prop-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
+        placeholder={placeholder}
         onFocus={handleFocus}
         onChange={handleChange}
         onBlur={handleBlur}

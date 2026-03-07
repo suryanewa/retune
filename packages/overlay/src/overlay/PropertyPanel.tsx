@@ -81,14 +81,6 @@ const SIZE_OPTIONS: ComboOption[] = [
   { value: "auto", label: "Auto" },
 ];
 
-const MIN_MAX_OPTIONS: ComboOption[] = [
-  { value: "none", label: "None" },
-  { value: "auto", label: "Auto" },
-  { value: "fit-content", label: "Fit Content" },
-  { value: "min-content", label: "Min Content" },
-  { value: "max-content", label: "Max Content" },
-  { value: "100%", label: "100%" },
-];
 
 const FLEX_BASIS_OPTIONS: ComboOption[] = [
   { value: "auto", label: "Auto" },
@@ -518,7 +510,7 @@ export function PropertyPanel({
           </RowGroup>
         )}
         {isSticky && (
-          <RowGroup label="Sticky Offset">
+          <RowGroup label="Sticky offset">
             <div className="composer-row">
               <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
               <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
@@ -669,25 +661,25 @@ export function PropertyPanel({
         </Row>
         <Row>
           <Field label="Min W">
-            <ComboInput prop="minWidth" value={s.minWidth} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+            <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "0px")} />
           </Field>
-          <Field label="Max W">
-            <ComboInput prop="maxWidth" value={s.maxWidth} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+          <Field label="Min H">
+            <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "0px")} />
           </Field>
         </Row>
         <Row>
-          <Field label="Min H">
-            <ComboInput prop="minHeight" value={s.minHeight} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+          <Field label="Max W">
+            <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "none")} />
           </Field>
           <Field label="Max H">
-            <ComboInput prop="maxHeight" value={s.maxHeight} options={MIN_MAX_OPTIONS} onChange={onPropertyChange} />
+            <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => onPropertyChange(p, v || "none")} />
           </Field>
         </Row>
       </Section>
 
       {/* Grid Child — Placement */}
       {isGridChild && (
-        <Section label="Grid Placement">
+        <Section label="Grid placement">
           <Row>
             <Field label="Column">
               <TextInput prop="gridColumn" value={s.gridColumn} onChange={onPropertyChange} />
@@ -716,10 +708,10 @@ export function PropertyPanel({
             </Field>
           </Row>
           <Row>
-            <Field label="Line Height">
+            <Field label="Line height">
               <ComboInput prop="lineHeight" value={s.lineHeight} options={LINE_HEIGHT_OPTIONS} onChange={onPropertyChange} />
             </Field>
-            <Field label="Letter Spacing">
+            <Field label="Letter spacing">
               <ComboInput prop="letterSpacing" value={s.letterSpacing} options={LETTER_SPACING_OPTIONS} onChange={onPropertyChange} />
             </Field>
           </Row>
@@ -757,15 +749,15 @@ export function PropertyPanel({
             <Field label="Transform">
               <SelectInput prop="textTransform" value={s.textTransform} options={["none", "uppercase", "lowercase", "capitalize"]} onChange={onPropertyChange} />
             </Field>
-            <Field label="White Space">
+            <Field label="White space">
               <SelectInput prop="whiteSpace" value={s.whiteSpace} options={["normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces"]} onChange={onPropertyChange} />
             </Field>
           </Row>
           <Row>
-            <Field label="Word Spacing">
+            <Field label="Word spacing">
               <NumberInput prop="wordSpacing" value={s.wordSpacing} onChange={onPropertyChange} />
             </Field>
-            <Field label="Text Indent">
+            <Field label="Text indent">
               <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />
             </Field>
           </Row>
@@ -773,7 +765,7 @@ export function PropertyPanel({
             <Field label="Overflow">
               <SelectInput prop="textOverflow" value={s.textOverflow} options={["clip", "ellipsis"]} onChange={onPropertyChange} />
             </Field>
-            <Field label="Word Break">
+            <Field label="Word break">
               <SelectInput prop="overflowWrap" value={s.overflowWrap} options={["normal", "break-word", "anywhere"]} onChange={onPropertyChange} />
             </Field>
           </Row>
@@ -786,11 +778,11 @@ export function PropertyPanel({
           <Field label="Opacity">
             <NumberInput prop="opacity" value={s.opacity} onChange={onPropertyChange} />
           </Field>
-          <Field label="Z Index">
+          <Field label="Z index">
             <NumberInput prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
           </Field>
         </Row>
-        <RowGroup label="Corner Radius">
+        <RowGroup label="Corner radius">
           <div className="composer-row">
             <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><IconCornerRadius size={14} /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} />
             <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><span style={{ display: "inline-flex", transform: "rotate(90deg)" }}><IconCornerRadius size={14} /></span></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} />
@@ -896,14 +888,14 @@ export function PropertyPanel({
                 </Field>
               </Row>
               <Row>
-                <Field label="X Offset">
+                <Field label="X offset">
                   <NumberInput
                     prop="shadowOffsetX"
                     value={`${shadow.offsetX}px`}
                     onChange={(_p, val) => handleShadowFieldChange("offsetX", parseFloat(val) || 0)}
                   />
                 </Field>
-                <Field label="Y Offset">
+                <Field label="Y offset">
                   <NumberInput
                     prop="shadowOffsetY"
                     value={`${shadow.offsetY}px`}
