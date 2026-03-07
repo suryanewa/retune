@@ -116,7 +116,7 @@ const LETTER_SPACING_OPTIONS: ComboOption[] = [
 
 
 
-type SizeExtra = "minWidth" | "minHeight" | "maxWidth" | "maxHeight";
+type SizeExtra = "min" | "max";
 
 const DISPLAY_OPTIONS: SegmentedOption[] = [
   { value: "block", icon: <RectangleSmall />, label: "Block" },
@@ -184,7 +184,9 @@ export function PropertyPanel({
     if (!sizeMenuOpen) return;
     const handleClick = (e: PointerEvent) => {
       const btn = sizeMenuBtnRef.current;
+      const menu = sizeMenuRef.current;
       if (btn && btn.contains(e.target as Node)) return;
+      if (menu && menu.contains(e.target as Node)) return;
       setSizeMenuOpen(false);
     };
     const root = sizeMenuBtnRef.current?.getRootNode() as ShadowRoot | Document;
@@ -194,10 +196,10 @@ export function PropertyPanel({
 
   // Auto-show size extras that have non-default values
   const visibleSizeExtras = new Set(sizeExtras);
-  if (s.minWidth && s.minWidth !== "0px" && s.minWidth !== "auto") visibleSizeExtras.add("minWidth");
-  if (s.minHeight && s.minHeight !== "0px" && s.minHeight !== "auto") visibleSizeExtras.add("minHeight");
-  if (s.maxWidth && s.maxWidth !== "none") visibleSizeExtras.add("maxWidth");
-  if (s.maxHeight && s.maxHeight !== "none") visibleSizeExtras.add("maxHeight");
+  if ((s.minWidth && s.minWidth !== "0px" && s.minWidth !== "auto") ||
+      (s.minHeight && s.minHeight !== "0px" && s.minHeight !== "auto")) visibleSizeExtras.add("min");
+  if ((s.maxWidth && s.maxWidth !== "none") ||
+      (s.maxHeight && s.maxHeight !== "none")) visibleSizeExtras.add("max");
 
   const [pins, setPins] = useState<PinState>({ top: true, right: false, bottom: false, left: true });
   const [centered, setCentered] = useState(false);
@@ -714,12 +716,10 @@ export function PropertyPanel({
                 style={{ position: "fixed", top: sizeMenuPos.top, left: sizeMenuPos.left, transform: "translateX(-100%)", zIndex: 2147483647 }}
               >
                 <DropdownMenu
-                  options={([
-                    ["minWidth", "Min width"],
-                    ["minHeight", "Min height"],
-                    ["maxWidth", "Max width"],
-                    ["maxHeight", "Max height"],
-                  ] as const).map(([key, label]) => ({ value: key, label }))}
+                  options={[
+                    { value: "min", label: "Min size" },
+                    { value: "max", label: "Max size" },
+                  ]}
                   value={undefined}
                   showCheckmark={false}
                   onSelect={(option) => {
@@ -772,44 +772,36 @@ export function PropertyPanel({
             />
           </Field>
         </Row>
-        {(visibleSizeExtras.has("minWidth") || visibleSizeExtras.has("minHeight")) && (
+        {visibleSizeExtras.has("min") && (
           <Row>
-            {visibleSizeExtras.has("minWidth") ? (
-              <Field label="Min W">
-                <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => {
-                  if (!v) { onPropertyChange(p, "0px"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("minWidth"); return next; }); }
-                  else onPropertyChange(p, v);
-                }} />
-              </Field>
-            ) : <div style={{ flex: 1 }} />}
-            {visibleSizeExtras.has("minHeight") ? (
-              <Field label="Min H">
-                <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => {
-                  if (!v) { onPropertyChange(p, "0px"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("minHeight"); return next; }); }
-                  else onPropertyChange(p, v);
-                }} />
-              </Field>
-            ) : <div style={{ flex: 1 }} />}
+            <Field label="Min W">
+              <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => {
+                if (!v) onPropertyChange(p, "0px");
+                else onPropertyChange(p, v);
+              }} />
+            </Field>
+            <Field label="Min H">
+              <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => {
+                if (!v) onPropertyChange(p, "0px");
+                else onPropertyChange(p, v);
+              }} />
+            </Field>
           </Row>
         )}
-        {(visibleSizeExtras.has("maxWidth") || visibleSizeExtras.has("maxHeight")) && (
+        {visibleSizeExtras.has("max") && (
           <Row>
-            {visibleSizeExtras.has("maxWidth") ? (
-              <Field label="Max W">
-                <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => {
-                  if (!v) { onPropertyChange(p, "none"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("maxWidth"); return next; }); }
-                  else onPropertyChange(p, v);
-                }} />
-              </Field>
-            ) : <div style={{ flex: 1 }} />}
-            {visibleSizeExtras.has("maxHeight") ? (
-              <Field label="Max H">
-                <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => {
-                  if (!v) { onPropertyChange(p, "none"); setSizeExtras((prev) => { const next = new Set(prev); next.delete("maxHeight"); return next; }); }
-                  else onPropertyChange(p, v);
-                }} />
-              </Field>
-            ) : <div style={{ flex: 1 }} />}
+            <Field label="Max W">
+              <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => {
+                if (!v) onPropertyChange(p, "none");
+                else onPropertyChange(p, v);
+              }} />
+            </Field>
+            <Field label="Max H">
+              <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => {
+                if (!v) onPropertyChange(p, "none");
+                else onPropertyChange(p, v);
+              }} />
+            </Field>
           </Row>
         )}
       </Section>
