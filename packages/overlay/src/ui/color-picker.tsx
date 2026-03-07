@@ -70,7 +70,7 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     onChange(hex);
   }, [onChange]);
 
-  // Close on outside click
+  // Close on outside click or Escape
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
       const panel = panelRef.current;
@@ -80,14 +80,25 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
         onClose();
       }
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
     const root = panelRef.current?.getRootNode() as ShadowRoot | Document;
     // Delay to avoid the click that opened the picker
     const timer = setTimeout(() => {
       root.addEventListener("pointerdown", handlePointerDown as EventListener);
     }, 0);
+    root.addEventListener("keydown", handleKeyDown as EventListener, true);
+    document.addEventListener("keydown", handleKeyDown, true);
     return () => {
       clearTimeout(timer);
       root.removeEventListener("pointerdown", handlePointerDown as EventListener);
+      root.removeEventListener("keydown", handleKeyDown as EventListener, true);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [onClose]);
 

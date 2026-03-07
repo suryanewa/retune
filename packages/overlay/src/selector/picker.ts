@@ -232,6 +232,8 @@ export function createPicker(
   function handleKeyDown(e: KeyboardEvent) {
     if (!active) return;
     if (e.key === "Escape") {
+      // If a nested overlay (e.g. color picker) is open, let it handle Escape
+      if (shadowRoot.querySelector(".composer-color-picker-panel")) return;
       e.preventDefault();
       callbacks.onCancel();
     }
