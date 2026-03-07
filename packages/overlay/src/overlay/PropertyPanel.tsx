@@ -21,6 +21,7 @@ import { type FillMode, type GradientFill, detectFillMode, defaultGradient, pars
 import {
   IconSpacingVerticalTop, IconSpacingVerticalBottom,
   IconSpacingHorizontalLeft, IconSpacingHorizontalRight,
+  IconGapHorizontal, IconGapVertical,
 } from "../ui/spacing-icons";
 import { SegmentedControl } from "../ui/segmented-control";
 import type { SegmentedOption } from "../ui/segmented-control";
@@ -105,14 +106,7 @@ const LETTER_SPACING_OPTIONS: ComboOption[] = [
   { value: "0.1em", label: "Wider" },
 ];
 
-const WORD_SPACING_OPTIONS: ComboOption[] = [
-  { value: "normal", label: "Normal" },
-];
 
-const GAP_OPTIONS: ComboOption[] = [
-  { value: "0px", label: "None" },
-  { value: "normal", label: "Normal" },
-];
 
 const DISPLAY_OPTIONS: SegmentedOption[] = [
   { value: "block", icon: <IconFormSquare size={20} />, label: "Block" },
@@ -366,7 +360,12 @@ export function PropertyPanel({
                 />
               </Field>
               <Field label="Gap">
-                <ComboInput prop="gap" value={s.gap} options={GAP_OPTIONS} onChange={onPropertyChange} />
+                <NumberInput
+                  label={(s.flexDirection || "row").startsWith("column") ? <IconGapVertical /> : <IconGapHorizontal />}
+                  prop="gap"
+                  value={s.gap}
+                  onChange={onPropertyChange}
+                />
               </Field>
             </Row>
             <Row>
@@ -390,8 +389,8 @@ export function PropertyPanel({
             </Field>
             <Field label="Gap">
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <NumberInput label="H" prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
-                <NumberInput label="V" prop="rowGap" value={s.rowGap} onChange={onPropertyChange} />
+                <NumberInput label={<IconGapHorizontal />} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} />
+                <NumberInput label={<IconGapVertical />} prop="rowGap" value={s.rowGap} onChange={onPropertyChange} />
               </div>
             </Field>
           </Row>
@@ -494,7 +493,7 @@ export function PropertyPanel({
           </Row>
           <Row>
             <Field label="Word Spacing">
-              <ComboInput prop="wordSpacing" value={s.wordSpacing} options={WORD_SPACING_OPTIONS} onChange={onPropertyChange} />
+              <NumberInput prop="wordSpacing" value={s.wordSpacing} onChange={onPropertyChange} />
             </Field>
             <Field label="Text Indent">
               <NumberInput prop="textIndent" value={s.textIndent} onChange={onPropertyChange} />

@@ -6,7 +6,7 @@
  * from a list of CSS keyword options (e.g. auto, fit-content).
  */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import { DropdownMenu, type DropdownMenuOption } from "./dropdown-menu";
 import { calcMenuPosition, type MenuPosition } from "./menu-position";
 import { IconChevronDownSmall } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconChevronDownSmall";
@@ -17,7 +17,7 @@ export interface ComboOption {
 }
 
 export interface ComboInputProps {
-  label?: string;
+  label?: ReactNode;
   prop: string;
   value: string | undefined;
   options: ComboOption[];

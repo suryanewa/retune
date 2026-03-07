@@ -19,8 +19,8 @@ const OVERLAY_STYLES = `
 
   /* ── Toolbar ── */
   @keyframes composer-icon-in {
-    from { filter: blur(12px); transform: scale(0.5); }
-    to   { filter: blur(0);    transform: scale(1); }
+    from { filter: blur(4px); transform: scale(0.9); }
+    to   { filter: blur(0);   transform: scale(1); }
   }
 
   .composer-toolbar {
@@ -38,9 +38,9 @@ const OVERLAY_STYLES = `
     user-select: none;
     overflow: hidden;
     cursor: default;
-    transition: padding 0.3s cubic-bezier(0.2, 0, 0, 1),
-                gap 0.3s cubic-bezier(0.2, 0, 0, 1),
-                width 0.3s cubic-bezier(0.2, 0, 0, 1),
+    transition: padding 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                gap 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                width 0.2s cubic-bezier(0.23, 1, 0.32, 1),
                 background 0.15s ease;
   }
 
@@ -73,12 +73,12 @@ const OVERLAY_STYLES = `
     height: 44px;
     background: transparent;
     flex-shrink: 0;
-    transition: width 0.3s cubic-bezier(0.2, 0, 0, 1),
-                height 0.3s cubic-bezier(0.2, 0, 0, 1),
-                padding 0.3s cubic-bezier(0.2, 0, 0, 1),
-                opacity 0.2s ease,
-                filter 0.2s ease,
-                transform 0.2s ease;
+    transition: width 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                height 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                padding 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                opacity 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                filter 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                transform 0.2s cubic-bezier(0.23, 1, 0.32, 1);
   }
 
   /* When expanded: collapse button shrinks away */
@@ -88,8 +88,8 @@ const OVERLAY_STYLES = `
     height: 0;
     padding: 0;
     opacity: 0;
-    filter: blur(12px);
-    transform: scale(0.5);
+    filter: blur(8px);
+    transform: scale(0.8);
     overflow: hidden;
     pointer-events: none;
   }
@@ -100,9 +100,9 @@ const OVERLAY_STYLES = `
     align-items: center;
     gap: 6px;
     max-width: 300px;
-    transition: max-width 0.3s cubic-bezier(0.2, 0, 0, 1),
-                opacity 0.2s ease,
-                gap 0.3s cubic-bezier(0.2, 0, 0, 1);
+    transition: max-width 0.2s cubic-bezier(0.23, 1, 0.32, 1),
+                opacity 0.15s cubic-bezier(0.23, 1, 0.32, 1),
+                gap 0.2s cubic-bezier(0.23, 1, 0.32, 1);
     overflow: hidden;
   }
 
@@ -142,24 +142,24 @@ const OVERLAY_STYLES = `
 
   /* Animate expanded items in */
   .composer-toolbar.expanded .composer-toolbar-expanded > :nth-child(1) {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) 0ms backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) 0ms backwards;
   }
   .composer-toolbar.expanded .composer-toolbar-expanded > :nth-child(2) {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) 30ms backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) 20ms backwards;
   }
   .composer-toolbar.expanded .composer-toolbar-expanded > :nth-child(3) {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) 60ms backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) 40ms backwards;
   }
   .composer-toolbar.expanded .composer-toolbar-expanded > :nth-child(4) {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) 90ms backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) 60ms backwards;
   }
   .composer-toolbar.expanded .composer-toolbar-expanded > :nth-child(5) {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) 120ms backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) 80ms backwards;
   }
 
   /* Animate collapse button in */
   .composer-toolbar.collapsed .composer-toolbar-collapse-btn {
-    animation: composer-icon-in 0.25s cubic-bezier(0.2, 0, 0, 1) backwards;
+    animation: composer-icon-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) backwards;
   }
 
   .composer-icon-flip {
@@ -204,23 +204,23 @@ const OVERLAY_STYLES = `
   }
 
   .composer-panel-anim.entering .composer-panel {
-    animation: composer-panel-in 0.2s ease-out both;
+    animation: composer-panel-in 0.15s cubic-bezier(0.23, 1, 0.32, 1) both;
   }
 
   .composer-panel-anim.exiting .composer-panel {
-    animation: composer-panel-out 0.2s ease-in both;
+    animation: composer-panel-out 0.15s cubic-bezier(0.23, 1, 0.32, 1) both;
   }
 
   @keyframes composer-panel-in {
     from {
       opacity: 0;
-      filter: blur(12px);
-      transform: translate(8px, 8px);
+      filter: blur(8px);
+      transform: translateY(12px);
     }
     to {
       opacity: 1;
       filter: blur(0px);
-      transform: translate(0, 0);
+      transform: translateY(0);
     }
   }
 
@@ -228,12 +228,12 @@ const OVERLAY_STYLES = `
     from {
       opacity: 1;
       filter: blur(0px);
-      transform: translate(0, 0);
+      transform: translateY(0);
     }
     to {
       opacity: 0;
-      filter: blur(12px);
-      transform: translate(8px, 8px);
+      filter: blur(8px);
+      transform: translateY(12px);
     }
   }
 

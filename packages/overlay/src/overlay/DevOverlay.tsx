@@ -32,7 +32,7 @@ const DEFAULT_CONFIG: Required<ComposerConfig> = {
   position: "bottom-right",
 };
 
-const PANEL_ANIMATION_MS = 200;
+const PANEL_ANIMATION_MS = 150;
 
 function AnimatedPanel({ visible, children }: { visible: boolean; children: React.ReactNode }) {
   const [state, setState] = useState<"hidden" | "entering" | "visible" | "exiting">("hidden");
