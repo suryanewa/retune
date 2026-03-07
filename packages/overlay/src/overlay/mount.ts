@@ -1730,7 +1730,7 @@ export function mountOverlay(): MountResult {
   container.setAttribute("data-composer-container", "");
   root.appendChild(container);
 
-  document.body.appendChild(host);
+  document.documentElement.appendChild(host);
 
   return { host, root, container, sheet };
 }
