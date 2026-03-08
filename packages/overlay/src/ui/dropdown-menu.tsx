@@ -144,12 +144,12 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
 
     return (
       <div
-        className="composer-menu-wrapper"
+        className="retune-menu-wrapper"
         style={{ minWidth, ...style }}
       >
         <div
           ref={setRefs}
-          className="composer-menu-scroll"
+          className="retune-menu-scroll"
           role="listbox"
           aria-label="Options"
           onScroll={updateOverflow}
@@ -161,16 +161,16 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
             return (
               <Fragment key={`${index}-${option.value}`}>
                 {option.separatorBefore && (
-                  <div className="composer-menu-separator">
-                    <div className="composer-menu-separator-line" />
+                  <div className="retune-menu-separator">
+                    <div className="retune-menu-separator-line" />
                   </div>
                 )}
                 {option.headingBefore && (
-                  <div className="composer-menu-heading">
+                  <div className="retune-menu-heading">
                     {option.headingBefore}
                   </div>
                 )}
-                <div className="composer-menu-item-wrap">
+                <div className="retune-menu-item-wrap">
                   <button
                     type="button"
                     onClick={() => onSelect(option)}
@@ -178,7 +178,7 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
                     onMouseLeave={() => { handleHighlight(-1); onItemHover?.(null); }}
                     disabled={option.disabled}
                     className={
-                      "composer-menu-item" +
+                      "retune-menu-item" +
                       (isHighlighted ? " highlighted" : "") +
                       (isSelected ? " selected" : "") +
                       (option.disabled ? " disabled" : "") +
@@ -188,15 +188,15 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
                     aria-selected={isSelected}
                   >
                     {showCheckmark && isSelected && (
-                      <span className="composer-menu-check">
+                      <span className="retune-menu-check">
                         <CheckIcon />
                       </span>
                     )}
-                    <span className="composer-menu-item-label">
+                    <span className="retune-menu-item-label">
                       {renderLabel ? renderLabel(option) : option.label}
                     </span>
                     {option.shortcut && (
-                      <span className="composer-menu-item-shortcut">
+                      <span className="retune-menu-item-shortcut">
                         {option.shortcut}
                       </span>
                     )}
@@ -206,12 +206,12 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
             );
           })}
           {options.length === 0 && (
-            <div className="composer-menu-empty">No options available</div>
+            <div className="retune-menu-empty">No options available</div>
           )}
         </div>
         {showTop && (
           <div
-            className="composer-menu-scroll-indicator top"
+            className="retune-menu-scroll-indicator top"
             onMouseEnter={() => startScrolling("up")}
             onMouseLeave={stopScrolling}
             aria-hidden="true"
@@ -222,7 +222,7 @@ export const DropdownMenu = forwardRef<HTMLDivElement, DropdownMenuProps>(
         )}
         {showBottom && (
           <div
-            className="composer-menu-scroll-indicator bottom"
+            className="retune-menu-scroll-indicator bottom"
             onMouseEnter={() => startScrolling("down")}
             onMouseLeave={stopScrolling}
             aria-hidden="true"

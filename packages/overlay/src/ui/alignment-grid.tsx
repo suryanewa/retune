@@ -324,7 +324,7 @@ export function AlignmentGrid({ justifyContent, alignItems, flexDirection, onCha
 
   return (
     <div
-      className="composer-alignment-grid"
+      className="retune-alignment-grid"
       tabIndex={0}
       role="grid"
       aria-label="Alignment grid"
@@ -338,7 +338,7 @@ export function AlignmentGrid({ justifyContent, alignItems, flexDirection, onCha
             <Tooltip key={`${row}-${col}`} content={CELL_TOOLTIPS[`${row}-${col}`]} side="bottom" delay={600}>
               <button
                 type="button"
-                className="composer-alignment-cell"
+                className="retune-alignment-cell"
                 onClick={() => handleClick(row, col)}
                 onMouseEnter={() => handleMouseEnter(row, col)}
                 onMouseLeave={handleMouseLeave}

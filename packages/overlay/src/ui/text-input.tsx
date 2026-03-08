@@ -22,9 +22,9 @@ export function TextInput({ prop, value, onChange }: TextInputProps) {
   }
 
   return (
-    <div className="composer-text-input">
+    <div className="retune-text-input">
       <input
-        className="composer-text-input-field"
+        className="retune-text-input-field"
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
         onBlur={() => onChange(prop, localValue)}

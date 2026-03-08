@@ -102,39 +102,39 @@ export function GradientStopBar({
 
   return (
     <div
-      className="composer-gradient-bar-wrap"
+      className="retune-gradient-bar-wrap"
       onClick={handleBarClick}
       onPointerDown={handlePointerDown}
     >
       {/* Gradient bar */}
-      <div ref={barRef} className="composer-gradient-bar">
+      <div ref={barRef} className="retune-gradient-bar">
         {/* Checkerboard */}
-        <div className="composer-gradient-bar-checker" />
+        <div className="retune-gradient-bar-checker" />
         {/* Gradient overlay */}
-        <div className="composer-gradient-bar-fill" style={{ backgroundImage: gradientCss }} />
+        <div className="retune-gradient-bar-fill" style={{ backgroundImage: gradientCss }} />
       </div>
 
       {/* Stop indicators (visual only — pointer events handled by wrapper) */}
       {stops.map((stop, index) => (
         <div
           key={index}
-          className="composer-gradient-stop-handle"
+          className="retune-gradient-stop-handle"
           style={{ left: `${stop.position * 100}%`, pointerEvents: "none" }}
         >
-          <div className="composer-gradient-stop-indicator">
+          <div className="retune-gradient-stop-indicator">
             <div
-              className="composer-gradient-stop-chit"
+              className="retune-gradient-stop-chit"
               style={{
                 backgroundColor: selectedIndex === index ? "#0d99ff" : "white",
               }}
             >
               <div
-                className="composer-gradient-stop-chit-color"
+                className="retune-gradient-stop-chit-color"
                 style={{ backgroundColor: stop.color }}
               />
             </div>
             <div
-              className="composer-gradient-stop-caret"
+              className="retune-gradient-stop-caret"
               style={{
                 backgroundColor: selectedIndex === index ? "#0d99ff" : "white",
               }}

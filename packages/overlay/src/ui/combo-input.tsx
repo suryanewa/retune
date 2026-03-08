@@ -175,11 +175,11 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
   };
 
   return (
-    <div className="composer-combo" ref={containerRef}>
+    <div className="retune-combo" ref={containerRef}>
       {label && (
         <span
           ref={labelRef}
-          className="composer-combo-label"
+          className="retune-combo-label"
           onPointerDown={handleLabelPointerDown}
           onPointerMove={handleLabelPointerMove}
           onPointerUp={handleLabelPointerUp}
@@ -188,7 +188,7 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
         </span>
       )}
       <input
-        className="composer-combo-input"
+        className="retune-combo-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={displayValue}
         onFocus={handleFocus}
@@ -199,7 +199,7 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
       />
       <button
         type="button"
-        className="composer-combo-trigger"
+        className="retune-combo-trigger"
         onClick={() => { open ? closeDropdown() : openDropdown(); }}
         aria-label="Toggle options"
       >
@@ -207,7 +207,7 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
       </button>
       {open && menuPos && (
         <div
-          className="composer-combo-dropdown-anchor"
+          className="retune-combo-dropdown-anchor"
           style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
         >
           <DropdownMenu

@@ -143,7 +143,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
     .sort((a, b) => a.stop.position - b.stop.position);
 
   return (
-    <div className="composer-gradient-editor">
+    <div className="retune-gradient-editor">
       {/* Gradient stop bar */}
       <GradientStopBar
         stops={gradient.stops}
@@ -155,10 +155,10 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
       />
 
       {/* Controls row: angle + reverse + rotate */}
-      <div className="composer-gradient-controls">
+      <div className="retune-gradient-controls">
         {showAngle && (
           <input
-            className="composer-gradient-angle-input"
+            className="retune-gradient-angle-input"
             type="text"
             value={isEditingAngle ? angleInput : `${gradient.angle}°`}
             onFocus={(e) => {
@@ -181,11 +181,11 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             onChange={handleAngleInputChange}
           />
         )}
-        <div className="composer-gradient-actions">
+        <div className="retune-gradient-actions">
           <Tooltip content="Reverse gradient direction">
             <button
               type="button"
-              className="composer-gradient-action-btn"
+              className="retune-gradient-action-btn"
               onClick={handleReverse}
             >
               <FlipHorizontalSmall />
@@ -194,7 +194,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
           <Tooltip content="Rotate gradient 45°">
             <button
               type="button"
-              className="composer-gradient-action-btn"
+              className="retune-gradient-action-btn"
               onClick={handleRotate}
             >
               <Rotate />
@@ -204,12 +204,12 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
       </div>
 
       {/* Stops header */}
-      <div className="composer-gradient-stops-header">
-        <span className="composer-gradient-stops-label">Stops</span>
+      <div className="retune-gradient-stops-header">
+        <span className="retune-gradient-stops-label">Stops</span>
         <Tooltip content="Add color stop">
           <button
             type="button"
-            className="composer-gradient-action-btn"
+            className="retune-gradient-action-btn"
             onClick={handleAddStop}
           >
             <Plus />
@@ -218,13 +218,13 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
       </div>
 
       {/* Stop rows */}
-      <div className="composer-gradient-stops-list">
+      <div className="retune-gradient-stops-list">
         {sortedStops.map(({ stop, index }) => (
-          <div key={index} className="composer-gradient-stop-row">
+          <div key={index} className="retune-gradient-stop-row">
             {/* Position */}
-            <div className="composer-gradient-stop-pos">
+            <div className="retune-gradient-stop-pos">
               <input
-                className="composer-gradient-stop-pos-input"
+                className="retune-gradient-stop-pos-input"
                 type="text"
                 inputMode="numeric"
                 defaultValue={Math.round(stop.position * 100)}
@@ -232,11 +232,11 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
                 onBlur={(e) => handleStopPositionInput(index, e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
               />
-              <span className="composer-gradient-stop-pos-unit">%</span>
+              <span className="retune-gradient-stop-pos-unit">%</span>
             </div>
 
             {/* Color input (reuses existing component) */}
-            <div className="composer-gradient-stop-color">
+            <div className="retune-gradient-stop-color">
               <ColorInput
                 prop={`stop-${index}`}
                 value={hexToRgba(stop.color, stop.opacity ?? 100)}
@@ -248,7 +248,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             <Tooltip content="Remove color stop">
               <button
                 type="button"
-                className="composer-gradient-action-btn remove"
+                className="retune-gradient-action-btn remove"
                 disabled={gradient.stops.length <= 2}
                 onClick={() => handleRemoveStop(index)}
               >

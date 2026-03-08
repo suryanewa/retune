@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ["@composer/overlay"],
+  transpilePackages: ["retune"],
 };
 
 module.exports = nextConfig;

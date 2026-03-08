@@ -11,32 +11,32 @@ import type { Bridge } from "./bridge.js";
 
 export function createServer(bridge: Bridge): McpServer {
   const server = new McpServer({
-    name: "composer",
+    name: "retune",
     version: "0.1.0",
   });
 
   // --- Tools ---
 
   server.tool(
-    "composer_get_selection",
-    "Get the currently selected element in the Composer overlay, including its CSS selector, React component hierarchy, computed styles, and layout mode.",
+    "retune_get_selection",
+    "Get the currently selected element in the Retune overlay, including its CSS selector, React component hierarchy, computed styles, and layout mode.",
     {},
     async () => {
       try {
         const selection = await bridge.request("getSelection");
         if (!selection) {
-          return { content: [{ type: "text", text: "No element is currently selected in the Composer overlay." }] };
+          return { content: [{ type: "text", text: "No element is currently selected in the Retune overlay." }] };
         }
         return { content: [{ type: "text", text: JSON.stringify(selection, null, 2) }] };
       } catch (err: any) {
-        return { content: [{ type: "text", text: `Error: ${err.message}. Is the Composer overlay active in the browser?` }] };
+        return { content: [{ type: "text", text: `Error: ${err.message}. Is the Retune overlay active in the browser?` }] };
       }
     }
   );
 
   server.tool(
-    "composer_get_pending_changes",
-    "Get all pending visual changes made in the Composer overlay. Returns a list of elements with their before/after style diffs.",
+    "retune_get_pending_changes",
+    "Get all pending visual changes made in the Retune overlay. Returns a list of elements with their before/after style diffs.",
     {},
     async () => {
       try {
@@ -52,7 +52,7 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
-    "composer_get_formatted_changes",
+    "retune_get_formatted_changes",
     "Get pending visual changes formatted as structured markdown, ready to apply to source code. Includes element identification (CSS selector, React component, text content) and exact before/after values for each changed property.",
     {
       fidelity: z.enum(["minimal", "standard", "full"]).optional()
@@ -69,8 +69,8 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
-    "composer_watch_changes",
-    "Wait for new visual changes from the Composer overlay. Blocks until changes are available or timeout (30s). Use this to reactively apply changes as the user makes them.",
+    "retune_watch_changes",
+    "Wait for new visual changes from the Retune overlay. Blocks until changes are available or timeout (30s). Use this to reactively apply changes as the user makes them.",
     {},
     async () => {
       // Check buffer first
@@ -96,13 +96,13 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
-    "composer_clear_changes",
-    "Clear all pending visual changes from the Composer overlay. Call this after you have applied the changes to source code.",
+    "retune_clear_changes",
+    "Clear all pending visual changes from the Retune overlay. Call this after you have applied the changes to source code.",
     {},
     async () => {
       try {
         await bridge.request("clearChanges");
-        return { content: [{ type: "text", text: "All pending changes have been cleared from the Composer overlay." }] };
+        return { content: [{ type: "text", text: "All pending changes have been cleared from the Retune overlay." }] };
       } catch (err: any) {
         return { content: [{ type: "text", text: `Error: ${err.message}` }] };
       }
@@ -110,16 +110,16 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
-    "composer_status",
-    "Check the status of the Composer overlay connection.",
+    "retune_status",
+    "Check the status of the Retune overlay connection.",
     {},
     async () => {
       return {
         content: [{
           type: "text",
           text: bridge.connected
-            ? "Composer overlay is connected and active."
-            : "Composer overlay is not connected. Make sure the overlay is running in the browser.",
+            ? "Retune overlay is connected and active."
+            : "Retune overlay is not connected. Make sure the overlay is running in the browser.",
         }],
       };
     }

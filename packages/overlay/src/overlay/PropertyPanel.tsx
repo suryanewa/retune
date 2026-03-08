@@ -462,19 +462,19 @@ export function PropertyPanel({
   }, [onPropertyChange, applyTransform]);
 
   return (
-    <div className={`composer-panel ${position}`}>
+    <div className={`retune-panel ${position}`}>
       {/* Header */}
-      <div className="composer-panel-header">
-        <div className="composer-el-tag">{element.tagName.toLowerCase()}</div>
+      <div className="retune-panel-header">
+        <div className="retune-el-tag">{element.tagName.toLowerCase()}</div>
         {element.reactComponents.length > 0 && (
-          <div className="composer-el-component">{element.reactComponents.join(" \u203A ")}</div>
+          <div className="retune-el-component">{element.reactComponents.join(" \u203A ")}</div>
         )}
         {sharedSelector && sharedSelector.count > 1 && onScopeChange && (
-          <div className="composer-scope-row">
-            <label className="composer-scope-switch" onClick={() => onScopeChange(scope === "element" ? "class" : "element")}>
-              <span className="composer-scope-label">Apply to all instances</span>
-              <div className={`composer-switch-track${scope === "class" ? " on" : ""}`}>
-                <div className="composer-switch-thumb" />
+          <div className="retune-scope-row">
+            <label className="retune-scope-switch" onClick={() => onScopeChange(scope === "element" ? "class" : "element")}>
+              <span className="retune-scope-label">Apply to all instances</span>
+              <div className={`retune-switch-track${scope === "class" ? " on" : ""}`}>
+                <div className="retune-switch-thumb" />
               </div>
             </label>
           </div>
@@ -520,18 +520,18 @@ export function PropertyPanel({
 
           return (
             <Row>
-              <div className="composer-field">
-                <span className="composer-field-label">Alignment</span>
-                <div className="composer-align-row">
-                  <div className="composer-btn-group" style={!hEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align left" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("start")}><LayoutAlignLeft /></button></Tooltip>
-                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("center")}><LayoutAlignHorizontalCenter /></button></Tooltip>
-                    <Tooltip content="Align right" side="top"><button type="button" className="composer-align-btn" onClick={() => onHClick("end")}><LayoutAlignRight /></button></Tooltip>
+              <div className="retune-field">
+                <span className="retune-field-label">Alignment</span>
+                <div className="retune-align-row">
+                  <div className="retune-btn-group" style={!hEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
+                    <Tooltip content="Align left" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("start")}><LayoutAlignLeft /></button></Tooltip>
+                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("center")}><LayoutAlignHorizontalCenter /></button></Tooltip>
+                    <Tooltip content="Align right" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("end")}><LayoutAlignRight /></button></Tooltip>
                   </div>
-                  <div className="composer-btn-group" style={!vEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align top" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("start")}><LayoutAlignTop /></button></Tooltip>
-                    <Tooltip content="Align center vertically" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("center")}><LayoutAlignVerticalCenter /></button></Tooltip>
-                    <Tooltip content="Align bottom" side="top"><button type="button" className="composer-align-btn" onClick={() => onVClick("end")}><LayoutAlignBottom /></button></Tooltip>
+                  <div className="retune-btn-group" style={!vEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
+                    <Tooltip content="Align top" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("start")}><LayoutAlignTop /></button></Tooltip>
+                    <Tooltip content="Align center vertically" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("center")}><LayoutAlignVerticalCenter /></button></Tooltip>
+                    <Tooltip content="Align bottom" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("end")}><LayoutAlignBottom /></button></Tooltip>
                   </div>
                 </div>
               </div>
@@ -560,11 +560,11 @@ export function PropertyPanel({
         )}
         {positionType === "relative" && (
           <RowGroup label="Offsets">
-            <div className="composer-row">
+            <div className="retune-row">
               <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
               <NumberInput label="R" prop="right" value={s.right} onChange={onPropertyChange} />
             </div>
-            <div className="composer-row">
+            <div className="retune-row">
               <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
               <NumberInput label="L" prop="left" value={s.left} onChange={onPropertyChange} />
             </div>
@@ -572,7 +572,7 @@ export function PropertyPanel({
         )}
         {isSticky && (
           <RowGroup label="Sticky offset">
-            <div className="composer-row">
+            <div className="retune-row">
               <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
               <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
             </div>
@@ -672,7 +672,7 @@ export function PropertyPanel({
         <RowGroup label="Padding">
           {paddingExpanded ? (
             <>
-              <div className="composer-row">
+              <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("paddingTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
                   <NumberInput label={<Tooltip content="Padding top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} min={0} />
                 </div>
@@ -680,12 +680,12 @@ export function PropertyPanel({
                   <NumberInput label={<Tooltip content="Padding right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} min={0} />
                 </div>
                 <Tooltip content="Collapse to axes" side="top">
-                  <button className="composer-split-btn active" onClick={() => setPaddingExpanded(false)}>
+                  <button className="retune-split-btn active" onClick={() => setPaddingExpanded(false)}>
                     <AlPaddingSides />
                   </button>
                 </Tooltip>
               </div>
-              <div className="composer-row">
+              <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("paddingBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
                   <NumberInput label={<Tooltip content="Padding bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} min={0} />
                 </div>
@@ -696,7 +696,7 @@ export function PropertyPanel({
               </div>
             </>
           ) : (
-            <div className="composer-row">
+            <div className="retune-row">
               <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("paddingBlock")} onPointerLeave={() => onPropertyHover?.(null)}>
                 <ShorthandInput
                   label={<Tooltip content="Vertical padding (top, bottom)" side="top" sideOffset={14}><AlPaddingVertical /></Tooltip>}
@@ -716,7 +716,7 @@ export function PropertyPanel({
                 />
               </div>
               <Tooltip content="Edit individual sides" side="top">
-                <button className="composer-split-btn" onClick={() => setPaddingExpanded(true)}>
+                <button className="retune-split-btn" onClick={() => setPaddingExpanded(true)}>
                   <AlPaddingSides />
                 </button>
               </Tooltip>
@@ -726,7 +726,7 @@ export function PropertyPanel({
         <RowGroup label="Margin">
           {marginExpanded ? (
             <>
-              <div className="composer-row">
+              <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("marginTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
                   <NumberInput label={<Tooltip content="Margin top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
                 </div>
@@ -734,12 +734,12 @@ export function PropertyPanel({
                   <NumberInput label={<Tooltip content="Margin right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
                 </div>
                 <Tooltip content="Collapse to axes" side="top">
-                  <button className="composer-split-btn active" onClick={() => setMarginExpanded(false)}>
+                  <button className="retune-split-btn active" onClick={() => setMarginExpanded(false)}>
                     <AlPaddingSides />
                   </button>
                 </Tooltip>
               </div>
-              <div className="composer-row">
+              <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("marginBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
                   <NumberInput label={<Tooltip content="Margin bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
                 </div>
@@ -750,7 +750,7 @@ export function PropertyPanel({
               </div>
             </>
           ) : (
-            <div className="composer-row">
+            <div className="retune-row">
               <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("marginBlock")} onPointerLeave={() => onPropertyHover?.(null)}>
                 <ShorthandInput
                   label={<Tooltip content="Vertical margin (top, bottom)" side="top" sideOffset={14}><AlPaddingVertical /></Tooltip>}
@@ -768,7 +768,7 @@ export function PropertyPanel({
                 />
               </div>
               <Tooltip content="Edit individual sides" side="top">
-                <button className="composer-split-btn" onClick={() => setMarginExpanded(true)}>
+                <button className="retune-split-btn" onClick={() => setMarginExpanded(true)}>
                   <AlPaddingSides />
                 </button>
               </Tooltip>
@@ -785,7 +785,7 @@ export function PropertyPanel({
             <Tooltip content="Add constraint" side="top">
               <button
                 ref={sizeMenuBtnRef}
-                className="composer-section-action"
+                className="retune-section-action"
                 onClick={() => {
                   if (sizeMenuOpen) {
                     setSizeMenuOpen(false);
@@ -942,7 +942,7 @@ export function PropertyPanel({
             </Field>
             <div style={{ alignSelf: "flex-end" }}>
               <Tooltip content={typoExpanded ? "Show less" : "More options"} side="top">
-                <button className={`composer-split-btn${typoExpanded ? " active" : ""}`} onClick={() => setTypoExpanded((v) => !v)}>
+                <button className={`retune-split-btn${typoExpanded ? " active" : ""}`} onClick={() => setTypoExpanded((v) => !v)}>
                   <AdjustSmall />
                 </button>
               </Tooltip>
@@ -1060,23 +1060,23 @@ export function PropertyPanel({
         <RowGroup label="Corner radius">
           {radiusExpanded ? (
             <>
-              <div className="composer-row">
+              <div className="retune-row">
                 <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} min={0} />
                 <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><RadiusTopRight /></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} min={0} />
                 <Tooltip content="Collapse to single" side="top">
-                  <button className="composer-split-btn active" onClick={() => setRadiusExpanded(false)}>
+                  <button className="retune-split-btn active" onClick={() => setRadiusExpanded(false)}>
                     <AlPaddingSides />
                   </button>
                 </Tooltip>
               </div>
-              <div className="composer-row">
+              <div className="retune-row">
                 <NumberInput label={<Tooltip content="Bottom left corner radius" side="top" sideOffset={14}><RadiusBottomLeft /></Tooltip>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} min={0} />
                 <NumberInput label={<Tooltip content="Bottom right corner radius" side="top" sideOffset={14}><RadiusBottomRight /></Tooltip>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} min={0} />
                 <div style={{ width: 32 }} />
               </div>
             </>
           ) : (
-            <div className="composer-row">
+            <div className="retune-row">
               <ShorthandInput
                 label={<Tooltip content="Corner radius (TL, TR, BR, BL)" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>}
                 props={["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"]}
@@ -1085,7 +1085,7 @@ export function PropertyPanel({
                 min={0}
               />
               <Tooltip content="Edit individual corners" side="top">
-                <button className="composer-split-btn" onClick={() => setRadiusExpanded(true)}>
+                <button className="retune-split-btn" onClick={() => setRadiusExpanded(true)}>
                   <AlPaddingSides />
                 </button>
               </Tooltip>
@@ -1105,9 +1105,9 @@ export function PropertyPanel({
         gap={8}
         action={
           hasFill ? (
-            <Tooltip content="Remove fill" side="top"><button className="composer-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
+            <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add fill" side="top"><button className="composer-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
+            <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
           )
         }
       >
@@ -1137,9 +1137,9 @@ export function PropertyPanel({
         label="Border"
         action={
           hasBorder ? (
-            <Tooltip content="Remove border" side="top"><button className="composer-section-action" onClick={handleRemoveBorder}><Minus /></button></Tooltip>
+            <Tooltip content="Remove border" side="top"><button className="retune-section-action" onClick={handleRemoveBorder}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add border" side="top"><button className="composer-section-action" onClick={handleAddBorder}><Plus /></button></Tooltip>
+            <Tooltip content="Add border" side="top"><button className="retune-section-action" onClick={handleAddBorder}><Plus /></button></Tooltip>
           )
         }
       >
@@ -1167,9 +1167,9 @@ export function PropertyPanel({
         label="Shadow"
         action={
           hasShadow ? (
-            <Tooltip content="Remove shadow" side="top"><button className="composer-section-action" onClick={handleRemoveShadow}><Minus /></button></Tooltip>
+            <Tooltip content="Remove shadow" side="top"><button className="retune-section-action" onClick={handleRemoveShadow}><Minus /></button></Tooltip>
           ) : (
-            <Tooltip content="Add shadow" side="top"><button className="composer-section-action" onClick={handleAddShadow}><Plus /></button></Tooltip>
+            <Tooltip content="Add shadow" side="top"><button className="retune-section-action" onClick={handleAddShadow}><Plus /></button></Tooltip>
           )
         }
       >
@@ -1243,7 +1243,7 @@ export function PropertyPanel({
             <Tooltip content="Add filter" side="top">
               <button
                 ref={filterMenuBtnRef}
-                className="composer-section-action"
+                className="retune-section-action"
                 onClick={() => {
                   if (filterMenuOpen) {
                     setFilterMenuOpen(false);
@@ -1316,7 +1316,7 @@ export function PropertyPanel({
           const renderFilterRow = (f: FilterItem) => {
             const config = FILTER_CONFIG[f.type];
             return (
-              <div className="composer-row" key={f.id}>
+              <div className="retune-row" key={f.id}>
                 <SliderInput
                   label={config.label}
                   prop={f.id}
@@ -1328,7 +1328,7 @@ export function PropertyPanel({
                 />
                 <div style={{ alignSelf: "center" }}>
                   <Tooltip content="Remove" side="top">
-                    <button className="composer-split-btn" onClick={() => handleRemoveFilter(f.id)}>
+                    <button className="retune-split-btn" onClick={() => handleRemoveFilter(f.id)}>
                       <Minus />
                     </button>
                   </Tooltip>

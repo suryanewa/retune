@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * DevOverlay — the main React component users add to their app.
+ * Retune — the main React component users add to their app.
  *
  * Usage:
- *   import { DevOverlay } from "@composer/overlay";
+ *   import { Retune } from "retune";
  *   // In your layout:
- *   {process.env.NODE_ENV === "development" && <DevOverlay />}
+ *   {process.env.NODE_ENV === "development" && <Retune />}
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import type { ComposerConfig, InspectedElement } from "../types";
+import type { RetuneConfig, InspectedElement } from "../types";
 import { mountOverlay, unmountOverlay } from "./mount";
 import { createPicker } from "../selector/picker";
 import { LivePreviewEngine } from "../engine/live-preview";
@@ -31,7 +31,7 @@ import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
 
-const DEFAULT_CONFIG: Required<ComposerConfig> = {
+const DEFAULT_CONFIG: Required<RetuneConfig> = {
   port: 9223,
   hotkey: "alt+d",
   fidelity: "standard",
@@ -70,10 +70,10 @@ function AnimatedPanel({ visible, children }: { visible: boolean; children: Reac
   if (state === "hidden") return null;
 
   const animClass = state === "entering" ? "entering" : state === "exiting" ? "exiting" : "";
-  return <div className={`composer-panel-anim ${animClass}`}>{childrenRef.current}</div>;
+  return <div className={`retune-panel-anim ${animClass}`}>{childrenRef.current}</div>;
 }
 
-export function DevOverlay(props: ComposerConfig = {}) {
+export function Retune(props: RetuneConfig = {}) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
   const [active, setActive] = useState(false);
@@ -401,8 +401,8 @@ export function DevOverlay(props: ComposerConfig = {}) {
         refreshSelectedElementRef.current();
       },
     };
-    (window as any).__composer = api;
-    return () => { delete (window as any).__composer; };
+    (window as any).__retune = api;
+    return () => { delete (window as any).__retune; };
   }, []);
 
   if (!portalTarget) return null;
@@ -410,34 +410,34 @@ export function DevOverlay(props: ComposerConfig = {}) {
   return createPortal(
     <TooltipPortalContext.Provider value={portalTarget}>
       {/* Floating toolbar */}
-      <div className={`composer-toolbar ${config.position.replace("-", " ")} ${active ? "expanded" : "collapsed"}`}>
+      <div className={`retune-toolbar ${config.position.replace("-", " ")} ${active ? "expanded" : "collapsed"}`}>
         {/* Collapsed: single activate button */}
         <Tooltip content="Toggle edit mode" shortcut={config.hotkey} side="top">
           <button
-            className="composer-toolbar-collapse-btn"
+            className="retune-toolbar-collapse-btn"
             onClick={activateOverlay}
           >
             <IconCursorClick size={20} />
-            {!active && changeCount > 0 && <span className="composer-changes-dot" />}
+            {!active && changeCount > 0 && <span className="retune-changes-dot" />}
           </button>
         </Tooltip>
 
         {/* Expanded: edit count + actions */}
-        <div className="composer-toolbar-expanded">
+        <div className="retune-toolbar-expanded">
           {changeCount > 0 && (
-            <div className="composer-edit-count">{changeCount}</div>
+            <div className="retune-edit-count">{changeCount}</div>
           )}
           <Tooltip content="Copy changes" shortcut="⌘C" side="top">
             <button
-              className={`composer-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
               onClick={handleCopy}
               disabled={changeCount === 0}
             >
-              <span className="composer-icon-swap">
-                <span className={`composer-icon-swap-icon ${copied ? "out" : "in"}`}>
+              <span className="retune-icon-swap">
+                <span className={`retune-icon-swap-icon ${copied ? "out" : "in"}`}>
                   <IconSquareBehindSquare1 size={20} />
                 </span>
-                <span className={`composer-icon-swap-icon ${copied ? "in" : "out"}`}>
+                <span className={`retune-icon-swap-icon ${copied ? "in" : "out"}`}>
                   <IconCheckCircle2 size={20} />
                 </span>
               </span>
@@ -445,7 +445,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
           </Tooltip>
           <Tooltip content="Undo" shortcut="⌘Z" side="top">
             <button
-              className={`composer-toolbar-btn${!canUndo ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${!canUndo ? " disabled" : ""}`}
               onClick={handleUndo}
               disabled={!canUndo}
             >
@@ -454,18 +454,18 @@ export function DevOverlay(props: ComposerConfig = {}) {
           </Tooltip>
           <Tooltip content="Redo" shortcut="⌘⇧Z" side="top">
             <button
-              className={`composer-toolbar-btn${!canRedo ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${!canRedo ? " disabled" : ""}`}
               onClick={handleRedo}
               disabled={!canRedo}
             >
-              <span className="composer-icon-flip">
+              <span className="retune-icon-flip">
                 <IconStepBack size={20} />
               </span>
             </button>
           </Tooltip>
           <Tooltip content="Reset all" side="top">
             <button
-              className={`composer-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
               onClick={handleReset}
               disabled={changeCount === 0}
             >
@@ -474,7 +474,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
           </Tooltip>
           <Tooltip content="Close" shortcut="Esc" side="top">
             <button
-              className="composer-toolbar-btn"
+              className="retune-toolbar-btn"
               onClick={handleClose}
             >
               <IconCrossMedium size={20} />

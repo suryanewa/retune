@@ -43,7 +43,7 @@ export class BridgeClient {
       this.ws.onopen = () => {
         this._connected = true;
         this.reconnectDelay = 3000;
-        console.log("[Composer] Connected to MCP server");
+        console.log("[Retune] Connected to MCP server");
       };
 
       this.ws.onmessage = async (event) => {
@@ -51,7 +51,7 @@ export class BridgeClient {
         try {
           msg = JSON.parse(event.data);
         } catch (err) {
-          console.error("[Composer] Failed to parse message:", err);
+          console.error("[Retune] Failed to parse message:", err);
           return;
         }
 

@@ -7,13 +7,13 @@ import type { ReactNode } from "react";
 
 export function Section({ label, gap, action, children }: { label: string; gap?: number; action?: ReactNode; children?: ReactNode }) {
   return (
-    <div className="composer-section">
-      <div className="composer-section-header">
-        <span className="composer-section-title">{label}</span>
+    <div className="retune-section">
+      <div className="retune-section-header">
+        <span className="retune-section-title">{label}</span>
         {action}
       </div>
       {children && (
-        <div className="composer-section-body" style={gap != null ? { gap } : undefined}>
+        <div className="retune-section-body" style={gap != null ? { gap } : undefined}>
           {children}
         </div>
       )}
@@ -23,8 +23,8 @@ export function Section({ label, gap, action, children }: { label: string; gap?:
 
 export function Row({ children }: { children: ReactNode }) {
   return (
-    <div className="composer-section-row">
-      <div className="composer-row">
+    <div className="retune-section-row">
+      <div className="retune-row">
         {children}
       </div>
     </div>
@@ -34,8 +34,8 @@ export function Row({ children }: { children: ReactNode }) {
 /** Groups multiple rows with equal vertical and horizontal gaps */
 export function RowGroup({ label, children }: { label?: string; children: ReactNode }) {
   return (
-    <div className="composer-row-group">
-      {label && <div className="composer-group-label-inline">{label}</div>}
+    <div className="retune-row-group">
+      {label && <div className="retune-group-label-inline">{label}</div>}
       {children}
     </div>
   );
@@ -43,8 +43,8 @@ export function RowGroup({ label, children }: { label?: string; children: ReactN
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="composer-field">
-      <span className="composer-field-label">{label}</span>
+    <div className="retune-field">
+      <span className="retune-field-label">{label}</span>
       {children}
     </div>
   );
@@ -52,6 +52,6 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 export function GroupLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="composer-group-label">{children}</div>
+    <div className="retune-group-label">{children}</div>
   );
 }

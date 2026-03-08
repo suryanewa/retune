@@ -1,5 +1,5 @@
 /**
- * Composer MCP Server entry point.
+ * Retune MCP Server entry point.
  *
  * Starts a WebSocket bridge for the browser overlay and
  * connects to the AI tool via stdio transport.
@@ -9,7 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { Bridge } from "./bridge.js";
 import { createServer } from "./server.js";
 
-const port = parseInt(process.env.COMPOSER_WS_PORT || "9223", 10);
+const port = parseInt(process.env.RETUNE_WS_PORT || "9223", 10);
 
 async function main() {
   // Start WebSocket bridge for browser communication
@@ -23,7 +23,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  console.error("[Composer MCP] Server running. Waiting for AI tool connection...");
+  console.error("[Retune MCP] Server running. Waiting for AI tool connection...");
 
   // Graceful shutdown
   process.on("SIGINT", () => {
@@ -38,6 +38,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[Composer MCP] Fatal error:", err);
+  console.error("[Retune MCP] Fatal error:", err);
   process.exit(1);
 });

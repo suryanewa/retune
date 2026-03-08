@@ -60,7 +60,7 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
     if (!el) return;
     const rect = el.getBoundingClientRect();
     // Match picker width to the row content area
-    const row = el.closest(".composer-row");
+    const row = el.closest(".retune-row");
     if (row) {
       const rowRect = row.getBoundingClientRect();
       setAnchorRect({ top: rect.top, left: rowRect.left, width: rowRect.width, height: rect.height });
@@ -141,18 +141,18 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
   })();
 
   return (
-    <div className="composer-color-row">
+    <div className="retune-color-row">
       {/* Left half: swatch + hex */}
-      <div className="composer-color-hex-section">
+      <div className="retune-color-hex-section">
         <div
           ref={swatchRef}
-          className="composer-color-swatch"
+          className="retune-color-swatch"
           onClick={handleSwatchClick}
         >
-          <div className="composer-color-swatch-inner" style={swatchStyle} />
+          <div className="retune-color-swatch-inner" style={swatchStyle} />
         </div>
         <input
-          className="composer-color-hex-input"
+          className="retune-color-hex-input"
           value={hexLocal}
           onChange={(e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
           onFocus={(e) => { hexFocusedRef.current = true; e.target.select(); }}
@@ -163,9 +163,9 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
       </div>
 
       {/* Right half: opacity */}
-      <div className="composer-color-opacity-section">
+      <div className="retune-color-opacity-section">
         <input
-          className="composer-color-opacity-input"
+          className="retune-color-opacity-input"
           inputMode="numeric"
           value={opacityLocal}
           onChange={(e) => setOpacityLocal(e.target.value)}
@@ -173,7 +173,7 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
           onBlur={commitOpacity}
           onKeyDown={handleOpacityKeyDown}
         />
-        <span className="composer-color-opacity-unit">%</span>
+        <span className="retune-color-opacity-unit">%</span>
       </div>
 
       {pickerOpen && anchorRect && (

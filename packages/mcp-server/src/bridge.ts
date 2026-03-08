@@ -28,7 +28,7 @@ export class Bridge {
   start(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.wss = new WebSocketServer({ port: this.port }, () => {
-        console.error(`[Composer MCP] WebSocket bridge listening on port ${this.port}`);
+        console.error(`[Retune MCP] WebSocket bridge listening on port ${this.port}`);
         resolve();
       });
 
@@ -48,7 +48,7 @@ export class Bridge {
       });
 
       this.wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
-        console.error("[Composer MCP] Browser overlay connected");
+        console.error("[Retune MCP] Browser overlay connected");
         if (this.client && this.client !== ws) {
           this.client.close();
         }
@@ -78,12 +78,12 @@ export class Bridge {
               ws.send(JSON.stringify({ id: msg.id, result: { ok: true } }));
             }
           } catch (err) {
-            console.error("[Composer MCP] Failed to parse message:", err);
+            console.error("[Retune MCP] Failed to parse message:", err);
           }
         });
 
         ws.on("close", () => {
-          console.error("[Composer MCP] Browser overlay disconnected");
+          console.error("[Retune MCP] Browser overlay disconnected");
           if (this.client === ws) this.client = null;
         });
       });

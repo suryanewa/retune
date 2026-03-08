@@ -64,38 +64,38 @@ export function GridPicker({ columns, rows, onChange }: GridPickerProps) {
   const previewRows = isHovering ? hoverRow : rows;
 
   return (
-    <div className="composer-grid-picker-wrap" ref={containerRef}>
+    <div className="retune-grid-picker-wrap" ref={containerRef}>
       {/* Rested state: compact preview */}
       <button
         type="button"
-        className="composer-grid-picker-preview"
+        className="retune-grid-picker-preview"
         onClick={() => setOpen(!open)}
         aria-label={`Grid: ${displayCols} × ${displayRows}`}
       >
         <div
-          className="composer-grid-picker-mini"
+          className="retune-grid-picker-mini"
           style={{
             gridTemplateColumns: `repeat(${displayCols}, 1fr)`,
             gridTemplateRows: `repeat(${displayRows}, 1fr)`,
           }}
         >
           {Array.from({ length: displayCols * displayRows }, (_, i) => (
-            <div key={i} className="composer-grid-picker-mini-cell" />
+            <div key={i} className="retune-grid-picker-mini-cell" />
           ))}
-          <span className="composer-grid-picker-label">{displayCols} × {displayRows}</span>
+          <span className="retune-grid-picker-label">{displayCols} × {displayRows}</span>
         </div>
       </button>
 
       {/* Expanded state: picker dialog */}
       {open && (
-        <div className="composer-grid-picker-dialog">
-          <div className="composer-grid-picker-dialog-header">
+        <div className="retune-grid-picker-dialog">
+          <div className="retune-grid-picker-dialog-header">
             {previewCols > 0 && previewRows > 0
               ? `${previewCols} × ${previewRows}`
               : "Select grid size"}
           </div>
           <div
-            className="composer-grid-picker-grid"
+            className="retune-grid-picker-grid"
             onMouseLeave={() => setIsHovering(false)}
             onClick={handleSelect}
           >
@@ -108,7 +108,7 @@ export function GridPicker({ columns, rows, onChange }: GridPickerProps) {
                 return (
                   <div
                     key={`${r}-${c}`}
-                    className={`composer-grid-picker-cell${isSelected ? " selected" : ""}${isPreview ? " preview" : ""}`}
+                    className={`retune-grid-picker-cell${isSelected ? " selected" : ""}${isPreview ? " preview" : ""}`}
                     onMouseEnter={() => {
                       setIsHovering(true);
                       setHoverCol(col);

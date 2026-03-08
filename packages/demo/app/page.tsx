@@ -8,13 +8,13 @@ export default function Home() {
       {/* Logo */}
       <div className="logo">
         <div className="logo-mark" />
-        <span className="logo-name">Composer</span>
+        <span className="logo-name">Retune</span>
       </div>
 
       {/* Hero */}
       <section className="section">
         <h1 className="hero-heading">
-          Stop prompting<br />for pixels.
+          Stop prompting for pixels.
         </h1>
         <p className="hero-sub">
           Select any element on your app, tweak it visually, and let your AI
@@ -22,8 +22,8 @@ export default function Home() {
         </p>
         <div className="cta-row">
           <button className="cta-primary" onClick={() => {
-            const host = document.querySelector("[data-composer-host]") as HTMLElement;
-            const btn = host?.shadowRoot?.querySelector(".composer-toolbar-collapse-btn") as HTMLElement;
+            const host = document.querySelector("[data-retune-host]") as HTMLElement;
+            const btn = host?.shadowRoot?.querySelector(".retune-toolbar-collapse-btn") as HTMLElement;
             btn?.click();
           }}>
             Try it on this page
@@ -37,7 +37,7 @@ export default function Home() {
         <p className="section-label">How it works</p>
         <h2 className="section-heading">Select. Tweak. Apply.</h2>
         <p className="section-desc">
-          Composer is a visual overlay for your running app. Make precise CSS edits
+          Retune is a visual overlay for your running app. Make precise CSS edits
           with controls instead of prompts, then send them to Claude Code or Cursor.
         </p>
         <div className="steps">
@@ -46,7 +46,7 @@ export default function Home() {
             <div className="step-content">
               <p className="step-title">Select an element</p>
               <p className="step-desc">
-                Click anything on your page. Composer identifies the element, its CSS
+                Click anything on your page. Retune identifies the element, its CSS
                 classes, React component, and which styles apply to it.
               </p>
             </div>
@@ -67,7 +67,7 @@ export default function Home() {
               <p className="step-title">Send to your AI tool</p>
               <p className="step-desc">
                 Copy the changes or let your MCP-connected agent read them directly.
-                Composer tells the AI exactly what changed and where to find it in code.
+                Retune tells the AI exactly what changed and where to find it in code.
               </p>
             </div>
           </div>
@@ -79,7 +79,7 @@ export default function Home() {
         <p className="section-label">Output</p>
         <h2 className="section-heading">Your agent gets the full picture</h2>
         <p className="section-desc">
-          No vague descriptions. Composer sends structured diffs with element
+          No vague descriptions. Retune sends structured diffs with element
           identification, component context, and exact before/after values.
         </p>
         <div className="output-block">
@@ -101,10 +101,10 @@ export default function Home() {
           Add the overlay to your layout. Works with Next.js, Vite, Remix — any React app.
         </p>
         <div className="code-block">
-          <div className="code-line"><span className="code-keyword">import</span> {"{"} DevOverlay {"}"} <span className="code-keyword">from</span> <span className="code-string">"@composer/overlay"</span></div>
+          <div className="code-line"><span className="code-keyword">import</span> {"{"} Retune {"}"} <span className="code-keyword">from</span> <span className="code-string">"retune"</span></div>
           <div className="code-line" style={{ height: 8 }} />
           <div className="code-line"><span className="code-comment">{"// Add to your layout, anywhere in the tree"}</span></div>
-          <div className="code-line">&lt;<span className="code-component">DevOverlay</span> /&gt;</div>
+          <div className="code-line">&lt;<span className="code-component">Retune</span> /&gt;</div>
         </div>
       </section>
 
@@ -113,7 +113,7 @@ export default function Home() {
         <p className="section-label">Compatibility</p>
         <h2 className="section-heading">Works with your stack</h2>
         <p className="section-desc">
-          Composer detects your styling approach automatically and formats changes
+          Retune detects your styling approach automatically and formats changes
           to match — whether that's utility classes, CSS modules, or plain stylesheets.
         </p>
         <div className="tag-row">
@@ -134,7 +134,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="footer">
-        <p className="footer-text">Composer — visual CSS editing for AI-assisted development.</p>
+        <p className="footer-text">Retune — visual CSS editing for AI-assisted development.</p>
       </footer>
     </main>
   );

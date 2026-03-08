@@ -21,20 +21,20 @@ export function createPicker(
 ) {
   // Hover highlight
   const highlight = document.createElement("div");
-  highlight.setAttribute("data-composer-highlight", "");
+  highlight.setAttribute("data-retune-highlight", "");
   shadowRoot.appendChild(highlight);
 
   const label = document.createElement("div");
-  label.setAttribute("data-composer-label", "");
+  label.setAttribute("data-retune-label", "");
   shadowRoot.appendChild(label);
 
   // Selection highlight (persistent)
   const selection = document.createElement("div");
-  selection.setAttribute("data-composer-selection", "");
+  selection.setAttribute("data-retune-selection", "");
   shadowRoot.appendChild(selection);
 
   const selectionLabel = document.createElement("div");
-  selectionLabel.setAttribute("data-composer-selection-label", "");
+  selectionLabel.setAttribute("data-retune-selection-label", "");
   shadowRoot.appendChild(selectionLabel);
 
   let active = false;
@@ -184,7 +184,7 @@ export function createPicker(
 
   // Filter out our own overlay elements
   function isOverlayElement(el: Element): boolean {
-    return !!el.closest("[data-composer-host]");
+    return !!el.closest("[data-retune-host]");
   }
 
   // Void/empty elements that aren't useful to select — bubble to parent
@@ -270,7 +270,7 @@ export function createPicker(
     if (!active) return;
     if (e.key === "Escape") {
       // If a nested overlay (e.g. color picker) is open, let it handle Escape
-      if (shadowRoot.querySelector(".composer-color-picker-panel")) return;
+      if (shadowRoot.querySelector(".retune-color-picker-panel")) return;
       e.preventDefault();
       callbacks.onCancel();
     }

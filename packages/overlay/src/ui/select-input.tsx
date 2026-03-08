@@ -105,22 +105,22 @@ export function SelectInput({ label, prop, value, options, onChange }: SelectInp
   };
 
   return (
-    <div className="composer-select" ref={containerRef}>
+    <div className="retune-select" ref={containerRef}>
       <button
         type="button"
-        className="composer-select-button"
+        className="retune-select-button"
         onClick={() => { open ? closeDropdown() : openDropdown(); }}
         onKeyDown={handleKeyDown}
       >
-        {label && <span className="composer-select-label">{label}</span>}
-        <span className="composer-select-value" style={label ? undefined : { paddingLeft: 8 }}>{sentenceCase(localValue)}</span>
-        <span className="composer-select-chevron">
+        {label && <span className="retune-select-label">{label}</span>}
+        <span className="retune-select-value" style={label ? undefined : { paddingLeft: 8 }}>{sentenceCase(localValue)}</span>
+        <span className="retune-select-chevron">
           <ChevronDown />
         </span>
       </button>
       {open && menuPos && (
         <div
-          className="composer-select-dropdown-anchor"
+          className="retune-select-dropdown-anchor"
           style={{ top: menuPos.top, left: menuPos.left, minWidth: menuPos.width }}
         >
           <DropdownMenu

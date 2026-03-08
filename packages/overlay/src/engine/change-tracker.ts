@@ -227,7 +227,7 @@ export class ChangeTracker {
     this.persist();
   }
 
-  private static STORAGE_KEY = "composer-pending-changes";
+  private static STORAGE_KEY = "retune-pending-changes";
 
   /** Save state to localStorage */
   persist() {

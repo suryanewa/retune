@@ -1,5 +1,5 @@
 /**
- * Shadow DOM host for the Composer overlay.
+ * Shadow DOM host for the Retune overlay.
  *
  * Creates an isolated DOM subtree that cannot be affected by
  * the host page's styles, and whose styles cannot leak out.
@@ -17,7 +17,7 @@ export interface MountResult {
 
 export function mountOverlay(): MountResult {
   // Load Inter font if not already present
-  if (!document.querySelector('link[data-composer-font]')) {
+  if (!document.querySelector('link[data-retune-font]')) {
     const preconnect = document.createElement("link");
     preconnect.rel = "preconnect";
     preconnect.href = "https://rsms.me/";
@@ -26,12 +26,12 @@ export function mountOverlay(): MountResult {
     const link = document.createElement("link");
     link.rel = "stylesheet";
     link.href = "https://rsms.me/inter/inter.css";
-    link.setAttribute("data-composer-font", "");
+    link.setAttribute("data-retune-font", "");
     document.head.appendChild(link);
   }
 
   const host = document.createElement("div");
-  host.setAttribute("data-composer-host", "");
+  host.setAttribute("data-retune-host", "");
   host.style.cssText = `
     position: fixed;
     top: 0;
@@ -50,7 +50,7 @@ export function mountOverlay(): MountResult {
 
   // React createPortal needs a real DOM element, not a ShadowRoot
   const container = document.createElement("div");
-  container.setAttribute("data-composer-container", "");
+  container.setAttribute("data-retune-container", "");
   root.appendChild(container);
 
   document.documentElement.appendChild(host);

@@ -160,10 +160,10 @@ export function FontInput({ prop, value, onChange }: FontInputProps) {
   };
 
   return (
-    <div className="composer-font-input" ref={containerRef}>
+    <div className="retune-font-input" ref={containerRef}>
       <input
         ref={inputRef}
-        className="composer-font-input-field"
+        className="retune-font-input-field"
         value={localValue}
         onChange={handleInputChange}
         onFocus={handleFocus}
@@ -173,7 +173,7 @@ export function FontInput({ prop, value, onChange }: FontInputProps) {
       />
       <button
         type="button"
-        className="composer-combo-trigger"
+        className="retune-combo-trigger"
         onClick={() => { open ? closeDropdown() : openDropdown(); }}
         aria-label="Toggle fonts"
       >
@@ -181,7 +181,7 @@ export function FontInput({ prop, value, onChange }: FontInputProps) {
       </button>
       {open && menuPos && (
         <div
-          className="composer-combo-dropdown-anchor"
+          className="retune-combo-dropdown-anchor"
           style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
         >
           <DropdownMenu

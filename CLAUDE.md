@@ -71,8 +71,8 @@ Changes:
 
 ## Tech Stack
 
-- Next.js, React, TypeScript, Tailwind CSS (inherited from Composer)
-- Will be restructured as an npm package
+- Next.js, React, TypeScript, Tailwind CSS
+- Distributed as the `retune` npm package
 
 ## Animations
 
@@ -89,5 +89,5 @@ Follow the principles in [You Might Not Need an Effect](https://react.dev/learn/
 
 ## Notes
 
-- This project was previously "Composer" (a standalone design tool extracted from the portfolio editor). That approach was abandoned in favor of this overlay concept.
-- The Composer code can be fully replaced — nothing needs to be preserved.
+- This project was previously called "Composer" (a standalone design tool extracted from the portfolio editor). It has been renamed to "Retune".
+- The old Composer code can be fully replaced — nothing needs to be preserved.

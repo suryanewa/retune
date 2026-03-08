@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { DevOverlay } from "@composer/overlay";
+import { Retune } from "retune";
 
 export const metadata: Metadata = {
-  title: "Composer Demo",
+  title: "Retune Demo",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -10,7 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body style={{ margin: 0, fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" }}>
         {children}
-        <DevOverlay />
+        <Retune />
       </body>
     </html>
   );

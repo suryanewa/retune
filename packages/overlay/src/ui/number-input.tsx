@@ -118,11 +118,11 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
   };
 
   return (
-    <div className="composer-prop">
+    <div className="retune-prop">
       {label && (
         <span
           ref={labelRef}
-          className="composer-prop-label"
+          className="retune-prop-label"
           onPointerDown={handleLabelPointerDown}
           onPointerMove={handleLabelPointerMove}
           onPointerUp={handleLabelPointerUp}
@@ -131,7 +131,7 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         </span>
       )}
       <input
-        className="composer-prop-input"
+        className="retune-prop-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
         placeholder={placeholder}

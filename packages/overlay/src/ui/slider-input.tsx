@@ -99,7 +99,7 @@ export function SliderInput({
   return (
     <div
       ref={trackRef}
-      className="composer-slider"
+      className="retune-slider"
       tabIndex={0}
       role="slider"
       aria-valuemin={min}
@@ -113,16 +113,16 @@ export function SliderInput({
       onPointerUp={handlePointerUp}
       onKeyDown={handleKeyDown}
     >
-      <div className="composer-slider-fill" style={{ width: `${fillPercent}%` }} />
+      <div className="retune-slider-fill" style={{ width: `${fillPercent}%` }} />
       {showDetails && indicators.map((pos, i) => (
-        <div key={i} className="composer-slider-indicator" style={{ left: `${pos * 100}%` }} />
+        <div key={i} className="retune-slider-indicator" style={{ left: `${pos * 100}%` }} />
       ))}
       {showDetails && (
-        <div className="composer-slider-handle" style={{ left: `max(4px, calc(${fillPercent}% - 4px))` }} />
+        <div className="retune-slider-handle" style={{ left: `max(4px, calc(${fillPercent}% - 4px))` }} />
       )}
-      <div className="composer-slider-labels">
-        <span className="composer-slider-label">{label}</span>
-        <span className="composer-slider-value">{displayValue}</span>
+      <div className="retune-slider-labels">
+        <span className="retune-slider-label">{label}</span>
+        <span className="retune-slider-value">{displayValue}</span>
       </div>
     </div>
   );

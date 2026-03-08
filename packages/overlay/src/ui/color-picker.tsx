@@ -112,8 +112,8 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     : anchorRect.top + anchorRect.height + 4;
 
   // Try to center within the property panel
-  const host = document.querySelector("[data-composer-host]");
-  const parentPanel = host?.shadowRoot?.querySelector(".composer-panel");
+  const host = document.querySelector("[data-retune-host]");
+  const parentPanel = host?.shadowRoot?.querySelector(".retune-panel");
   const parentRect = parentPanel?.getBoundingClientRect();
   const left = parentRect
     ? parentRect.left + (parentRect.width - panelWidth) / 2
@@ -275,7 +275,7 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
   return (
     <div
       ref={panelRef}
-      className="composer-color-picker-panel"
+      className="retune-color-picker-panel"
       style={{
         position: "fixed",
         top: Math.max(4, top),
@@ -285,27 +285,27 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
       }}
     >
       {/* SV Picker */}
-      <div className="composer-cp-sv-wrap">
+      <div className="retune-cp-sv-wrap">
       <div
         ref={svRef}
-        className="composer-cp-sv"
+        className="retune-cp-sv"
         style={{
           backgroundColor: `hsl(${hsva.h}, 100%, 50%)`,
         }}
         onPointerDown={handleSVPointerDown}
       >
-        <div className="composer-cp-sv-white" />
-        <div className="composer-cp-sv-black" />
+        <div className="retune-cp-sv-white" />
+        <div className="retune-cp-sv-black" />
         {/* Handle */}
         <div
-          className="composer-cp-handle"
+          className="retune-cp-handle"
           style={{
             left: `${handleLeft}%`,
             top: `${handleTop}%`,
           }}
         >
           <div
-            className="composer-cp-handle-inner"
+            className="retune-cp-handle-inner"
             style={{ backgroundColor: currentHex }}
           />
         </div>
@@ -313,34 +313,34 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
       </div>
 
       {/* Sliders */}
-      <div className="composer-cp-sliders">
+      <div className="retune-cp-sliders">
         {/* Color preview swatch */}
-        <div className="composer-cp-preview-wrap">
-          <div className="composer-cp-preview-checker" />
+        <div className="retune-cp-preview-wrap">
+          <div className="retune-cp-preview-checker" />
           <div
-            className="composer-cp-preview"
+            className="retune-cp-preview"
             style={{ backgroundColor: localAlpha < 100
               ? `rgba(${hsvToRgb(hsva.h, hsva.s, hsva.v).r}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).g}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).b}, ${localAlpha / 100})`
               : currentHex
             }}
           />
         </div>
-        <div className="composer-cp-slider-tracks">
+        <div className="retune-cp-slider-tracks">
           {/* Hue */}
           <div
             ref={hueRef}
-            className="composer-cp-hue"
+            className="retune-cp-hue"
             onPointerDown={handleHuePointerDown}
           >
             <div
-              className="composer-cp-handle"
+              className="retune-cp-handle"
               style={{
                 left: `${(hsva.h / 360) * 100}%`,
                 top: "50%",
               }}
             >
               <div
-                className="composer-cp-handle-inner"
+                className="retune-cp-handle-inner"
                 style={{ backgroundColor: `hsl(${hsva.h}, 100%, 50%)` }}
               />
             </div>
@@ -348,25 +348,25 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
           {/* Alpha */}
           <div
             ref={alphaRef}
-            className="composer-cp-alpha"
+            className="retune-cp-alpha"
             onPointerDown={handleAlphaPointerDown}
           >
-            <div className="composer-cp-alpha-checker" />
+            <div className="retune-cp-alpha-checker" />
             <div
-              className="composer-cp-alpha-gradient"
+              className="retune-cp-alpha-gradient"
               style={{
                 background: `linear-gradient(to right, transparent, ${currentHex})`,
               }}
             />
             <div
-              className="composer-cp-handle"
+              className="retune-cp-handle"
               style={{
                 left: `${localAlpha}%`,
                 top: "50%",
               }}
             >
               <div
-                className="composer-cp-handle-inner"
+                className="retune-cp-handle-inner"
                 style={{ backgroundColor: localAlpha < 100
                   ? `rgba(${hsvToRgb(hsva.h, hsva.s, hsva.v).r}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).g}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).b}, ${localAlpha / 100})`
                   : currentHex
@@ -378,11 +378,11 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
       </div>
 
       {/* Inputs */}
-      <div className="composer-cp-inputs">
-        <div className="composer-cp-input-group">
-          <label className="composer-cp-label">Hex</label>
+      <div className="retune-cp-inputs">
+        <div className="retune-cp-input-group">
+          <label className="retune-cp-label">Hex</label>
           <input
-            className="composer-cp-input"
+            className="retune-cp-input"
             value={hexInput}
             onChange={(e) => setHexInput(e.target.value)}
             onFocus={(e) => { focusedRef.current = "hex"; e.target.select(); }}
@@ -391,10 +391,10 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
             spellCheck={false}
           />
         </div>
-        <div className="composer-cp-input-group">
-          <label className="composer-cp-label">R</label>
+        <div className="retune-cp-input-group">
+          <label className="retune-cp-label">R</label>
           <input
-            className="composer-cp-input"
+            className="retune-cp-input"
             inputMode="numeric"
             value={rgbInputs.r}
             onChange={(e) => setRgbInputs(prev => ({ ...prev, r: e.target.value }))}
@@ -403,10 +403,10 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
             onKeyDown={handleKeyDown(commitRgb)}
           />
         </div>
-        <div className="composer-cp-input-group">
-          <label className="composer-cp-label">G</label>
+        <div className="retune-cp-input-group">
+          <label className="retune-cp-label">G</label>
           <input
-            className="composer-cp-input"
+            className="retune-cp-input"
             inputMode="numeric"
             value={rgbInputs.g}
             onChange={(e) => setRgbInputs(prev => ({ ...prev, g: e.target.value }))}
@@ -415,10 +415,10 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
             onKeyDown={handleKeyDown(commitRgb)}
           />
         </div>
-        <div className="composer-cp-input-group">
-          <label className="composer-cp-label">B</label>
+        <div className="retune-cp-input-group">
+          <label className="retune-cp-label">B</label>
           <input
-            className="composer-cp-input"
+            className="retune-cp-input"
             inputMode="numeric"
             value={rgbInputs.b}
             onChange={(e) => setRgbInputs(prev => ({ ...prev, b: e.target.value }))}

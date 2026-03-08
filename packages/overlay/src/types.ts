@@ -1,4 +1,4 @@
-export interface ComposerConfig {
+export interface RetuneConfig {
   /** WebSocket port for MCP server bridge (default: 9223) */
   port?: number;
   /** Hotkey to toggle edit mode (default: "alt+d") */

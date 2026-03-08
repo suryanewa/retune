@@ -120,10 +120,10 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
   };
 
   return (
-    <div className="composer-prop">
+    <div className="retune-prop">
       {label && (
         <span
-          className="composer-prop-label"
+          className="retune-prop-label"
           onPointerDown={handleLabelPointerDown}
           onPointerMove={handleLabelPointerMove}
           onPointerUp={handleLabelPointerUp}
@@ -132,7 +132,7 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
         </span>
       )}
       <input
-        className="composer-prop-input"
+        className="retune-prop-input"
         value={localValue}
         placeholder={placeholder}
         onFocus={(e) => e.target.select()}
