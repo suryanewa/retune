@@ -46,6 +46,7 @@ const LAYOUT_PROPS = [
 
 const VISUAL_PROPS = [
   "opacity", "overflow", "boxShadow", "textShadow", "transform",
+  "filter", "backdropFilter",
 ] as const;
 
 const TEXT_OVERFLOW_PROPS = [

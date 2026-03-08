@@ -118,7 +118,7 @@ export function SliderInput({
         <div key={i} className="composer-slider-indicator" style={{ left: `${pos * 100}%` }} />
       ))}
       {showDetails && (
-        <div className="composer-slider-handle" style={{ left: `${fillPercent}%` }} />
+        <div className="composer-slider-handle" style={{ left: `max(4px, calc(${fillPercent}% - 4px))` }} />
       )}
       <div className="composer-slider-labels">
         <span className="composer-slider-label">{label}</span>

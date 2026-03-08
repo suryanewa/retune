@@ -664,7 +664,8 @@ const OVERLAY_STYLES = `
   .composer-row > .composer-combo,
   .composer-row > .composer-select,
   .composer-row > .composer-text-input,
-  .composer-row > .composer-font-input { flex: 1; }
+  .composer-row > .composer-font-input,
+  .composer-row > .composer-slider { flex: 1; min-width: 0; }
 
   /* Field: flex-1 column with label above input */
   .composer-field {
@@ -773,6 +774,13 @@ const OVERLAY_STYLES = `
     margin-left: auto;
     color: rgba(0, 0, 0, 0.3);
   }
+  .composer-dropdown-heading {
+    padding: 6px 10px 2px;
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(0, 0, 0, 0.4);
+    letter-spacing: 0.045px;
+  }
 
   /* Property cell — matches portfolio NumberInput */
   .composer-prop {
@@ -828,7 +836,7 @@ const OVERLAY_STYLES = `
     font-family: inherit;
     color: #1c1917;
     outline: none;
-    padding: 0 6px 0 32px;
+    padding: 0 0 0 32px;
   }
 
   .composer-prop-input::selection { background: #bfdbfe; }
@@ -1397,7 +1405,7 @@ const OVERLAY_STYLES = `
     transition: background-color 0.15s ease;
   }
 
-  .composer-slider:hover { background: #e7e5e4; }
+  .composer-slider:hover { }
   .composer-slider:focus-visible { outline: 1px solid #1c1917; outline-offset: -1px; }
 
   .composer-slider-fill {
@@ -1438,7 +1446,7 @@ const OVERLAY_STYLES = `
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 6px;
+    padding: 0 8px;
     pointer-events: none;
     overflow: hidden;
     white-space: nowrap;
@@ -1642,7 +1650,7 @@ const OVERLAY_STYLES = `
     font-family: inherit;
     color: #1c1917;
     outline: none;
-    padding: 0 6px 0 32px;
+    padding: 0 0 0 32px;
     transition: background-color 0.15s ease;
   }
 
@@ -1717,7 +1725,7 @@ const OVERLAY_STYLES = `
   }
 
   .composer-menu-heading {
-    padding: 4px 16px;
+    padding: 4px 14px;
     font-size: 11px;
     font-weight: 450;
     letter-spacing: 0.055px;
