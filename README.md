@@ -112,9 +112,6 @@ npm install
 npm run build
 npm run dev    # Watch mode
 ```
-
-The demo app runs on `localhost:3001`.
-
 ## License
 
 MIT
