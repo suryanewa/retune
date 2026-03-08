@@ -78,6 +78,15 @@ Changes:
 
 Always use the `web-animation-design` skill when implementing any transition or animation. This ensures correct easing, timing, performance, and accessibility decisions.
 
+## React Best Practices
+
+Follow the principles in [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect):
+- Don't use Effects to transform data for rendering — compute during render instead
+- Don't use Effects to handle user events — handle in event handlers
+- Derive state from props/state during rendering rather than syncing with Effects
+- Use `useMemo` for expensive calculations, not Effects that set state
+- When you must sync with external systems, keep Effects focused and clean
+
 ## Notes
 
 - This project was previously "Composer" (a standalone design tool extracted from the portfolio editor). That approach was abandoned in favor of this overlay concept.

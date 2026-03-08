@@ -4,6 +4,8 @@
  * a curated set based on what's visually meaningful.
  */
 
+import { camelToKebab } from "../utils";
+
 const SPACING_PROPS = [
   "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
   "marginTop", "marginRight", "marginBottom", "marginLeft",
@@ -96,34 +98,4 @@ export function detectLayoutMode(element: Element): LayoutMode {
   return "block";
 }
 
-/** Get only the styles relevant to a specific control category */
-export function getStylesForCategory(
-  element: Element,
-  category: "spacing" | "sizing" | "border" | "typography" | "background" | "layout" | "visual"
-): Record<string, string> {
-  const computed = window.getComputedStyle(element);
-  const props = {
-    spacing: SPACING_PROPS,
-    sizing: SIZING_PROPS,
-    border: BORDER_PROPS,
-    typography: TYPOGRAPHY_PROPS,
-    background: BACKGROUND_PROPS,
-    layout: LAYOUT_PROPS,
-    visual: VISUAL_PROPS,
-  }[category];
 
-  const styles: Record<string, string> = {};
-  for (const prop of props) {
-    const value = computed.getPropertyValue(camelToKebab(prop));
-    if (value) styles[prop] = value;
-  }
-  return styles;
-}
-
-function camelToKebab(str: string): string {
-  const kebab = str.replace(/([A-Z])/g, "-$1").toLowerCase();
-  if (kebab.startsWith("webkit-")) return `-${kebab}`;
-  if (kebab.startsWith("moz-")) return `-${kebab}`;
-  if (kebab.startsWith("ms-")) return `-${kebab}`;
-  return kebab;
-}

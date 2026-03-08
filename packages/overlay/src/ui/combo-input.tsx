@@ -70,7 +70,7 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
     const root = containerRef.current?.getRootNode() as ShadowRoot | Document;
     root.addEventListener("pointerdown", handlePointerDown as EventListener);
     return () => root.removeEventListener("pointerdown", handlePointerDown as EventListener);
-  }, [open]);
+  }, [open, closeDropdown]);
 
   // Get display value: show option label if value matches an option
   const displayValue = (() => {

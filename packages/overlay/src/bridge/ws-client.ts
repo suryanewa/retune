@@ -14,9 +14,11 @@ export class BridgeClient {
   private port: number;
   private handlers: MessageHandler | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void }>();
+  private pendingRequests = new Map<string, { resolve: (v: any) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>();
   private requestId = 0;
   private _connected = false;
+  private reconnectDelay = 3000;
+  private maxReconnectDelay = 60000;
 
   constructor(port: number = 9223) {
     this.port = port;
@@ -40,15 +42,23 @@ export class BridgeClient {
 
       this.ws.onopen = () => {
         this._connected = true;
+        this.reconnectDelay = 3000;
         console.log("[Composer] Connected to MCP server");
       };
 
       this.ws.onmessage = async (event) => {
-        const msg = JSON.parse(event.data);
+        let msg: any;
+        try {
+          msg = JSON.parse(event.data);
+        } catch (err) {
+          console.error("[Composer] Failed to parse message:", err);
+          return;
+        }
 
         // Response to our request
         if (msg.id && this.pendingRequests.has(msg.id)) {
           const pending = this.pendingRequests.get(msg.id)!;
+          clearTimeout(pending.timer);
           this.pendingRequests.delete(msg.id);
           if (msg.error) {
             pending.reject(new Error(msg.error));
@@ -78,8 +88,9 @@ export class BridgeClient {
       this.ws.onclose = () => {
         this._connected = false;
         this.ws = null;
-        // Reconnect after 3 seconds
-        this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+        // Reconnect with exponential backoff
+        this.reconnectTimer = setTimeout(() => this.connect(), this.reconnectDelay);
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay);
       };
 
       this.ws.onerror = () => {
@@ -104,16 +115,14 @@ export class BridgeClient {
       }
 
       const id = String(++this.requestId);
-      this.pendingRequests.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
-
-      // Timeout after 10 seconds
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error("Request timed out"));
         }
       }, 10000);
+      this.pendingRequests.set(id, { resolve, reject, timer });
+      this.ws.send(JSON.stringify({ id, method, params }));
     });
   }
 

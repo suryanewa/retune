@@ -11,7 +11,8 @@
 
 import type { ElementChange } from "../types";
 import { type TokenMap, scanDesignTokens, findTokensForValue, summarizeTokenSystem } from "../inspector/tokens";
-import { findStyleSources, formatStyleSource } from "../inspector/style-source";
+import { type StyleSource, findStyleSources, formatStyleSource } from "../inspector/style-source";
+import { camelToKebab, truncate } from "../utils";
 
 export type Fidelity = "minimal" | "standard" | "full";
 
@@ -22,11 +23,6 @@ function getTokenMap(): TokenMap {
     cachedTokenMap = scanDesignTokens();
   }
   return cachedTokenMap;
-}
-
-/** Invalidate the cached token map (call after DOM changes) */
-export function invalidateTokenCache() {
-  cachedTokenMap = null;
 }
 
 export function formatChanges(changes: ElementChange[], fidelity: Fidelity): string {
@@ -326,11 +322,3 @@ export function collapseShorthands(changes: import("../types").PropertyChange[])
   return result;
 }
 
-function truncate(str: string, len: number): string {
-  const cleaned = str.replace(/\s+/g, " ").trim();
-  return cleaned.length > len ? cleaned.slice(0, len) + "\u2026" : cleaned;
-}
-
-function camelToKebab(str: string): string {
-  return str.replace(/([A-Z])/g, "-$1").toLowerCase();
-}

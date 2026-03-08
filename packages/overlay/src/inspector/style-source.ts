@@ -6,6 +6,8 @@
  * ordered by specificity so we can identify the "winning" rule.
  */
 
+import { camelToKebab } from "../utils";
+
 export interface StyleSource {
   /** The CSS property name (kebab-case) */
   property: string;
@@ -135,10 +137,6 @@ function formatSheetName(href: string): string {
   } catch {
     return href.slice(0, 80);
   }
-}
-
-function camelToKebab(str: string): string {
-  return str.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
 
 /**

@@ -49,6 +49,9 @@ export class Bridge {
 
       this.wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
         console.error("[Composer MCP] Browser overlay connected");
+        if (this.client && this.client !== ws) {
+          this.client.close();
+        }
         this.client = ws;
 
         ws.on("message", (data: Buffer) => {
@@ -59,7 +62,11 @@ export class Bridge {
             if (msg.id && this.pendingRequests.has(msg.id)) {
               const handler = this.pendingRequests.get(msg.id)!;
               this.pendingRequests.delete(msg.id);
-              handler(msg.result ?? msg.error);
+              if (msg.error) {
+                handler(new Error(typeof msg.error === 'string' ? msg.error : JSON.stringify(msg.error)));
+              } else {
+                handler(msg.result);
+              }
               return;
             }
 
@@ -98,7 +105,7 @@ export class Bridge {
 
       this.pendingRequests.set(id, (result) => {
         clearTimeout(timeout);
-        if (result instanceof Error || (result && result.error)) {
+        if (result instanceof Error) {
           reject(result);
         } else {
           resolve(result);
@@ -135,6 +142,9 @@ export class Bridge {
   stop() {
     this.wss?.close();
     this.client = null;
+    for (const [id, handler] of this.pendingRequests) {
+      handler(new Error("Bridge stopped"));
+    }
     this.pendingRequests.clear();
   }
 }

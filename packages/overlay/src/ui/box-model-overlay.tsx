@@ -10,7 +10,7 @@
  * - Gap: purple/pink rectangles between flex/grid children
  */
 
-import { useState, useLayoutEffect } from "react";
+import { useMemo } from "react";
 
 export type BoxModelProperty =
   | "paddingTop" | "paddingRight" | "paddingBottom" | "paddingLeft"
@@ -203,13 +203,9 @@ function computeGapRects(element: Element, computed: CSSStyleDeclaration): Rect[
 }
 
 export function BoxModelOverlay({ element, hoveredProperty, revision }: BoxModelOverlayProps) {
-  const [rects, setRects] = useState<Rect[]>([]);
-  const [color, setColor] = useState(PADDING_COLOR);
-
-  useLayoutEffect(() => {
+  const { rects, color } = useMemo(() => {
     if (!hoveredProperty || !element) {
-      setRects([]);
-      return;
+      return { rects: [] as Rect[], color: PADDING_COLOR };
     }
 
     const computed = getComputedStyle(element);
@@ -218,35 +214,32 @@ export function BoxModelOverlay({ element, hoveredProperty, revision }: BoxModel
     if (hoveredProperty.startsWith("padding")) {
       const side = hoveredProperty.replace("padding", "") as "Top" | "Right" | "Bottom" | "Left";
       const rect = computePaddingRect(side, computed, elRect);
-      setRects(rect ? [rect] : []);
-      setColor(PADDING_COLOR);
+      return { rects: rect ? [rect] : [], color: PADDING_COLOR };
     } else if (hoveredProperty.startsWith("margin")) {
       const side = hoveredProperty.replace("margin", "") as "Top" | "Right" | "Bottom" | "Left";
       const rect = computeMarginRect(side, computed, elRect);
-      setRects(rect ? [rect] : []);
-      setColor(MARGIN_COLOR);
+      return { rects: rect ? [rect] : [], color: MARGIN_COLOR };
     } else {
       // gap, columnGap, rowGap
       const allGaps = computeGapRects(element, computed);
+      let filteredRects: Rect[];
 
       if (hoveredProperty === "gap") {
-        setRects(allGaps);
+        filteredRects = allGaps;
       } else if (hoveredProperty === "columnGap") {
         // Filter to horizontal gaps only (wider than tall, roughly)
         const isVerticalLayout = (computed.flexDirection || "row").startsWith("column");
-        setRects(isVerticalLayout
+        filteredRects = isVerticalLayout
           ? allGaps.filter((r) => r.width >= r.height)
-          : allGaps.filter((r) => r.height >= r.width),
-        );
+          : allGaps.filter((r) => r.height >= r.width);
       } else {
         // rowGap — opposite
         const isVerticalLayout = (computed.flexDirection || "row").startsWith("column");
-        setRects(isVerticalLayout
+        filteredRects = isVerticalLayout
           ? allGaps.filter((r) => r.height >= r.width)
-          : allGaps.filter((r) => r.width >= r.height),
-        );
+          : allGaps.filter((r) => r.width >= r.height);
       }
-      setColor(GAP_COLOR);
+      return { rects: filteredRects, color: GAP_COLOR };
     }
   }, [element, hoveredProperty, revision]);
 

@@ -41,7 +41,8 @@ export function createPicker(
   let hoveredElement: Element | null = null;
   let selectedElement: Element | null = null;
   let selectionLabelHidden = false;
-  let rafId: number | null = null;
+  let trackingRaf: number | null = null;
+  let resizeObserver: ResizeObserver | null = null;
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let lastSelRect = { top: 0, left: 0, width: 0, height: 0 };
 
@@ -136,7 +137,8 @@ export function createPicker(
     const cls = el.className && typeof el.className === "string"
       ? "." + el.className.trim().split(/\s+/).slice(0, 2).join(".")
       : "";
-    const dims = `${Math.round(el.getBoundingClientRect().width)}×${Math.round(el.getBoundingClientRect().height)}`;
+    const rect = el.getBoundingClientRect();
+    const dims = `${Math.round(rect.width)}×${Math.round(rect.height)}`;
     return `${tag}${id}${cls} ${dims}`;
   }
 
@@ -150,20 +152,34 @@ export function createPicker(
     selectionLabel.style.display = "none";
   }
 
+  // Debounce multiple events into a single rAF update
+  function scheduleTrack() {
+    if (trackingRaf !== null) return;
+    trackingRaf = requestAnimationFrame(() => {
+      trackingRaf = null;
+      trackSelection();
+    });
+  }
+
   // Keep selection box in sync on scroll/resize
   function startTracking() {
-    function tick() {
-      trackSelection();
-      rafId = requestAnimationFrame(tick);
-    }
-    rafId = requestAnimationFrame(tick);
+    window.addEventListener("scroll", scheduleTrack, { capture: true, passive: true });
+    window.addEventListener("resize", scheduleTrack, { passive: true });
+    resizeObserver = new ResizeObserver(scheduleTrack);
+    if (selectedElement) resizeObserver.observe(selectedElement);
+    // Initial position update
+    trackSelection();
   }
 
   function stopTracking() {
-    if (rafId !== null) {
-      cancelAnimationFrame(rafId);
-      rafId = null;
+    if (trackingRaf !== null) {
+      cancelAnimationFrame(trackingRaf);
+      trackingRaf = null;
     }
+    window.removeEventListener("scroll", scheduleTrack, true);
+    window.removeEventListener("resize", scheduleTrack);
+    resizeObserver?.disconnect();
+    resizeObserver = null;
   }
 
   // Filter out our own overlay elements
@@ -239,6 +255,11 @@ export function createPicker(
 
     selectedElement = el;
     selectionLabelHidden = false;
+    // Update ResizeObserver to watch the newly selected element
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver.observe(el);
+    }
     showSelection();
     hideHighlight();
     hoveredElement = null;

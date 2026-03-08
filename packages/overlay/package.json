@@ -14,8 +14,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch"
+    "build:css": "node scripts/build-css.js",
+    "build": "npm run build:css && tsup",
+    "dev": "npm run build:css && tsup --watch"
   },
   "peerDependencies": {
     "react": ">=18",

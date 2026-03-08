@@ -82,6 +82,8 @@ export function DevOverlay(props: ComposerConfig = {}) {
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [fidelity] = useState<Fidelity>(config.fidelity);
+  const fidelityRef = useRef(fidelity);
+  fidelityRef.current = fidelity;
   const [copied, setCopied] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
@@ -100,6 +102,8 @@ export function DevOverlay(props: ComposerConfig = {}) {
   const bridgeRef = useRef<BridgeClient | null>(null);
   const selectedElementRef = useRef<InspectedElement | null>(null);
   selectedElementRef.current = selectedElement;
+  const syncTrackerStateRef = useRef<() => void>(() => {});
+  const refreshSelectedElementRef = useRef<() => void>(() => {});
 
   // Initialize on mount
   useEffect(() => {
@@ -131,12 +135,12 @@ export function DevOverlay(props: ComposerConfig = {}) {
         case "getPendingChanges":
           return tracker.getPendingChanges();
         case "getFormattedChanges":
-          return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelity);
+          return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelityRef.current);
         case "clearChanges":
           preview.clearAll();
           tracker.clear();
-          syncTrackerState();
-          refreshSelectedElement();
+          syncTrackerStateRef.current();
+          refreshSelectedElementRef.current();
           return { ok: true };
         default:
           throw new Error(`Unknown method: ${method}`);
@@ -248,26 +252,6 @@ export function DevOverlay(props: ComposerConfig = {}) {
     });
   }, []);
 
-  // Hotkey listener
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (matchesHotkey(e, config.hotkey)) {
-        e.preventDefault();
-        toggleOverlay();
-      }
-      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        handleUndo();
-      }
-      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        handleRedo();
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown, true);
-    return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [active, config.hotkey]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const syncTrackerState = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
@@ -276,6 +260,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
     setCanRedo(tracker.canRedo);
     tracker.persist();
   }, []);
+  syncTrackerStateRef.current = syncTrackerState;
 
   const refreshSelectedElement = useCallback(() => {
     setSelectedElement((prev) => {
@@ -283,6 +268,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
       return inspectElement(prev.element);
     });
   }, []);
+  refreshSelectedElementRef.current = refreshSelectedElement;
 
   const handlePropertyChange = useCallback((property: string, value: string) => {
     if (!selectedElement || !previewRef.current || !trackerRef.current) return;
@@ -331,6 +317,26 @@ export function DevOverlay(props: ComposerConfig = {}) {
       refreshSelectedElement();
     }
   }, [syncTrackerState, refreshSelectedElement]);
+
+  // Hotkey listener
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (matchesHotkey(e, config.hotkey)) {
+        e.preventDefault();
+        toggleOverlay();
+      }
+      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, [active, config.hotkey, toggleOverlay, handleUndo, handleRedo]);
 
   const handleReset = useCallback(() => {
     const tracker = trackerRef.current;
@@ -384,20 +390,20 @@ export function DevOverlay(props: ComposerConfig = {}) {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
       getFormattedChanges: (f?: Fidelity) =>
-        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelity),
+        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current),
       clearChanges: () => {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
         if (!tracker || !preview) return;
         preview.clearAll();
         tracker.clear();
-        syncTrackerState();
-        refreshSelectedElement();
+        syncTrackerStateRef.current();
+        refreshSelectedElementRef.current();
       },
     };
     (window as any).__composer = api;
     return () => { delete (window as any).__composer; };
-  }, [fidelity, syncTrackerState, refreshSelectedElement]);
+  }, []);
 
   if (!portalTarget) return null;
 

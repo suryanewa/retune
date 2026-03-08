@@ -9,6 +9,7 @@ import { detectStylingApproach } from "../inspector/tokens";
 
 /** Inspect a DOM element and return all relevant metadata */
 export function inspectElement(element: Element): InspectedElement {
+  const rect = element.getBoundingClientRect();
   return {
     element,
     selector: getSelector(element),
@@ -17,7 +18,7 @@ export function inspectElement(element: Element): InspectedElement {
     classes: element.className && typeof element.className === "string"
       ? element.className.trim().split(/\s+/)
       : [],
-    rect: element.getBoundingClientRect(),
+    rect,
     computedStyles: getRelevantStyles(element),
     layoutMode: detectLayoutMode(element),
     reactComponents: getReactComponentHierarchy(element),
@@ -32,10 +33,10 @@ export function inspectElement(element: Element): InspectedElement {
     domPath: getDomPath(element),
     nearbySiblings: getNearbySiblings(element),
     position: {
-      x: Math.round(element.getBoundingClientRect().left),
-      y: Math.round(element.getBoundingClientRect().top),
-      width: Math.round(element.getBoundingClientRect().width),
-      height: Math.round(element.getBoundingClientRect().height),
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
     },
   };
 }
@@ -55,12 +56,6 @@ export function matchesHotkey(e: KeyboardEvent, hotkey: string): boolean {
     e.metaKey === needsMeta &&
     e.shiftKey === needsShift
   );
-}
-
-/** Truncate a string, collapsing whitespace */
-export function truncate(str: string, len: number): string {
-  const cleaned = str.replace(/\s+/g, " ").trim();
-  return cleaned.length > len ? cleaned.slice(0, len) + "\u2026" : cleaned;
 }
 
 /** Get only the element's own direct text, not children's text */
