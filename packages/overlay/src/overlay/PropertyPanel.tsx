@@ -197,6 +197,7 @@ export function PropertyPanel({
   const [filterMenuPos, setFilterMenuPos] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const filterMenuBtnRef = useRef<HTMLButtonElement>(null);
   const filterMenuRef = useRef<HTMLDivElement>(null);
+  const filterSectionRef = useRef<HTMLDivElement>(null);
 
   // Progressive disclosure states
   const [paddingExpanded, setPaddingExpanded] = useState(false);
@@ -370,6 +371,9 @@ export function PropertyPanel({
   const handleAddFilter = useCallback((type: FilterType, target: FilterTarget) => {
     applyFilters([...filters, defaultFilter(type, target)]);
     setFilterMenuOpen(false);
+    requestAnimationFrame(() => {
+      filterSectionRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    });
   }, [filters, applyFilters]);
 
   const handleRemoveFilter = useCallback((id: string) => {
@@ -1326,7 +1330,7 @@ export function PropertyPanel({
           );
         })()}
       </Section>
-
+      <div ref={filterSectionRef} />
     </div>
   );
 }
