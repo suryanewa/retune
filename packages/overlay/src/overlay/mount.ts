@@ -323,58 +323,56 @@ const OVERLAY_STYLES = `
     white-space: nowrap;
   }
 
-  /* ── Scope toggle ── */
-  .composer-scope-toggle {
-    display: flex;
-    gap: 1px;
-    padding: 0 8px 8px;
-    background: #fff;
-    position: sticky;
-    top: 41px;
-    z-index: 10;
+  /* ── Scope switch row ── */
+  .composer-scope-row {
+    margin-top: 4px;
   }
 
-  .composer-scope-btn {
-    flex: 1;
-    height: 28px;
+  .composer-scope-switch {
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 4px;
-    border: none;
-    background: #f5f5f4;
-    font-size: 11px;
-    font-weight: 450;
-    letter-spacing: -0.055px;
-    font-family: inherit;
-    color: #78716c;
+    justify-content: space-between;
+    gap: 8px;
     cursor: pointer;
-    padding: 0 8px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    transition: background-color 0.15s ease, color 0.12s ease;
   }
 
-  .composer-scope-btn:first-child { border-radius: 6px 0 0 6px; }
-  .composer-scope-btn:last-child { border-radius: 0 6px 6px 0; }
-
-  .composer-scope-btn:hover { background: #e7e5e4; }
-
-  .composer-scope-btn.active {
-    background: #1c1917;
-    color: #fff;
+  .composer-switch-track {
+    width: 28px;
+    height: 16px;
+    border-radius: 8px;
+    background: #e7e5e4;
+    position: relative;
+    flex-shrink: 0;
+    transition: background-color 0.15s ease;
   }
 
-  .composer-scope-count {
-    font-size: 10px;
-    font-weight: 500;
-    background: rgba(255, 255, 255, 0.2);
-    color: inherit;
-    padding: 0 5px;
-    border-radius: 10px;
-    line-height: 16px;
+  .composer-switch-track.on {
+    background: #3b82f6;
   }
+
+  .composer-switch-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    background: #fff;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  .composer-switch-track.on .composer-switch-thumb {
+    transform: translateX(12px);
+  }
+
+  .composer-scope-label {
+    font-size: 11px;
+    font-weight: 400;
+    color: #78716c;
+    line-height: 14px;
+  }
+
 
   /* ── Section structure (matches portfolio editor) ── */
   .composer-section {

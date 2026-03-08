@@ -336,6 +336,30 @@ export function DevOverlay(props: ComposerConfig = {}) {
     refreshSelectedElement();
   }, [syncTrackerState, refreshSelectedElement]);
 
+  const handleScopeChange = useCallback((newScope: "element" | "class") => {
+    const preview = previewRef.current;
+    const tracker = trackerRef.current;
+    if (!preview || !tracker || !selectedElement || !sharedSelector) {
+      setScope(newScope);
+      return;
+    }
+
+    const elementSelector = selectedElement.selector;
+    const classSelector = sharedSelector.selector;
+    const fromSelector = scope === "class" ? classSelector : elementSelector;
+    const toSelector = newScope === "class" ? classSelector : elementSelector;
+
+    if (fromSelector !== toSelector) {
+      preview.migrateChanges(fromSelector, toSelector);
+      tracker.migrateChanges(fromSelector, toSelector);
+      syncTrackerState();
+      refreshSelectedElement();
+      setChangeRevision((r) => r + 1);
+    }
+
+    setScope(newScope);
+  }, [selectedElement, sharedSelector, scope, syncTrackerState, refreshSelectedElement]);
+
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
@@ -457,7 +481,7 @@ export function DevOverlay(props: ComposerConfig = {}) {
             onPropertyHover={setHoveredBoxModel}
             onApplyToElement={handleApplyToElement}
             scope={scope}
-            onScopeChange={setScope}
+            onScopeChange={handleScopeChange}
             sharedSelector={sharedSelector}
           />
         )}

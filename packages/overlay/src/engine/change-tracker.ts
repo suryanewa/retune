@@ -188,6 +188,34 @@ export class ChangeTracker {
     return this.getPendingChanges().length > 0;
   }
 
+  /** Migrate pending changes from one selector to another.
+   *  Moves diffed properties (original vs current) to the target selector,
+   *  resets the source selector back to its original state. */
+  migrateChanges(fromSelector: string, toSelector: string): Array<{ property: string; value: string }> {
+    const from = this.tracked.get(fromSelector);
+    const to = this.tracked.get(toSelector);
+    if (!from || !to) return [];
+
+    const migrated: Array<{ property: string; value: string }> = [];
+
+    for (const [prop, currentVal] of Object.entries(from.currentStyles)) {
+      const originalVal = from.originalStyles[prop] || "";
+      if (currentVal !== originalVal) {
+        migrated.push({ property: prop, value: currentVal });
+        // Apply to target
+        to.currentStyles[prop] = currentVal;
+        // Reset source back to original
+        from.currentStyles[prop] = originalVal;
+      }
+    }
+
+    // Clear undo/redo since migration invalidates the history
+    this.undoStack = [];
+    this.redoStack = [];
+
+    return migrated;
+  }
+
   get canUndo(): boolean { return this.undoStack.length > 0; }
   get canRedo(): boolean { return this.redoStack.length > 0; }
 

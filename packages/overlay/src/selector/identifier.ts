@@ -14,7 +14,7 @@ export function getSelector(element: Element): string {
         // Filter out dynamic/hashed class names (CSS modules, Tailwind JIT, etc.)
         if (name.startsWith("_") || name.startsWith("css-")) return false;
         // Filter out very long hashes
-        if (/^[a-z]{1,3}[A-Za-z0-9_-]{8,}$/.test(name)) return false;
+        if (/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(name)) return false;
         return true;
       },
       seedMinLength: 1,
@@ -68,7 +68,7 @@ export function getSharedSelector(element: Element): { selector: string; count: 
   const classes = Array.from(el.classList).filter((name) => {
     // Skip dynamic/hashed class names
     if (name.startsWith("_") || name.startsWith("css-")) return false;
-    if (/^[a-z]{1,3}[A-Za-z0-9_-]{8,}$/.test(name)) return false;
+    if (/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(name)) return false;
     return true;
   });
 

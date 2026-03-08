@@ -80,6 +80,18 @@ export class LivePreviewEngine {
     return this.rules;
   }
 
+  /** Migrate all changes from one selector to another */
+  migrateChanges(fromSelector: string, toSelector: string) {
+    const toMigrate = this.rules.filter((r) => r.selector === fromSelector);
+    if (toMigrate.length === 0) return;
+    // Remove old rules
+    this.removeAllChanges(fromSelector);
+    // Re-apply under new selector
+    for (const rule of toMigrate) {
+      this.applyChange(toSelector, rule.property, rule.value);
+    }
+  }
+
   private rebuildSheet(newRules: AppliedRule[]) {
     this.sheet.replaceSync("");
     this.rules = [];

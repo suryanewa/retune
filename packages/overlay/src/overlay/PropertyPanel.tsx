@@ -469,29 +469,17 @@ export function PropertyPanel({
         {element.reactComponents.length > 0 && (
           <div className="composer-el-component">{element.reactComponents.join(" \u203A ")}</div>
         )}
+        {sharedSelector && sharedSelector.count > 1 && onScopeChange && (
+          <div className="composer-scope-row">
+            <label className="composer-scope-switch" onClick={() => onScopeChange(scope === "element" ? "class" : "element")}>
+              <span className="composer-scope-label">Apply to all instances</span>
+              <div className={`composer-switch-track${scope === "class" ? " on" : ""}`}>
+                <div className="composer-switch-thumb" />
+              </div>
+            </label>
+          </div>
+        )}
       </div>
-
-      {/* Scope toggle */}
-      {sharedSelector && onScopeChange && (
-        <div className="composer-scope-toggle">
-          <button
-            className={`composer-scope-btn${scope === "element" ? " active" : ""}`}
-            onClick={() => onScopeChange("element")}
-          >
-            This element
-          </button>
-          <button
-            className={`composer-scope-btn${scope === "class" ? " active" : ""}`}
-            onClick={() => onScopeChange("class")}
-            title={`${sharedSelector.selector} — ${sharedSelector.count} element${sharedSelector.count !== 1 ? "s" : ""}`}
-          >
-            All {sharedSelector.selector}
-            {sharedSelector.count > 1 && (
-              <span className="composer-scope-count">{sharedSelector.count}</span>
-            )}
-          </button>
-        </div>
-      )}
 
       {/* Position */}
       <Section label="Position">
