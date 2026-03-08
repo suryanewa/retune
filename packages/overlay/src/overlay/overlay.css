@@ -83,7 +83,7 @@
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: radial-gradient(circle at center, #fff 1px, #3b82f6 1px);
   pointer-events: none;
 }
 
