@@ -5,8 +5,8 @@
  *
  * Usage:
  *   import { Retune } from "retune";
- *   // In your layout:
- *   {process.env.NODE_ENV === "development" && <Retune />}
+ *   // In your layout — only renders in development by default:
+ *   <Retune />
  */
 
 import { useEffect, useRef, useState, useCallback } from "react";
@@ -36,6 +36,7 @@ const DEFAULT_CONFIG: Required<RetuneConfig> = {
   hotkey: "alt+d",
   fidelity: "standard",
   position: "bottom-right",
+  force: false,
 };
 
 const PANEL_ANIMATION_MS = 150;
@@ -74,6 +75,13 @@ function AnimatedPanel({ visible, children }: { visible: boolean; children: Reac
 }
 
 export function Retune(props: RetuneConfig = {}) {
+  const isDev = typeof process !== "undefined" && process.env?.NODE_ENV === "development";
+  if (!isDev && !props.force) return null;
+
+  return <RetuneInner {...props} />;
+}
+
+function RetuneInner(props: RetuneConfig) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
   const [active, setActive] = useState(false);

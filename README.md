@@ -10,7 +10,7 @@ Select any element in your running app, tweak its styles visually, and the chang
 npm install retune
 ```
 
-Add the overlay to your app layout (dev mode only):
+Add the overlay to your app layout — it only renders in development by default:
 
 ```tsx
 import { Retune } from "retune";
@@ -20,7 +20,7 @@ export default function Layout({ children }) {
     <html>
       <body>
         {children}
-        {process.env.NODE_ENV === "development" && <Retune />}
+        <Retune />
       </body>
     </html>
   );
@@ -84,6 +84,7 @@ Retune includes a built-in MCP server. Configure your AI tool to use it:
   hotkey="alt+d"           // Toggle hotkey
   fidelity="standard"      // Output detail: "minimal" | "standard" | "full"
   position="bottom-right"  // Toolbar position
+  force                    // Show in production (default: false)
 />
 ```
 

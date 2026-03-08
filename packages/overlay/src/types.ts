@@ -7,6 +7,8 @@ export interface RetuneConfig {
   fidelity?: "minimal" | "standard" | "full";
   /** Position of the floating toolbar */
   position?: "top-left" | "top-right" | "bottom-left" | "bottom-right";
+  /** Show overlay even in production (default: false) */
+  force?: boolean;
 }
 
 export interface InspectedElement {
