@@ -132,6 +132,12 @@ export function DevOverlay(props: ComposerConfig = {}) {
           return tracker.getPendingChanges();
         case "getFormattedChanges":
           return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelity);
+        case "clearChanges":
+          preview.clearAll();
+          tracker.clear();
+          syncTrackerState();
+          refreshSelectedElement();
+          return { ok: true };
         default:
           throw new Error(`Unknown method: ${method}`);
       }

@@ -96,6 +96,20 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
+    "composer_clear_changes",
+    "Clear all pending visual changes from the Composer overlay. Call this after you have applied the changes to source code.",
+    {},
+    async () => {
+      try {
+        await bridge.request("clearChanges");
+        return { content: [{ type: "text", text: "All pending changes have been cleared from the Composer overlay." }] };
+      } catch (err: any) {
+        return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+      }
+    }
+  );
+
+  server.tool(
     "composer_status",
     "Check the status of the Composer overlay connection.",
     {},
