@@ -13,7 +13,11 @@ export function roundCssValue(val: string): string {
     }
   }
   return val.replace(/-?\d+\.\d+/g, (match) => {
-    return String(Math.round(parseFloat(match)));
+    const num = parseFloat(match);
+    if (Math.abs(num) < 1) {
+      return String(parseFloat(num.toFixed(3)));
+    }
+    return String(Math.round(num));
   });
 }
 
