@@ -20,6 +20,7 @@ import { formatChanges, collapseShorthands, type Fidelity } from "../engine/outp
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
 import { getSelector, getSharedSelector } from "../selector/identifier";
+import { getPseudoStateStyles, type ForcedState } from "../inspector/styles";
 import { PropertyPanel } from "./PropertyPanel";
 import { ElementTree } from "./ElementTree";
 import { IconCursorClick } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursorClick";
@@ -113,6 +114,11 @@ function RetuneInner(props: RetuneConfig) {
   const sharedSelectorRef = useRef<{ selector: string; count: number } | null>(null);
   sharedSelectorRef.current = sharedSelector;
 
+  // Forced pseudo-state (:hover, :focus, :active)
+  const [forcedState, setForcedState] = useState<ForcedState>(null);
+  const forcedStateRef = useRef<ForcedState>(null);
+  forcedStateRef.current = forcedState;
+
   const mountRef = useRef<ReturnType<typeof mountOverlay> | null>(null);
   const pickerRef = useRef<ReturnType<typeof createPicker> | null>(null);
   const previewRef = useRef<LivePreviewEngine | null>(null);
@@ -200,6 +206,17 @@ function RetuneInner(props: RetuneConfig) {
       onHover: () => {},
       onSelect: (element) => {
         const inspected = inspectElement(element);
+        // Clear forced pseudo-state when selecting a new element
+        if (forcedStateRef.current) {
+          const prev = forcedStylesRef.current;
+          if (prev.selector) {
+            for (const prop of prev.props) {
+              preview.removeChange(prev.selector, prop);
+            }
+            forcedStylesRef.current = { selector: "", props: [] };
+          }
+          setForcedState(null);
+        }
         setSelectedElement(inspected);
         tracker.track(
           inspected.selector,
@@ -309,9 +326,12 @@ function RetuneInner(props: RetuneConfig) {
     const preview = previewRef.current;
     const tracker = trackerRef.current;
     if (!el || !preview || !tracker) return;
-    const selector = scopeRef.current === "class" && sharedSelectorRef.current
+    const baseSelector = scopeRef.current === "class" && sharedSelectorRef.current
       ? sharedSelectorRef.current.selector
       : el.selector;
+    const selector = forcedStateRef.current
+      ? baseSelector + forcedStateRef.current
+      : baseSelector;
     preview.applyChange(selector, property, value);
     // Ensure element is tracked (may have been cleared by reset)
     tracker.track(
@@ -326,6 +346,42 @@ function RetuneInner(props: RetuneConfig) {
     refreshSelectedElementRef.current();
     pickerRef.current?.refreshSelection();
     setChangeRevision((r) => r + 1);
+  }, []);
+
+  // Force pseudo-state: apply hover/focus/active CSS rules directly to the element
+  // so getComputedStyle reflects those styles for the panel to display
+  const forcedStylesRef = useRef<{ selector: string; props: string[] }>({ selector: "", props: [] });
+
+  const handleForcedStateChange = useCallback((state: ForcedState) => {
+    const preview = previewRef.current;
+    const el = selectedElementRef.current;
+    if (!preview || !el?.element) return;
+
+    const selector = el.selector;
+
+    // Remove previously forced styles
+    const prev = forcedStylesRef.current;
+    if (prev.selector) {
+      for (const prop of prev.props) {
+        preview.removeChange(prev.selector, prop);
+      }
+      forcedStylesRef.current = { selector: "", props: [] };
+    }
+
+    setForcedState(state);
+
+    if (state) {
+      // Find CSS rules for this pseudo-state and apply them directly
+      const pseudoStyles = getPseudoStateStyles(el.element, state);
+      const appliedProps: string[] = [];
+      for (const [prop, value] of Object.entries(pseudoStyles)) {
+        preview.applyChange(selector, prop, value);
+        appliedProps.push(prop);
+      }
+      forcedStylesRef.current = { selector, props: appliedProps };
+    }
+
+    refreshSelectedElementRef.current();
   }, []);
 
   const handleApplyToElement = useCallback((el: Element, property: string, value: string) => {
@@ -645,6 +701,8 @@ function RetuneInner(props: RetuneConfig) {
                 scope={scope}
                 onScopeChange={handleScopeChange}
                 sharedSelector={sharedSelector}
+                forcedState={forcedState}
+                onForcedStateChange={handleForcedStateChange}
               />
             )}
           </div>

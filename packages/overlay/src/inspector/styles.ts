@@ -69,6 +69,53 @@ const ALL_PROPS = [
 
 export type LayoutMode = "block" | "flex" | "grid" | "inline" | "absolute" | "fixed" | "relative" | "sticky";
 
+export type ForcedState = ":hover" | ":focus" | ":active" | null;
+
+/**
+ * Find CSS rules that apply to a given element under a specific pseudo-state
+ * (e.g. :hover). Returns a map of property → value for all matching rules.
+ */
+export function getPseudoStateStyles(
+  element: Element,
+  state: ":hover" | ":focus" | ":active",
+): Record<string, string> {
+  const styles: Record<string, string> = {};
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // cross-origin sheet
+    }
+
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const sel = rule.selectorText;
+      if (!sel.includes(state)) continue;
+
+      // Strip the pseudo-state to get the base selector, then check if element matches
+      const baseSel = sel.replace(new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), "").replace(/\s+/g, " ").trim();
+      if (!baseSel) continue;
+
+      try {
+        if (!element.matches(baseSel)) continue;
+      } catch {
+        continue; // invalid selector
+      }
+
+      // Collect properties from this rule
+      for (let j = 0; j < rule.style.length; j++) {
+        const prop = rule.style[j];
+        styles[prop] = rule.style.getPropertyValue(prop);
+      }
+    }
+  }
+
+  return styles;
+}
+
 // Properties where "normal" should be resolved to "0px" for usability
 const NORMAL_TO_ZERO = new Set(["gap", "rowGap", "columnGap"]);
 

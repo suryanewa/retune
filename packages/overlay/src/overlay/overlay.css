@@ -370,6 +370,37 @@
 }
 
 
+/* ── State toggles ── */
+.retune-state-toggles {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.retune-state-btn {
+  font-family: 'SF Mono', 'Fira Code', Menlo, monospace;
+  font-size: 10px;
+  line-height: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #e7e5e4;
+  background: transparent;
+  color: #78716c;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.retune-state-btn:hover {
+  border-color: #d6d3d1;
+  color: #57534e;
+}
+
+.retune-state-btn.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
 /* ── Tab bar ── */
 
 .retune-tab-bar {

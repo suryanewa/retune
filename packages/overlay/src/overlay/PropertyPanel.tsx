@@ -137,6 +137,7 @@ const LIST_STYLE_OPTIONS: SegmentedOption[] = [
 ];
 
 type ChangeScope = "element" | "class";
+type ForcedState = ":hover" | ":focus" | ":active" | null;
 
 export function PropertyPanel({
   element,
@@ -147,6 +148,8 @@ export function PropertyPanel({
   scope = "element",
   onScopeChange,
   sharedSelector,
+  forcedState = null,
+  onForcedStateChange,
 }: {
   element: InspectedElement;
   position: "left" | "right";
@@ -156,6 +159,8 @@ export function PropertyPanel({
   scope?: ChangeScope;
   onScopeChange?: (scope: ChangeScope) => void;
   sharedSelector?: { selector: string; count: number } | null;
+  forcedState?: ForcedState;
+  onForcedStateChange?: (state: ForcedState) => void;
 }) {
   const s = element.computedStyles;
   const TEXT_TAGS = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH", "FIGCAPTION", "BLOCKQUOTE", "CITE", "EM", "STRONG", "SMALL"];
@@ -495,6 +500,19 @@ export function PropertyPanel({
                 <div className="retune-switch-thumb" />
               </div>
             </label>
+          </div>
+        )}
+        {onForcedStateChange && (
+          <div className="retune-state-toggles">
+            {([":hover", ":focus", ":active"] as const).map((state) => (
+              <button
+                key={state}
+                className={`retune-state-btn${forcedState === state ? " active" : ""}`}
+                onClick={() => onForcedStateChange(forcedState === state ? null : state)}
+              >
+                {state}
+              </button>
+            ))}
           </div>
         )}
       </div>
