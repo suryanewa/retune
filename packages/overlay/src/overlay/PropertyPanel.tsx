@@ -493,63 +493,45 @@ export function PropertyPanel({
 
   return (
     <>
-      {/* Header */}
-      <div className="retune-panel-header">
-        <div className="retune-el-tag">{element.tagName.toLowerCase()}</div>
+      {/* Element */}
+      <Section label={element.tagName.toLowerCase()}>
         {onForcedStateChange && (
-          <div className="retune-state-toggles">
-            {([":hover", ":focus", ":active"] as const).map((state) => (
-              <button
-                key={state}
-                className={`retune-state-btn${forcedState === state ? " active" : ""}`}
-                onClick={() => onForcedStateChange(forcedState === state ? null : state)}
-              >
-                {state}
-              </button>
-            ))}
-          </div>
+          <RowGroup label="State">
+            <div className="retune-row">
+              <SelectInput
+                prop="__state"
+                value={forcedState ?? "default"}
+                options={["default", ":hover", ":focus", ":active"]}
+                onChange={(_, val) => onForcedStateChange(val === "default" ? null : val as ForcedState)}
+              />
+            </div>
+          </RowGroup>
         )}
-      </div>
-
-      {/* Selector */}
-      {selectorCandidates.length > 0 && onSelectorChange && (
-        <Section label="Selector">
-          <div className="retune-selector-field">
-            {selectorCandidates.map((candidate) => (
+        {selectorCandidates.length > 0 && onSelectorChange && (
+          <RowGroup label="Selector">
+            <div className="retune-selector-field">
               <button
-                key={candidate.selector}
-                className={`retune-selector-tag${activeSelector === candidate.selector ? " active" : ""}`}
-                onClick={() => onSelectorChange(activeSelector === candidate.selector ? null : candidate.selector)}
+                className={`retune-selector-tag${activeSelector === null ? " active" : ""}`}
+                onClick={() => onSelectorChange(null)}
               >
-                <span className="retune-selector-tag-name">{candidate.selector.replace(/^\./, "")}</span>
-                {candidate.count > 1 && (
-                  <span className="retune-selector-tag-count">{candidate.count}</span>
-                )}
+                <span className="retune-selector-tag-name">This element</span>
               </button>
-            ))}
-          </div>
-          {activeSelector && (() => {
-            // Count how many properties are inherited from a different selector
-            const inherited = Object.values(styleSources).filter(
-              (src) => src.selector !== activeSelector && !src.selector.includes(activeSelector)
-            ).length;
-            if (inherited === 0) return null;
-            // Find the most common "other" selector
-            const otherCounts: Record<string, number> = {};
-            for (const src of Object.values(styleSources)) {
-              if (src.selector !== activeSelector && !src.selector.includes(activeSelector)) {
-                otherCounts[src.selector] = (otherCounts[src.selector] || 0) + 1;
-              }
-            }
-            const topOther = Object.entries(otherCounts).sort((a, b) => b[1] - a[1])[0];
-            return (
-              <div className="retune-selector-inherit-hint">
-                Inheriting from {topOther ? topOther[0] : "other selectors"}
-              </div>
-            );
-          })()}
-        </Section>
-      )}
+              {selectorCandidates.map((candidate) => (
+                <button
+                  key={candidate.selector}
+                  className={`retune-selector-tag${activeSelector === candidate.selector ? " active" : ""}`}
+                  onClick={() => onSelectorChange(candidate.selector)}
+                >
+                  <span className="retune-selector-tag-name">{candidate.selector.replace(/^\./, "")}</span>
+                  {candidate.count > 1 && (
+                    <span className="retune-selector-tag-count">{candidate.count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </RowGroup>
+        )}
+      </Section>
 
       {/* Position */}
       <Section label="Position">

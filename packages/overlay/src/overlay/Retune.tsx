@@ -222,9 +222,8 @@ function RetuneInner(props: RetuneConfig) {
         setStyleSources(getStyleSources(element));
         const candidates = getSelectorCandidates(element);
         setSelectorCandidates(candidates);
-        // Default to first candidate with >1 match, or null (element-specific)
-        const defaultCandidate = candidates.find((c) => c.count > 1);
-        const defaultSelector = defaultCandidate ? defaultCandidate.selector : null;
+        // Default to the first candidate (radio behavior — always one selected)
+        const defaultSelector = candidates.length > 0 ? candidates[0].selector : null;
         activeSelectorRef.current = defaultSelector;
         setActiveSelector(defaultSelector);
 

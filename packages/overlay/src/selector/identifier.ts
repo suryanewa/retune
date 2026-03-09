@@ -70,19 +70,205 @@ export function getSharedSelector(element: Element): { selector: string; count: 
 
 export type SelectorCandidate = { selector: string; count: number };
 
+// ---- Hashed / generated class detection (structural, framework-agnostic) ----
+
+export function isHashedClass(name: string): boolean {
+  if (name.startsWith("_") || name.startsWith("css-")) return true;
+  if (/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(name)) return true;
+  return false;
+}
+
+// ---- Name-based utility pattern (fallback for cross-origin sheets) ----
+
+const KNOWN_UTILITY_PATTERN = /^-?(?:m|p|w|h|text|bg|border|flex|grid|gap|space|rounded|shadow|opacity|font|leading|tracking|z|inset|top|right|bottom|left|min|max|overflow|cursor|transition|duration|ease|delay|animate|scale|rotate|translate|skew|origin|ring|outline|placeholder|divide|sr|not-sr|container|prose|aspect|columns|break|decoration|underline|overline|line-through|no-underline|antialiased|subpixel|italic|not-italic|normal-case|uppercase|lowercase|capitalize|truncate|indent|align|whitespace|hyphens|content|list|object|overflow|scroll|snap|touch|select|resize|appearance|accent|caret|will-change|fill|stroke)\b/;
+const VARIANT_PREFIX = /^(sm|md|lg|xl|2xl|dark|hover|focus|active|group|peer):/;
+
+/** Regex-only fallback for classes not found in accessible stylesheets.
+ *  Used when cross-origin restrictions prevent rule analysis. */
+export function isKnownUtilityPattern(name: string): boolean {
+  return KNOWN_UTILITY_PATTERN.test(name) || VARIANT_PREFIX.test(name)
+    || /\[.*\]/.test(name)  // arbitrary values: w-[200px]
+    || /\//.test(name);     // slash values: bg-black/50
+}
+
+// ---- Stylesheet-based utility detection (framework-agnostic) ----
+
+/** Collapse CSS longhands back into their shorthand family.
+ *  e.g. padding-top, padding-right → "padding" (1 authored property, not 4). */
+export function getPropertyFamily(prop: string): string {
+  if (prop.startsWith("padding-")) return "padding";
+  if (prop.startsWith("margin-")) return "margin";
+  if (prop.endsWith("-radius") && prop.startsWith("border-")) return "border-radius";
+  if (/^border-(top|right|bottom|left)-(width|style|color)$/.test(prop)) return "border";
+  if (prop.startsWith("border-") && (prop.startsWith("border-block") || prop.startsWith("border-inline"))) return "border";
+  if (prop.startsWith("background-")) return "background";
+  if (prop.startsWith("overflow-")) return "overflow";
+  if (prop === "column-gap" || prop === "row-gap") return "gap";
+  if (prop.startsWith("outline-") && prop !== "outline-offset") return "outline";
+  if (prop.startsWith("text-decoration-")) return "text-decoration";
+  if (prop.startsWith("transition-")) return "transition";
+  if (prop.startsWith("animation-") && !prop.startsWith("animation-range")) return "animation";
+  if (prop.startsWith("scroll-margin-")) return "scroll-margin";
+  if (prop.startsWith("scroll-padding-")) return "scroll-padding";
+  if (prop.startsWith("list-style-")) return "list-style";
+  if (prop.startsWith("grid-template-")) return "grid-template";
+  if (prop.startsWith("grid-auto-")) return "grid-auto";
+  if (prop.startsWith("place-")) return prop; // place-items, place-content are distinct
+  return prop;
+}
+
+/** Count authored CSS properties by collapsing longhands into shorthand families. */
+export function countAuthoredProperties(style: CSSStyleDeclaration): number {
+  const families = new Set<string>();
+  for (let i = 0; i < style.length; i++) {
+    families.add(getPropertyFamily(style[i]));
+  }
+  return families.size;
+}
+
+/** Check if a selector is a simple single-class selector (no combinators, no compound). */
+function isSimpleClassSelector(selectorText: string): boolean {
+  return selectorText.split(",").every(sel => {
+    const s = sel.trim();
+    // Remove pseudo-classes/elements for structural analysis
+    const noPseudo = s.replace(/::?[\w-]+(?:\(.*?\))?/g, "");
+    // Remove attribute selectors
+    const cleaned = noPseudo.replace(/\[.*?\]/g, "").trim();
+    // No whitespace (descendant), no > + ~ combinators
+    if (/[\s>+~]/.test(cleaned)) return false;
+    // Only one class reference
+    const classes = cleaned.match(/\./g);
+    return classes !== null && classes.length === 1;
+  });
+}
+
 /**
- * Get all meaningful class-based selector candidates for an element.
- * Returns candidates ordered from most specific (all classes) to least specific (individual classes).
- * Each candidate includes the match count (how many elements match that selector).
+ * Analyze an element's classes against actual stylesheet rules in a single pass.
+ * Framework-agnostic: detects utility classes by their CSS structure
+ * (low property count + simple selectors) rather than naming conventions.
+ */
+interface ClassAnalysis {
+  compoundClasses: Set<string>;
+  utilityClasses: Set<string>;
+  classesFoundInRules: Set<string>;
+}
+
+function analyzeElementClasses(element: Element): ClassAnalysis {
+  const elClasses = element.classList ? Array.from(element.classList) : [];
+  const result: ClassAnalysis = {
+    compoundClasses: new Set(),
+    utilityClasses: new Set(),
+    classesFoundInRules: new Set(),
+  };
+
+  if (elClasses.length === 0) return result;
+
+  // Per-class tracking: max property count and selector complexity
+  const maxPropCount = new Map<string, number>();
+  const hasComplexSelector = new Set<string>();
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+    walkRules(rules, elClasses, element, result, maxPropCount, hasComplexSelector, null);
+  }
+
+  // Classify: utility = low property count + only simple selectors
+  for (const [cls, maxProps] of maxPropCount) {
+    if (maxProps <= 2 && !hasComplexSelector.has(cls)) {
+      result.utilityClasses.add(cls);
+    }
+  }
+
+  return result;
+}
+
+function walkRules(
+  rules: CSSRuleList,
+  elClasses: string[],
+  element: Element,
+  result: ClassAnalysis,
+  maxPropCount: Map<string, number>,
+  hasComplexSelector: Set<string>,
+  layerName: string | null,
+): void {
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+
+    // Recurse into @layer — classes in "utilities" layer are always utility
+    if (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule) {
+      walkRules(rule.cssRules, elClasses, element, result, maxPropCount, hasComplexSelector, rule.name);
+      continue;
+    }
+
+    // Recurse into @media, @supports, etc.
+    if (rule instanceof CSSGroupingRule) {
+      walkRules(rule.cssRules, elClasses, element, result, maxPropCount, hasComplexSelector, layerName);
+      continue;
+    }
+
+    if (!(rule instanceof CSSStyleRule)) continue;
+
+    const sel = rule.selectorText;
+
+    // Extract class names from this selector
+    const selectorClasses = sel.match(/\.([a-zA-Z0-9_-]+)/g)?.map((c) => c.slice(1)) || [];
+
+    // Quick filter: skip if no overlap with element's classes
+    const overlap = selectorClasses.filter((c) => elClasses.includes(c));
+    if (overlap.length === 0) continue;
+
+    // Full match check
+    try { if (!element.matches(sel)) continue; } catch { continue; }
+
+    // Mark as found in rules
+    for (const c of overlap) result.classesFoundInRules.add(c);
+
+    // Compound selector detection (2+ of element's classes in one selector)
+    if (overlap.length >= 2) {
+      for (const c of overlap) result.compoundClasses.add(c);
+    }
+
+    // Classes in @layer utilities are always utility
+    if (layerName === "utilities") {
+      for (const c of overlap) result.utilityClasses.add(c);
+      continue; // skip property analysis — already classified
+    }
+
+    // Property count + selector complexity analysis
+    const propCount = countAuthoredProperties(rule.style);
+    const simple = isSimpleClassSelector(sel);
+
+    for (const c of overlap) {
+      const prev = maxPropCount.get(c) ?? 0;
+      maxPropCount.set(c, Math.max(prev, propCount));
+      if (!simple) hasComplexSelector.add(c);
+    }
+  }
+}
+
+/**
+ * Get meaningful class-based selector candidates for an element.
+ * Uses stylesheet rule analysis (framework-agnostic) as the primary signal,
+ * with regex pattern matching as a fallback for cross-origin sheets.
  */
 export function getSelectorCandidates(element: Element): SelectorCandidate[] {
   const el = element as HTMLElement;
   if (!el.classList || el.classList.length === 0) return [];
 
+  const analysis = analyzeElementClasses(element);
+
   const classes = Array.from(el.classList).filter((name) => {
-    // Skip dynamic/hashed class names
-    if (name.startsWith("_") || name.startsWith("css-")) return false;
-    if (/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(name)) return false;
+    // Always filter out hashed/generated classes
+    if (isHashedClass(name)) return false;
+    // Always keep compound selector participants (specificity forks)
+    if (analysis.compoundClasses.has(name)) return true;
+    // Filter out classes detected as utility by stylesheet analysis
+    if (analysis.utilityClasses.has(name)) return false;
+    // For classes not found in any accessible sheet, use regex fallback
+    if (!analysis.classesFoundInRules.has(name)) {
+      if (isKnownUtilityPattern(name)) return false;
+    }
     return true;
   });
 
@@ -90,7 +276,7 @@ export function getSelectorCandidates(element: Element): SelectorCandidate[] {
 
   const candidates: SelectorCandidate[] = [];
 
-  // All classes combined (most specific)
+  // All classes combined (most specific) — only if multiple survived filtering
   if (classes.length > 1) {
     const selector = classes.map((c) => `.${c}`).join("");
     try {
