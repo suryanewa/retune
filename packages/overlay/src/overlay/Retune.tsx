@@ -76,9 +76,25 @@ function AnimatedPanel({ visible, children }: { visible: boolean; children: Reac
   return <div className={`retune-panel-anim ${animClass}`}>{childrenRef.current}</div>;
 }
 
+const MIN_VIEWPORT_WIDTH = 768;
+
 export function Retune(props: RetuneConfig = {}) {
   const isDev = typeof process !== "undefined" && process.env?.NODE_ENV === "development";
   if (!isDev && !props.force) return null;
+
+  const [wide, setWide] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= MIN_VIEWPORT_WIDTH : true
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(`(min-width: ${MIN_VIEWPORT_WIDTH}px)`);
+    const handler = (e: MediaQueryListEvent) => setWide(e.matches);
+    setWide(mq.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  if (!wide) return null;
 
   return <RetuneInner {...props} />;
 }
