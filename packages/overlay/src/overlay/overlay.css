@@ -521,13 +521,13 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #a8a29e;
+  color: rgba(0, 0, 0, 0.9);
   cursor: pointer;
   padding: 0;
 }
 .retune-section-action:hover {
   background: #f5f5f4;
-  color: #1c1917;
+  color: rgba(0, 0, 0, 0.9);
 }
 
 .retune-section-body {
@@ -882,7 +882,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(0, 0, 0, 0.3);
+  color: rgba(0, 0, 0, 0.9);
   cursor: pointer;
   padding: 0;
   flex-shrink: 0;
@@ -890,10 +890,10 @@
 }
 .retune-split-btn:hover {
   background: rgba(0, 0, 0, 0.06);
-  color: rgba(0, 0, 0, 0.6);
+  color: rgba(0, 0, 0, 0.9);
 }
 .retune-split-btn.active {
-  color: rgba(0, 0, 0, 0.7);
+  color: rgba(0, 0, 0, 0.9);
   background: rgba(0, 0, 0, 0.08);
 }
 
