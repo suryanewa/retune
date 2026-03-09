@@ -139,6 +139,7 @@ const LIST_STYLE_OPTIONS: SegmentedOption[] = [
 type ForcedState = ":hover" | ":focus" | ":active" | null;
 
 type SelectorCandidate = { selector: string; count: number };
+type StyleSource = { selector: string; value: string };
 
 export function PropertyPanel({
   element,
@@ -149,6 +150,7 @@ export function PropertyPanel({
   selectorCandidates = [],
   activeSelector = null,
   onSelectorChange,
+  styleSources = {},
   forcedState = null,
   onForcedStateChange,
 }: {
@@ -160,6 +162,7 @@ export function PropertyPanel({
   selectorCandidates?: SelectorCandidate[];
   activeSelector?: string | null;
   onSelectorChange?: (selector: string | null) => void;
+  styleSources?: Record<string, StyleSource>;
   forcedState?: ForcedState;
   onForcedStateChange?: (state: ForcedState) => void;
 }) {
@@ -511,24 +514,40 @@ export function PropertyPanel({
       {/* Selector */}
       {selectorCandidates.length > 0 && onSelectorChange && (
         <Section label="Selector">
-          <div className="retune-selector-picker">
-            <button
-              className={`retune-selector-option${activeSelector === null ? " active" : ""}`}
-              onClick={() => onSelectorChange(null)}
-            >
-              <span className="retune-selector-label">This element</span>
-            </button>
+          <div className="retune-selector-field">
             {selectorCandidates.map((candidate) => (
               <button
                 key={candidate.selector}
-                className={`retune-selector-option${activeSelector === candidate.selector ? " active" : ""}`}
+                className={`retune-selector-tag${activeSelector === candidate.selector ? " active" : ""}`}
                 onClick={() => onSelectorChange(activeSelector === candidate.selector ? null : candidate.selector)}
               >
-                <span className="retune-selector-label">{candidate.selector}</span>
-                <span className="retune-selector-count">{candidate.count}</span>
+                <span className="retune-selector-tag-name">{candidate.selector.replace(/^\./, "")}</span>
+                {candidate.count > 1 && (
+                  <span className="retune-selector-tag-count">{candidate.count}</span>
+                )}
               </button>
             ))}
           </div>
+          {activeSelector && (() => {
+            // Count how many properties are inherited from a different selector
+            const inherited = Object.values(styleSources).filter(
+              (src) => src.selector !== activeSelector && !src.selector.includes(activeSelector)
+            ).length;
+            if (inherited === 0) return null;
+            // Find the most common "other" selector
+            const otherCounts: Record<string, number> = {};
+            for (const src of Object.values(styleSources)) {
+              if (src.selector !== activeSelector && !src.selector.includes(activeSelector)) {
+                otherCounts[src.selector] = (otherCounts[src.selector] || 0) + 1;
+              }
+            }
+            const topOther = Object.entries(otherCounts).sort((a, b) => b[1] - a[1])[0];
+            return (
+              <div className="retune-selector-inherit-hint">
+                Inheriting from {topOther ? topOther[0] : "other selectors"}
+              </div>
+            );
+          })()}
         </Section>
       )}
 

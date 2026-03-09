@@ -20,7 +20,7 @@ import { formatChanges, collapseShorthands, type Fidelity } from "../engine/outp
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
 import { getSelector, getSelectorCandidates, type SelectorCandidate } from "../selector/identifier";
-import { getPseudoStateStyles, type ForcedState } from "../inspector/styles";
+import { getPseudoStateStyles, getStyleSources, getScopedStyles, type ForcedState, type StyleSource } from "../inspector/styles";
 import { PropertyPanel } from "./PropertyPanel";
 import { ElementTree } from "./ElementTree";
 import { IconCursorClick } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursorClick";
@@ -111,6 +111,9 @@ function RetuneInner(props: RetuneConfig) {
   const [activeSelector, setActiveSelector] = useState<string | null>(null);
   const activeSelectorRef = useRef<string | null>(null);
   activeSelectorRef.current = activeSelector;
+
+  // Style sources: which CSS selector sets each property
+  const [styleSources, setStyleSources] = useState<Record<string, StyleSource>>({});
 
   // Forced pseudo-state (:hover, :focus, :active)
   const [forcedState, setForcedState] = useState<ForcedState>(null);
@@ -215,6 +218,21 @@ function RetuneInner(props: RetuneConfig) {
           }
           setForcedState(null);
         }
+        // Compute style sources and selector candidates
+        setStyleSources(getStyleSources(element));
+        const candidates = getSelectorCandidates(element);
+        setSelectorCandidates(candidates);
+        // Default to first candidate with >1 match, or null (element-specific)
+        const defaultCandidate = candidates.find((c) => c.count > 1);
+        const defaultSelector = defaultCandidate ? defaultCandidate.selector : null;
+        activeSelectorRef.current = defaultSelector;
+        setActiveSelector(defaultSelector);
+
+        // Apply scoped styles if a class selector is the default
+        if (defaultSelector) {
+          inspected.computedStyles = getScopedStyles(element, defaultSelector);
+        }
+
         setSelectedElement(inspected);
         tracker.track(
           inspected.selector,
@@ -234,13 +252,6 @@ function RetuneInner(props: RetuneConfig) {
           inspected.nearbySiblings,
           inspected.position,
         );
-
-        // Compute all selector candidates and pick smart default
-        const candidates = getSelectorCandidates(element);
-        setSelectorCandidates(candidates);
-        // Default to first candidate with >1 match, or null (element-specific)
-        const defaultCandidate = candidates.find((c) => c.count > 1);
-        setActiveSelector(defaultCandidate ? defaultCandidate.selector : null);
 
         // Also track selector candidates so changes are recorded correctly
         for (const candidate of candidates) {
@@ -316,7 +327,12 @@ function RetuneInner(props: RetuneConfig) {
   const refreshSelectedElement = useCallback(() => {
     setSelectedElement((prev) => {
       if (!prev?.element) return prev;
-      return inspectElement(prev.element);
+      const inspected = inspectElement(prev.element);
+      const scope = activeSelectorRef.current;
+      if (scope) {
+        inspected.computedStyles = getScopedStyles(prev.element, scope);
+      }
+      return inspected;
     });
   }, []);
   refreshSelectedElementRef.current = refreshSelectedElement;
@@ -522,6 +538,7 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = trackerRef.current;
     const el = selectedElementRef.current;
     if (!preview || !tracker || !el) {
+      activeSelectorRef.current = newSelector;
       setActiveSelector(newSelector);
       return;
     }
@@ -533,11 +550,13 @@ function RetuneInner(props: RetuneConfig) {
       preview.migrateChanges(fromSelector, toSelector);
       tracker.migrateChanges(fromSelector, toSelector);
       syncTrackerState();
-      refreshSelectedElement();
       setChangeRevision((r) => r + 1);
     }
 
+    // Update ref before refresh so scoped styles use the new selector
+    activeSelectorRef.current = newSelector;
     setActiveSelector(newSelector);
+    refreshSelectedElement();
   }, [syncTrackerState, refreshSelectedElement]);
 
   const handleCopy = useCallback(() => {
@@ -698,6 +717,7 @@ function RetuneInner(props: RetuneConfig) {
                 selectorCandidates={selectorCandidates}
                 activeSelector={activeSelector}
                 onSelectorChange={handleSelectorChange}
+                styleSources={styleSources}
                 forcedState={forcedState}
                 onForcedStateChange={handleForcedStateChange}
               />

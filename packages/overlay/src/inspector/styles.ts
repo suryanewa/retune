@@ -116,6 +116,126 @@ export function getPseudoStateStyles(
   return styles;
 }
 
+export type StyleSource = {
+  /** The CSS selector that sets this property (e.g. ".btn", ".btn-primary") */
+  selector: string;
+  /** The value declared in the stylesheet rule */
+  value: string;
+};
+
+/**
+ * For each CSS property on an element, find which stylesheet selector sets it.
+ * Returns a map of camelCase property → StyleSource.
+ * Later rules / higher specificity wins (simplified: last-match-wins like browsers).
+ */
+export function getStyleSources(element: Element): Record<string, StyleSource> {
+  const sources: Record<string, StyleSource> = {};
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const sel = rule.selectorText;
+      // Skip pseudo-state rules
+      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
+
+      try { if (!element.matches(sel)) continue; } catch { continue; }
+
+      for (let j = 0; j < rule.style.length; j++) {
+        const prop = rule.style[j]; // kebab-case
+        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        sources[camel] = {
+          selector: sel,
+          value: rule.style.getPropertyValue(prop),
+        };
+      }
+    }
+  }
+
+  return sources;
+}
+
+/**
+ * Get styles scoped to a specific selector. Only returns property values
+ * from stylesheet rules whose selector contains the given scopeSelector
+ * (e.g. scoping to ".toc-link" includes ".toc-link" and ".sidebar .toc-link"
+ * but excludes ".toc-link.active" since that's a more specific variant).
+ *
+ * For properties not set by any matching rule, falls back to computed style.
+ */
+export function getScopedStyles(
+  element: Element,
+  scopeSelector: string,
+): Record<string, string> {
+  // Collect values from rules that belong to this scope
+  const scopedValues: Record<string, string> = {};
+
+  // Extract the class names from the scope selector (e.g. ".toc-link" → ["toc-link"])
+  const scopeClasses = scopeSelector.match(/\.[a-zA-Z0-9_-]+/g) || [];
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const sel = rule.selectorText;
+      // Skip pseudo-state rules
+      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
+
+      try { if (!element.matches(sel)) continue; } catch { continue; }
+
+      // Check if this rule's selector belongs to the scope.
+      // A rule belongs if its selector contains exactly the scope's classes
+      // but no additional classes from the element that aren't in the scope.
+      const ruleClasses = sel.match(/\.[a-zA-Z0-9_-]+/g) || [];
+      const hasScopeClass = scopeClasses.every((sc) => ruleClasses.includes(sc));
+      // Check the rule doesn't require classes beyond the scope
+      // (e.g. ".toc-link.active" has ".active" which isn't in ".toc-link" scope)
+      const elementClasses = element.classList ? Array.from(element.classList) : [];
+      const extraClasses = ruleClasses.filter(
+        (rc) => !scopeClasses.includes(rc) && elementClasses.includes(rc.replace(".", ""))
+      );
+
+      if (!hasScopeClass || extraClasses.length > 0) continue;
+
+      for (let j = 0; j < rule.style.length; j++) {
+        const prop = rule.style[j];
+        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        let value = rule.style.getPropertyValue(prop);
+        if (value === "normal" && NORMAL_TO_ZERO.has(camel)) {
+          value = "0px";
+        }
+        scopedValues[camel] = value;
+      }
+    }
+  }
+
+  // For properties not in any scoped rule, fall back to computed
+  const computed = window.getComputedStyle(element);
+  const styles: Record<string, string> = {};
+
+  for (const prop of ALL_PROPS) {
+    if (scopedValues[prop] !== undefined) {
+      styles[prop] = scopedValues[prop];
+    } else {
+      let value = computed.getPropertyValue(camelToKebab(prop));
+      if (value) {
+        if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {
+          value = "0px";
+        }
+        styles[prop] = value;
+      }
+    }
+  }
+
+  return styles;
+}
+
 // Properties where "normal" should be resolved to "0px" for usability
 const NORMAL_TO_ZERO = new Set(["gap", "rowGap", "columnGap"]);
 
