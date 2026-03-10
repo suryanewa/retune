@@ -191,15 +191,12 @@ export function getScopedStyles(
 
       // Check if this rule's selector belongs to the scope.
       // A rule belongs if its selector contains exactly the scope's classes
-      // but no additional classes from the element that aren't in the scope.
+      // but no additional classes beyond the scope (regardless of whether the element has them).
       const ruleClasses = sel.match(/\.[a-zA-Z0-9_-]+/g) || [];
       const hasScopeClass = scopeClasses.every((sc) => ruleClasses.includes(sc));
-      // Check the rule doesn't require classes beyond the scope
+      // Reject rules that require classes beyond the scope
       // (e.g. ".toc-link.active" has ".active" which isn't in ".toc-link" scope)
-      const elementClasses = element.classList ? Array.from(element.classList) : [];
-      const extraClasses = ruleClasses.filter(
-        (rc) => !scopeClasses.includes(rc) && elementClasses.includes(rc.replace(".", ""))
-      );
+      const extraClasses = ruleClasses.filter((rc) => !scopeClasses.includes(rc));
 
       if (!hasScopeClass || extraClasses.length > 0) continue;
 

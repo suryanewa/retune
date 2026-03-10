@@ -52,7 +52,7 @@ export function matchesHotkey(e: KeyboardEvent, hotkey: string): boolean {
   // On macOS, Alt/Option transforms e.key (e.g. Option+D → "∂").
   // Fall back to e.code (physical key) when Alt is held.
   const pressedKey = e.key.toLowerCase();
-  const codeKey = e.code?.replace(/^Key/i, "").toLowerCase() || "";
+  const codeKey = e.code?.replace(/^(Key|Digit)/i, "").toLowerCase() || "";
   const keyMatch = pressedKey === key || (needsAlt && codeKey === key);
   return (
     keyMatch &&

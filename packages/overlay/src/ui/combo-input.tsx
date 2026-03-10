@@ -96,7 +96,10 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
     if (!scrubRef.current.active) return;
     const delta = Math.round(e.clientX - scrubRef.current.startX);
     const unit = localValue.match(/[a-z%]+$/i)?.[0] || "";
-    const newVal = `${scrubRef.current.startVal + delta}${unit}`;
+    const raw = scrubRef.current.startVal + delta;
+    // Clamp to 0 minimum for properties that shouldn't go negative (gap, size, etc.)
+    const clamped = raw < 0 && !prop.includes("margin") && !prop.includes("top") && !prop.includes("right") && !prop.includes("bottom") && !prop.includes("left") && !prop.includes("indent") ? 0 : raw;
+    const newVal = `${clamped}${unit}`;
     setLocalValue(newVal);
     onChange(prop, newVal);
   };
@@ -123,7 +126,9 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
     if (scrubRef.current.active) {
       const delta = Math.round(e.clientX - scrubRef.current.startX);
       const unit = localValue.match(/[a-z%]+$/i)?.[0] || "";
-      const newVal = `${scrubRef.current.startVal + delta}${unit}`;
+      const raw = scrubRef.current.startVal + delta;
+      const clamped = raw < 0 && !prop.includes("margin") && !prop.includes("top") && !prop.includes("right") && !prop.includes("bottom") && !prop.includes("left") && !prop.includes("indent") ? 0 : raw;
+      const newVal = `${clamped}${unit}`;
       setLocalValue(newVal);
       onChange(prop, newVal);
       return;

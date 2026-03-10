@@ -47,8 +47,12 @@ export class LivePreviewEngine {
 
     const kebabProp = camelToKebab(property);
     const rule = `${selector} { ${kebabProp}: ${value} !important; }`;
-    const index = this.sheet.insertRule(rule, this.sheet.cssRules.length);
-    this.rules.push({ selector, property, value, index });
+    try {
+      const index = this.sheet.insertRule(rule, this.sheet.cssRules.length);
+      this.rules.push({ selector, property, value, index });
+    } catch {
+      // Invalid CSS value or selector — skip silently
+    }
   }
 
   /** Remove a specific property change */
@@ -97,6 +101,7 @@ export class LivePreviewEngine {
   private rebuildSheet(newRules: AppliedRule[]) {
     this.sheet.replaceSync("");
     this.rules = [];
+    // Re-insert rules individually; applyChange handles errors per-rule
     for (const r of newRules) {
       this.applyChange(r.selector, r.property, r.value);
     }

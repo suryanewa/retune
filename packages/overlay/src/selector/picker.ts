@@ -280,8 +280,14 @@ export function createPicker(
       elementStack.length > 1;
 
     if (sameSpot) {
-      // Advance to the next element in the stack (deeper → shallower → wrap)
-      stackIndex = (stackIndex + 1) % elementStack.length;
+      // Rebuild stack in case DOM changed (HMR, navigation)
+      elementStack = buildElementStack(x, y);
+      if (elementStack.length <= 1) {
+        stackIndex = 0;
+      } else {
+        // Advance to the next element in the stack (deeper → shallower → wrap)
+        stackIndex = (stackIndex + 1) % elementStack.length;
+      }
     } else {
       // New click position — rebuild the stack
       elementStack = buildElementStack(x, y);

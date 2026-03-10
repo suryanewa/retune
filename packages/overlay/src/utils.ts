@@ -1,11 +1,10 @@
 /** Convert camelCase CSS property to kebab-case, preserving vendor prefixes */
 export function camelToKebab(prop: string): string {
-  const kebab = prop.replace(/([A-Z])/g, "-$1").toLowerCase();
-  // Vendor prefixes: webkitX -> -webkit-x
-  if (kebab.startsWith("webkit-")) return `-${kebab}`;
-  if (kebab.startsWith("moz-")) return `-${kebab}`;
-  if (kebab.startsWith("ms-")) return `-${kebab}`;
-  return kebab;
+  // Handle vendor prefixes before converting: webkitFilter -> WebkitFilter -> -webkit-filter
+  if (prop.startsWith("webkit") || prop.startsWith("moz") || prop.startsWith("ms")) {
+    return "-" + prop.replace(/([A-Z])/g, "-$1").toLowerCase();
+  }
+  return prop.replace(/([A-Z])/g, "-$1").toLowerCase();
 }
 
 /** Truncate a string, collapsing whitespace */

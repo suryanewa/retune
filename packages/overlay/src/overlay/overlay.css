@@ -2104,7 +2104,9 @@
   .retune-tooltip,
   .retune-edit-count,
   .retune-toolbar.expanded .retune-toolbar-expanded > *,
-  .retune-toolbar.collapsed .retune-toolbar-collapse-btn {
+  .retune-toolbar.collapsed .retune-toolbar-collapse-btn,
+  .retune-grid-picker-dialog,
+  .retune-combo-dropdown-anchor {
     animation: none;
   }
 }

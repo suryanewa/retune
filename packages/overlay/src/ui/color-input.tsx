@@ -114,14 +114,15 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
       e.currentTarget.blur();
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
-      const current = Math.round(Number(opacityLocal) || 0);
+      // Read from the input element directly to avoid stale state
+      const current = Math.round(Number(e.currentTarget.value) || 0);
       const step = e.shiftKey ? 10 : 1;
       const delta = e.key === "ArrowUp" ? step : -step;
       const newVal = Math.max(0, Math.min(100, current + delta));
       setOpacityLocal(String(newVal));
       emitColor(currentHexRef.current, newVal);
     }
-  }, [opacityLocal, emitColor]);
+  }, [emitColor]);
 
   // Swatch display: split view when opacity < 100 (left=solid, right=with opacity over checkerboard)
   const swatchStyle = (() => {

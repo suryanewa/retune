@@ -133,10 +133,16 @@ export class BridgeClient {
       this.reconnectTimer = null;
     }
     if (this.ws) {
+      this.ws.onclose = null; // Prevent reconnect from onclose handler
       this.ws.close();
       this.ws = null;
     }
     this._connected = false;
+    // Reject all pending requests so callers don't hang
+    for (const [, pending] of this.pendingRequests) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("Disconnected"));
+    }
     this.pendingRequests.clear();
   }
 }

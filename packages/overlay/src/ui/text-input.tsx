@@ -27,10 +27,10 @@ export function TextInput({ prop, value, onChange }: TextInputProps) {
         className="retune-text-input-field"
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={() => onChange(prop, localValue)}
+        onBlur={() => onChange(prop, localValue.trim())}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
-            onChange(prop, localValue);
+            onChange(prop, localValue.trim());
             (e.target as HTMLInputElement).blur();
           }
         }}

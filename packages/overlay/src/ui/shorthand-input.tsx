@@ -147,9 +147,10 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
       const newVals = props.map((_, i) => {
         const part = parts[i] || parts[0];
         const num = parseFloat(part);
-        const base = isNaN(num) ? 0 : num;
-        const unit = isNaN(num) ? "px" : (part.match(/[a-z%]+$/i)?.[0] || "px");
-        return `${clampNum(base + delta, min, max)}${unit}`;
+        // Skip non-numeric parts (e.g. "auto") — keep them unchanged
+        if (isNaN(num)) return part;
+        const unit = part.match(/[a-z%]+$/i)?.[0] || "px";
+        return `${clampNum(num + delta, min, max)}${unit}`;
       });
       setLocalValue(computeDisplay(newVals));
       props.forEach((prop, i) => onChange(prop, newVals[i]));
