@@ -49,8 +49,13 @@ export function matchesHotkey(e: KeyboardEvent, hotkey: string): boolean {
   const needsCtrl = parts.includes("ctrl");
   const needsMeta = parts.includes("meta") || parts.includes("cmd");
   const needsShift = parts.includes("shift");
+  // On macOS, Alt/Option transforms e.key (e.g. Option+D → "∂").
+  // Fall back to e.code (physical key) when Alt is held.
+  const pressedKey = e.key.toLowerCase();
+  const codeKey = e.code?.replace(/^Key/i, "").toLowerCase() || "";
+  const keyMatch = pressedKey === key || (needsAlt && codeKey === key);
   return (
-    e.key.toLowerCase() === key &&
+    keyMatch &&
     e.altKey === needsAlt &&
     e.ctrlKey === needsCtrl &&
     e.metaKey === needsMeta &&

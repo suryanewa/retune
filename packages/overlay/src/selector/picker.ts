@@ -46,6 +46,12 @@ export function createPicker(
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
   let lastSelRect = { top: 0, left: 0, width: 0, height: 0 };
 
+  // Click-to-cycle: repeated clicks at the same spot cycle through the element stack
+  let lastClickPos = { x: 0, y: 0 };
+  let elementStack: Element[] = [];
+  let stackIndex = -1;
+  const CLICK_RADIUS = 5; // px tolerance for "same spot"
+
   // Apply base styles once, then only update position
   function initBoxStyles(box: HTMLElement, labelEl: HTMLElement) {
     box.style.cssText = `
@@ -236,6 +242,23 @@ export function createPicker(
     }
   }
 
+  /** Build the element stack at a point, from deepest child to document body */
+  function buildElementStack(x: number, y: number): Element[] {
+    const all = document.elementsFromPoint(x, y);
+    const stack: Element[] = [];
+    for (const raw of all) {
+      if (isOverlayElement(raw)) continue;
+      const el = resolveElement(raw);
+      if (!el || isOverlayElement(el)) continue;
+      // Deduplicate (resolveElement may map multiple raw elements to the same parent)
+      if (stack.length > 0 && stack[stack.length - 1] === el) continue;
+      // Stop at document body — selecting <html> or <body> isn't useful
+      if (el === document.documentElement) break;
+      stack.push(el);
+    }
+    return stack;
+  }
+
   function handleClick(e: MouseEvent) {
     if (!active) return;
 
@@ -248,14 +271,29 @@ export function createPicker(
     e.stopPropagation();
     e.stopImmediatePropagation();
 
-    const raw = document.elementFromPoint(e.clientX, e.clientY);
-    if (!raw || isOverlayElement(raw)) return;
-    const el = resolveElement(raw);
-    if (!el || isOverlayElement(el)) return;
+    const { clientX: x, clientY: y } = e;
+
+    // Check if clicking the same spot — cycle through element stack
+    const sameSpot =
+      Math.abs(x - lastClickPos.x) <= CLICK_RADIUS &&
+      Math.abs(y - lastClickPos.y) <= CLICK_RADIUS &&
+      elementStack.length > 1;
+
+    if (sameSpot) {
+      // Advance to the next element in the stack (deeper → shallower → wrap)
+      stackIndex = (stackIndex + 1) % elementStack.length;
+    } else {
+      // New click position — rebuild the stack
+      elementStack = buildElementStack(x, y);
+      stackIndex = 0;
+      lastClickPos = { x, y };
+    }
+
+    if (elementStack.length === 0) return;
+    const el = elementStack[stackIndex];
 
     selectedElement = el;
     selectionLabelHidden = false;
-    // Update ResizeObserver to watch the newly selected element
     if (resizeObserver) {
       resizeObserver.disconnect();
       resizeObserver.observe(el);
@@ -291,6 +329,8 @@ export function createPicker(
     hoveredElement = null;
     selectedElement = null;
     selectionLabelHidden = false;
+    elementStack = [];
+    stackIndex = -1;
     if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
     hideHighlight();
     hideSelection();
@@ -303,6 +343,8 @@ export function createPicker(
   function clearSelection() {
     selectedElement = null;
     selectionLabelHidden = false;
+    elementStack = [];
+    stackIndex = -1;
     hideSelection();
   }
 
