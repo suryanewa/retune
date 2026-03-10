@@ -347,6 +347,19 @@ function RetuneInner(props: RetuneConfig) {
       if (scope) {
         inspected.computedStyles = getScopedStyles(prev.element, scope);
       }
+      // Overlay preview changes so the panel reflects what the user changed
+      // (getScopedStyles reads original stylesheet values, not preview overrides)
+      const preview = previewRef.current;
+      if (preview) {
+        const baseSelector = scope ?? prev.selector;
+        const pseudoSuffix = forcedStateRef.current || "";
+        const previewSelector = baseSelector + pseudoSuffix;
+        for (const change of preview.getChanges()) {
+          if (change.selector === previewSelector) {
+            inspected.computedStyles[change.property] = change.value;
+          }
+        }
+      }
       return inspected;
     });
   }, []);

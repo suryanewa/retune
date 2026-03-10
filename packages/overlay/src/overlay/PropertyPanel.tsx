@@ -557,15 +557,49 @@ export function PropertyPanel({
           // Vertical group: absolute/fixed, grid child, or flex-row child (cross axis)
           const vEnabled = isAbsoluteOrFixed || isGridChild || isFlexRow;
 
+          // Current align-self / justify-self for active state detection
+          const alignSelf = s.alignSelf || "auto";
+          const justifySelf = s.justifySelf || "auto";
+
+          // Determine which alignment is active for each axis
+          const getHActive = (): "start" | "center" | "end" | null => {
+            if (isFlexColumn) {
+              if (alignSelf === "flex-start" || alignSelf === "start") return "start";
+              if (alignSelf === "center") return "center";
+              if (alignSelf === "flex-end" || alignSelf === "end") return "end";
+            } else if (isGridChild) {
+              if (justifySelf === "start") return "start";
+              if (justifySelf === "center") return "center";
+              if (justifySelf === "end") return "end";
+            }
+            return null;
+          };
+          const getVActive = (): "start" | "center" | "end" | null => {
+            if (isFlexRow) {
+              if (alignSelf === "flex-start" || alignSelf === "start") return "start";
+              if (alignSelf === "center") return "center";
+              if (alignSelf === "flex-end" || alignSelf === "end") return "end";
+            } else if (isGridChild) {
+              if (alignSelf === "start") return "start";
+              if (alignSelf === "center") return "center";
+              if (alignSelf === "end") return "end";
+            }
+            return null;
+          };
+          const hActive = getHActive();
+          const vActive = getVActive();
+
           const onHClick = (alignment: "start" | "center" | "end") => {
             if (isAbsoluteOrFixed) {
               if (alignment === "start") alignLeft();
               else if (alignment === "center") alignCenterH();
               else alignRight();
             } else if (isGridChild) {
-              onPropertyChange("justifySelf", alignment);
+              // Toggle: click active alignment to reset
+              onPropertyChange("justifySelf", hActive === alignment ? "auto" : alignment);
             } else if (isFlexColumn) {
-              onPropertyChange("alignSelf", alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center");
+              const flexVal = alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center";
+              onPropertyChange("alignSelf", hActive === alignment ? "auto" : flexVal);
             }
           };
 
@@ -575,9 +609,10 @@ export function PropertyPanel({
               else if (alignment === "center") alignCenterV();
               else alignBottom();
             } else if (isGridChild) {
-              onPropertyChange("alignSelf", alignment);
+              onPropertyChange("alignSelf", vActive === alignment ? "auto" : alignment);
             } else if (isFlexRow) {
-              onPropertyChange("alignSelf", alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center");
+              const flexVal = alignment === "start" ? "flex-start" : alignment === "end" ? "flex-end" : "center";
+              onPropertyChange("alignSelf", vActive === alignment ? "auto" : flexVal);
             }
           };
 
@@ -587,14 +622,14 @@ export function PropertyPanel({
                 <span className="retune-field-label">Alignment</span>
                 <div className="retune-align-row">
                   <div className="retune-btn-group" style={!hEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align left" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("start")}><LayoutAlignLeft /></button></Tooltip>
-                    <Tooltip content="Align center horizontally" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("center")}><LayoutAlignHorizontalCenter /></button></Tooltip>
-                    <Tooltip content="Align right" side="top"><button type="button" className="retune-align-btn" onClick={() => onHClick("end")}><LayoutAlignRight /></button></Tooltip>
+                    <Tooltip content="Align left" side="top"><button type="button" className={`retune-align-btn${hActive === "start" ? " active" : ""}`} onClick={() => onHClick("start")}><LayoutAlignLeft /></button></Tooltip>
+                    <Tooltip content="Align center horizontally" side="top"><button type="button" className={`retune-align-btn${hActive === "center" ? " active" : ""}`} onClick={() => onHClick("center")}><LayoutAlignHorizontalCenter /></button></Tooltip>
+                    <Tooltip content="Align right" side="top"><button type="button" className={`retune-align-btn${hActive === "end" ? " active" : ""}`} onClick={() => onHClick("end")}><LayoutAlignRight /></button></Tooltip>
                   </div>
                   <div className="retune-btn-group" style={!vEnabled ? { opacity: 0.3, pointerEvents: "none" } : undefined}>
-                    <Tooltip content="Align top" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("start")}><LayoutAlignTop /></button></Tooltip>
-                    <Tooltip content="Align center vertically" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("center")}><LayoutAlignVerticalCenter /></button></Tooltip>
-                    <Tooltip content="Align bottom" side="top"><button type="button" className="retune-align-btn" onClick={() => onVClick("end")}><LayoutAlignBottom /></button></Tooltip>
+                    <Tooltip content="Align top" side="top"><button type="button" className={`retune-align-btn${vActive === "start" ? " active" : ""}`} onClick={() => onVClick("start")}><LayoutAlignTop /></button></Tooltip>
+                    <Tooltip content="Align center vertically" side="top"><button type="button" className={`retune-align-btn${vActive === "center" ? " active" : ""}`} onClick={() => onVClick("center")}><LayoutAlignVerticalCenter /></button></Tooltip>
+                    <Tooltip content="Align bottom" side="top"><button type="button" className={`retune-align-btn${vActive === "end" ? " active" : ""}`} onClick={() => onVClick("end")}><LayoutAlignBottom /></button></Tooltip>
                   </div>
                 </div>
               </div>

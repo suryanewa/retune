@@ -587,18 +587,22 @@
   height: 32px;
   border: none;
   background: transparent;
-  color: rgba(0, 0, 0, 0.5);
+  color: rgba(0, 0, 0, 0.9);
   cursor: pointer;
   padding: 0;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .retune-align-btn:hover {
-  color: rgba(0, 0, 0, 0.8);
+  color: rgba(0, 0, 0, 0.9);
 }
 
 .retune-align-btn:active {
-  color: rgba(0, 0, 0, 1);
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.retune-align-btn.active {
+  background: #e7e5e4;
 }
 
 /* ── Alignment grid (layout section) ── */

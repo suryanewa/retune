@@ -48,9 +48,21 @@ const SB_HORIZONTAL_CANONICAL: AlignmentPosition[] = ["top-center", "center-cent
 const JUSTIFY_VALUES = ["flex-start", "center", "flex-end"] as const;
 const ALIGN_VALUES = ["flex-start", "center", "flex-end"] as const;
 
+// Normalize browser-resolved values (e.g. "start"/"end"/"normal"/"stretch") to grid indices
+function toJustifyIdx(v: string): number {
+  if (v === "center") return 1;
+  if (v === "flex-end" || v === "end") return 2;
+  return 0; // flex-start, start, normal, etc.
+}
+function toAlignIdx(v: string): number {
+  if (v === "center") return 1;
+  if (v === "flex-end" || v === "end") return 2;
+  return 0; // flex-start, start, stretch, normal, etc.
+}
+
 function cssToPosition(justifyContent: string, alignItems: string, flow: FlowDirection): AlignmentPosition {
-  const jIdx = justifyContent === "center" ? 1 : justifyContent === "flex-end" ? 2 : 0;
-  const aIdx = alignItems === "center" ? 1 : alignItems === "flex-end" ? 2 : 0;
+  const jIdx = toJustifyIdx(justifyContent);
+  const aIdx = toAlignIdx(alignItems);
   // For vertical: row=justify (main), col=align (cross)
   // For horizontal: row=align (cross), col=justify (main)
   if (flow === "vertical") return COORDS_TO_POSITION[jIdx][aIdx];
@@ -241,8 +253,8 @@ export function AlignmentGrid({ justifyContent, alignItems, flexDirection, onCha
   const isSpaceBetween = justifyContent === "space-between";
   const position = isSpaceBetween
     ? (flow === "vertical"
-        ? SB_VERTICAL_CANONICAL[alignItems === "center" ? 1 : alignItems === "flex-end" ? 2 : 0]
-        : SB_HORIZONTAL_CANONICAL[alignItems === "center" ? 1 : alignItems === "flex-end" ? 2 : 0])
+        ? SB_VERTICAL_CANONICAL[toAlignIdx(alignItems)]
+        : SB_HORIZONTAL_CANONICAL[toAlignIdx(alignItems)])
     : cssToPosition(justifyContent, alignItems, flow);
   const selectedCoords = POSITION_TO_COORDS[position];
   const activeGroup = isSpaceBetween
