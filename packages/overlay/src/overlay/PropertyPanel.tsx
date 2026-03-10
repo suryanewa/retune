@@ -20,7 +20,7 @@ import { AlignmentGrid } from "../ui/alignment-grid";
 import { GridPicker, parseGridCount } from "../ui/grid-picker";
 import { GradientEditor } from "../ui/gradient-editor";
 import { type FillMode, type GradientFill, detectFillMode, defaultGradient, parseCssGradient, gradientToCss } from "../ui/gradient-utils";
-import { computeSizingChanges, type SizingMode } from "../ui/sizing-utils";
+import { computeSizingChanges, detectSizingMode, type SizingMode } from "../ui/sizing-utils";
 import { SegmentedControl } from "../ui/segmented-control";
 import { detectTruncation, computeTruncationChanges } from "../ui/truncation-utils";
 import type { SegmentedOption } from "../ui/segmented-control";
@@ -265,6 +265,14 @@ export function PropertyPanel({
     root.addEventListener("pointerdown", handleClick as EventListener);
     return () => root.removeEventListener("pointerdown", handleClick as EventListener);
   }, [filterMenuOpen]);
+
+  // Detect semantic sizing mode for width/height display
+  const sizingCtx = { isFlexChild, isGridChild, parentFlexDir, currentStyles: s };
+  const widthMode = detectSizingMode("width", sizingCtx);
+  const heightMode = detectSizingMode("height", sizingCtx);
+  // Map semantic mode to the __fill/__hug pseudo-values for ComboInput display
+  const widthDisplayValue = widthMode === "fill" ? "__fill" : widthMode === "hug" ? "__hug" : s.width;
+  const heightDisplayValue = heightMode === "fill" ? "__fill" : heightMode === "hug" ? "__hug" : s.height;
 
   // Auto-show size extras that have non-default values
   const visibleSizeExtras = new Set(sizeExtras);
@@ -948,7 +956,7 @@ export function PropertyPanel({
           <Field label="Width">
             <ComboInput
               prop="width"
-              value={s.width}
+              value={widthDisplayValue}
               options={SIZE_OPTIONS}
               onChange={(prop, val) => {
                 if (val === "__fill") handleSizingModeChange("width", "fill");
@@ -963,7 +971,7 @@ export function PropertyPanel({
           <Field label="Height">
             <ComboInput
               prop="height"
-              value={s.height}
+              value={heightDisplayValue}
               options={SIZE_OPTIONS}
               onChange={(prop, val) => {
                 if (val === "__fill") handleSizingModeChange("height", "fill");

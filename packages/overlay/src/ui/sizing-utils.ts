@@ -156,8 +156,14 @@ function computeFlexCrossAxisChanges(
   pxValue: () => string,
 ): Record<string, string> {
   switch (mode) {
-    case "fill":
-      return { [axis]: "100%", alignSelf: "stretch" };
+    case "fill": {
+      const changes: Record<string, string> = { [axis]: "100%" };
+      // Only change alignSelf if width isn't already 100% (avoid unwanted alignment shifts)
+      if (currentStyles[axis] !== "100%") {
+        changes.alignSelf = "stretch";
+      }
+      return changes;
+    }
     case "hug": {
       const changes: Record<string, string> = { [axis]: "auto" };
       const currentAlignSelf = currentStyles.alignSelf;
@@ -174,4 +180,50 @@ function computeFlexCrossAxisChanges(
       return changes;
     }
   }
+}
+
+/**
+ * Detect whether an axis is currently in fill, hug, or fixed mode.
+ * This is the inverse of computeSizingChanges — reads current styles
+ * and returns the semantic sizing mode for display purposes.
+ */
+export function detectSizingMode(
+  axis: "width" | "height",
+  ctx: SizingContext,
+): SizingMode | null {
+  const { isFlexChild, isGridChild, parentFlexDir, currentStyles } = ctx;
+  const val = currentStyles[axis];
+
+  if (!isFlexChild && !isGridChild) {
+    if (val === "100%") return "fill";
+    if (val === "fit-content") return "hug";
+    return null;
+  }
+
+  if (isGridChild) {
+    const selfProp = axis === "width" ? "justifySelf" : "alignSelf";
+    const selfVal = currentStyles[selfProp];
+    if ((val === "auto" || !val) && (selfVal === "stretch" || selfVal === "auto" || selfVal === "normal" || !selfVal)) return "fill";
+    if (val === "fit-content") return "hug";
+    return null;
+  }
+
+  const isMainAxis =
+    (axis === "width" && !parentFlexDir.startsWith("column")) ||
+    (axis === "height" && parentFlexDir.startsWith("column"));
+
+  if (isMainAxis) {
+    const grow = currentStyles.flexGrow;
+    const basis = currentStyles.flexBasis;
+    if (grow && parseFloat(grow) > 0 && (basis === "0px" || basis === "0" || basis === "0%")) return "fill";
+    if (grow === "0" && (basis === "auto" || !basis) && (val === "auto" || !val)) return "hug";
+    return null;
+  }
+
+  // Cross axis — width: 100% is "fill" regardless of alignSelf
+  if (val === "100%") return "fill";
+  const alignSelf = currentStyles.alignSelf;
+  if ((val === "auto" || !val) && (alignSelf === "stretch" || alignSelf === "auto" || alignSelf === "normal" || !alignSelf)) return "fill";
+  if (val === "auto" && (alignSelf === "flex-start" || alignSelf === "start" || alignSelf === "center" || alignSelf === "flex-end" || alignSelf === "end")) return "hug";
+  return null;
 }

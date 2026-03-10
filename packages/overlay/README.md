@@ -1,8 +1,8 @@
 # Retune
 
-Visual devtools that persist changes to source code via AI agents.
+The visual layer for vibe coding.
 
-Select any element in your running app, tweak its styles visually, and the changes get sent to AI coding tools (Claude Code, Cursor, etc.) to apply as real code changes.
+Click any element in your running app, adjust spacing, colors, typography, and more, and your AI agent writes the changes to source. No more prompting for pixels.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ export default function Layout({ children }) {
 }
 ```
 
-Press **Alt+D** to toggle edit mode, then click any element to start tweaking.
+Press **Alt+D** (or **Option+D** on macOS) to toggle edit mode, then click any element to start tweaking.
 
 ## How It Works
 
