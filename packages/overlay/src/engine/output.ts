@@ -16,6 +16,60 @@ import { camelToKebab, truncate } from "../utils";
 
 export type Fidelity = "minimal" | "standard" | "full";
 
+/** Known pseudo-state suffixes that we extract from selectors */
+const PSEUDO_STATES = [":hover", ":focus", ":active", ":focus-visible", ":focus-within"] as const;
+
+interface ParsedSelector {
+  /** The base selector without pseudo-state (e.g. ".btn") */
+  base: string;
+  /** The pseudo-state if present (e.g. "hover") */
+  pseudoState: string | null;
+}
+
+/** Extract pseudo-state suffix from a selector, e.g. ".btn:hover" -> { base: ".btn", pseudoState: "hover" } */
+export function parsePseudoState(selector: string): ParsedSelector {
+  for (const pseudo of PSEUDO_STATES) {
+    if (selector.endsWith(pseudo)) {
+      return {
+        base: selector.slice(0, -pseudo.length),
+        pseudoState: pseudo.slice(1), // remove the leading ":"
+      };
+    }
+  }
+  return { base: selector, pseudoState: null };
+}
+
+/** Describe the scope of a selector for AI agent context */
+export function describeSelectorScope(selector: string): string | null {
+  // Strip pseudo-state first for scope analysis
+  const { base } = parsePseudoState(selector);
+
+  // Class-based selectors: start with "." (may include combinators like ".card .title")
+  if (base.startsWith(".")) {
+    try {
+      const count = document.querySelectorAll(base).length;
+      if (count > 0) {
+        return `class-scoped, ${count} element${count > 1 ? "s" : ""}`;
+      }
+    } catch {
+      // Invalid selector for querySelectorAll — fall through
+    }
+    return "class-scoped";
+  }
+
+  // ID-based selectors
+  if (base.startsWith("#")) {
+    return "id-scoped, unique";
+  }
+
+  // Path selectors (contain ">") or other complex selectors are element-specific
+  if (base.includes(">")) {
+    return "element-specific";
+  }
+
+  return null;
+}
+
 let cachedTokenMap: TokenMap | null = null;
 
 function getTokenMap(): TokenMap {
@@ -87,8 +141,20 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     lines.push(`**DOM Path:** \`${change.domPath}\``);
   }
 
-  // Selector
-  lines.push(`**Selector:** \`${change.selector}\``);
+  // Selector — extract pseudo-state and add scope context
+  const { base: baseSelector, pseudoState } = parsePseudoState(change.selector);
+  const selectorAnnotations: string[] = [];
+  if (pseudoState) {
+    selectorAnnotations.push(`${pseudoState} state`);
+  }
+  const scope = describeSelectorScope(change.selector);
+  if (scope) {
+    selectorAnnotations.push(scope);
+  }
+  const selectorSuffix = selectorAnnotations.length > 0
+    ? ` (${selectorAnnotations.join(", ")})`
+    : "";
+  lines.push(`**Selector:** \`${baseSelector}\`${selectorSuffix}`);
 
   // Element ID
   if (change.elementId) {
@@ -170,7 +236,9 @@ function resolveStyleSources(
   properties: string[]
 ): Map<string, StyleSource[]> {
   try {
-    const element = document.querySelector(selector);
+    // Strip pseudo-state suffixes — querySelector can't handle :hover etc.
+    const { base } = parsePseudoState(selector);
+    const element = document.querySelector(base);
     if (!element) return new Map();
     return findStyleSources(element, properties);
   } catch {

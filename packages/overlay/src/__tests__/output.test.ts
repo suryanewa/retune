@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { collapseShorthands } from "../engine/output";
+import { collapseShorthands, parsePseudoState } from "../engine/output";
 import type { PropertyChange } from "../types";
 
 function makeChange(property: string, from: string, to: string): PropertyChange {
@@ -99,5 +99,61 @@ describe("collapseShorthands", () => {
     ];
     const result = collapseShorthands(changes);
     expect(result).toHaveLength(4);
+  });
+});
+
+describe("parsePseudoState", () => {
+  it("extracts :hover pseudo-state", () => {
+    const result = parsePseudoState(".btn:hover");
+    expect(result.base).toBe(".btn");
+    expect(result.pseudoState).toBe("hover");
+  });
+
+  it("extracts :focus pseudo-state", () => {
+    const result = parsePseudoState(".input:focus");
+    expect(result.base).toBe(".input");
+    expect(result.pseudoState).toBe("focus");
+  });
+
+  it("extracts :active pseudo-state", () => {
+    const result = parsePseudoState(".btn:active");
+    expect(result.base).toBe(".btn");
+    expect(result.pseudoState).toBe("active");
+  });
+
+  it("extracts :focus-visible pseudo-state", () => {
+    const result = parsePseudoState(".link:focus-visible");
+    expect(result.base).toBe(".link");
+    expect(result.pseudoState).toBe("focus-visible");
+  });
+
+  it("extracts :focus-within pseudo-state", () => {
+    const result = parsePseudoState(".form-group:focus-within");
+    expect(result.base).toBe(".form-group");
+    expect(result.pseudoState).toBe("focus-within");
+  });
+
+  it("returns null pseudoState for plain selectors", () => {
+    const result = parsePseudoState(".btn-primary");
+    expect(result.base).toBe(".btn-primary");
+    expect(result.pseudoState).toBeNull();
+  });
+
+  it("returns null pseudoState for path selectors", () => {
+    const result = parsePseudoState("main > section > .btn");
+    expect(result.base).toBe("main > section > .btn");
+    expect(result.pseudoState).toBeNull();
+  });
+
+  it("handles complex selectors with pseudo-state at end", () => {
+    const result = parsePseudoState(".card .btn:hover");
+    expect(result.base).toBe(".card .btn");
+    expect(result.pseudoState).toBe("hover");
+  });
+
+  it("does not extract pseudo-elements like ::before", () => {
+    const result = parsePseudoState(".btn::before");
+    expect(result.base).toBe(".btn::before");
+    expect(result.pseudoState).toBeNull();
   });
 });

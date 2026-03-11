@@ -129,7 +129,10 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
   };
 
   const handleBlur = () => {
-    commitValue(localValue);
+    const resolved = clampCssValue(inferCssUnit(localValue, value || "", prop), min, max);
+    if (resolved !== value) {
+      commitValue(localValue);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

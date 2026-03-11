@@ -178,7 +178,7 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
         onPointerUp={!label ? handleInputPointerUp : undefined}
         onFocus={(e) => e.target.select()}
         onChange={(e) => setLocalValue(e.target.value)}
-        onBlur={() => commitValue(localValue)}
+        onBlur={() => { if (localValue !== computeDisplay(values)) commitValue(localValue); }}
         onKeyDown={handleKeyDown}
         spellCheck={false}
       />

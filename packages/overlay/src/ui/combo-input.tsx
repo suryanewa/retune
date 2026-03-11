@@ -165,7 +165,9 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
     editingRef.current = false;
     const resolved = inferCssUnit(localValue, value || "", prop);
     setLocalValue(resolved);
-    onChange(prop, resolved);
+    if (resolved !== value) {
+      onChange(prop, resolved);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

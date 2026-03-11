@@ -145,7 +145,7 @@ const SEMANTIC_STEMS = new Set([
   "btn", "button", "card", "modal", "nav", "header", "footer", "sidebar",
   "hero", "section", "container-fluid", "wrapper", "layout", "page", "view",
   "panel", "dialog", "menu", "toolbar", "badge", "chip", "avatar", "icon",
-  "logo", "form", "input", "table", "list", "item", "link", "tab",
+  "logo", "form", "input", "item", "link", "tab",
   "accordion", "carousel", "dropdown", "tooltip", "popover", "alert",
   "toast", "banner", "widget",
 ]);
@@ -200,6 +200,8 @@ function extractStem(name: string): string {
  * Higher = more likely utility. Uses name patterns only (no stylesheet access).
  */
 export function scoreNamePattern(name: string): { score: number; confidence: number } {
+  if (!name || !name.trim()) return { score: 0, confidence: 1.0 };
+
   // Definitive signals — these are ALWAYS utility, no ambiguity
   if (VARIANT_PREFIX.test(name)) return { score: 1.0, confidence: 0.95 };
   if (/\[.+\]/.test(name)) return { score: 1.0, confidence: 0.95 }; // arbitrary values
@@ -228,7 +230,7 @@ export function scoreNamePattern(name: string): { score: number; confidence: num
   // Check if stem is a known utility stem
   const isUtilityStem = UTILITY_STEMS.has(stem);
   // Check for numeric/size suffix pattern (p-4, mt-8, gap-2)
-  const hasValueSuffix = /-(\d+\.?\d*|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|auto|full|screen|fit|min|max|none|px|0\.5|1\.5|2\.5|3\.5)$/.test(name);
+  const hasValueSuffix = /-(\d+\.?\d*|xs|sm|md|lg|xl|2xl|3xl|4xl|5xl|6xl|7xl|auto|full|screen|fit|min|max|none|px|0\.5|1\.5|2\.5|3\.5|\d+\/\d+)$/.test(name);
   // Check for color pattern (bg-red-500, text-blue-200)
   const hasColorPattern = /-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|black|white|transparent|current|inherit)-?\d*$/.test(name);
   // Check for keyword value suffix (font-bold, leading-tight, overflow-hidden)
@@ -590,6 +592,14 @@ export function getSelectorCandidates(element: Element): SelectorCandidate[] {
       });
     } catch { /* skip */ }
   }
+
+  // Sort: semantic before ambiguous before utility, then by count ascending (most specific first)
+  const verdictPriority: Record<string, number> = { semantic: 0, ambiguous: 1, utility: 2 };
+  candidates.sort((a, b) => {
+    const vp = verdictPriority[a.verdict] - verdictPriority[b.verdict];
+    if (vp !== 0) return vp;
+    return a.count - b.count;
+  });
 
   return candidates;
 }

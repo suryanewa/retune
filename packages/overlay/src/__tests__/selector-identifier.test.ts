@@ -105,6 +105,72 @@ describe("scoreNamePattern (multi-signal name scoring)", () => {
     // Should be ambiguous, not confidently utility
     expect(flexContainer.confidence).toBeLessThan(0.60);
   });
+
+  it("handles empty and whitespace strings", () => {
+    expect(scoreNamePattern("").score).toBe(0);
+    expect(scoreNamePattern("").confidence).toBe(1.0);
+    expect(scoreNamePattern("  ").score).toBe(0);
+    expect(scoreNamePattern("  ").confidence).toBe(1.0);
+  });
+
+  it("scores bare-word utility stems as utility", () => {
+    // These are standalone words in UTILITY_STEMS — should be high utility
+    const bareWords = ["flex", "grid", "hidden", "block", "relative", "absolute",
+      "sticky", "fixed", "visible", "invisible", "truncate", "italic",
+      "isolate", "contents", "collapse"];
+    for (const word of bareWords) {
+      expect(scoreNamePattern(word).score).toBeGreaterThanOrEqual(0.65,
+        `Expected "${word}" to score >= 0.65 as utility`);
+    }
+  });
+
+  it("scores keyword value suffixes as utility", () => {
+    // Utility stem + keyword value (not numeric)
+    const keywordUtilities = [
+      "font-bold", "font-semibold", "font-medium", "font-thin",
+      "leading-tight", "leading-relaxed", "leading-loose",
+      "tracking-wide", "tracking-wider", "tracking-tighter",
+      "overflow-hidden", "overflow-auto", "overflow-scroll",
+      "shadow-inner", "shadow-none",
+      "justify-between", "justify-center", "items-start", "items-stretch",
+      "cursor-pointer", "cursor-grab",
+      "object-cover", "object-contain",
+    ];
+    for (const cls of keywordUtilities) {
+      expect(scoreNamePattern(cls).score).toBeGreaterThanOrEqual(0.65,
+        `Expected "${cls}" to score >= 0.65 as utility`);
+    }
+  });
+
+  it("scores negative utility classes as utility", () => {
+    expect(scoreNamePattern("-mt-4").score).toBeGreaterThanOrEqual(0.65);
+    expect(scoreNamePattern("-translate-x-1/2").score).toBeGreaterThanOrEqual(0.65);
+    expect(scoreNamePattern("-z-10").score).toBeGreaterThanOrEqual(0.65);
+  });
+
+  it("scores multi-word utility stems correctly", () => {
+    expect(scoreNamePattern("min-w-0").score).toBeGreaterThanOrEqual(0.65);
+    expect(scoreNamePattern("max-h-screen").score).toBeGreaterThanOrEqual(0.65);
+    expect(scoreNamePattern("line-clamp").score).toBeGreaterThanOrEqual(0.65);
+    expect(scoreNamePattern("inset-ring").score).toBeGreaterThanOrEqual(0.65);
+  });
+
+  it("treats component variant modifiers as semantic", () => {
+    // BEM modifiers and component variants — stem is in SEMANTIC_STEMS
+    expect(scoreNamePattern("btn-primary").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("btn-danger").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("btn-lg").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("btn-sm").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("card-header").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("modal-overlay").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("nav-item").score).toBeLessThanOrEqual(0.35);
+    expect(scoreNamePattern("badge-success").score).toBeLessThanOrEqual(0.35);
+  });
+
+  it("handles Tailwind v4 trailing bang modifier", () => {
+    expect(scoreNamePattern("flex!").score).toBeGreaterThanOrEqual(0.90);
+    expect(scoreNamePattern("hidden!").score).toBeGreaterThanOrEqual(0.90);
+  });
 });
 
 describe("isKnownUtilityPattern (backward-compatible threshold)", () => {

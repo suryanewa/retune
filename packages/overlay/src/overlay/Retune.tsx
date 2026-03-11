@@ -238,8 +238,9 @@ function RetuneInner(props: RetuneConfig) {
         setStyleSources(getStyleSources(element));
         const candidates = getSelectorCandidates(element);
         setSelectorCandidates(candidates);
-        // Default to the first candidate (radio behavior — always one selected)
-        const defaultSelector = candidates.length > 0 ? candidates[0].selector : null;
+        // Default to the first non-utility candidate (skip utility classes)
+        const meaningful = candidates.filter(c => c.verdict !== "utility");
+        const defaultSelector = meaningful.length > 0 ? meaningful[0].selector : null;
         activeSelectorRef.current = defaultSelector;
         setActiveSelector(defaultSelector);
 
@@ -412,7 +413,7 @@ function RetuneInner(props: RetuneConfig) {
     const el = selectedElementRef.current;
     if (!preview || !el?.element) return;
 
-    const selector = el.selector;
+    const selector = activeSelectorRef.current ?? el.selector;
 
     // Remove previously forced styles
     const prev = forcedStylesRef.current;
@@ -590,6 +591,14 @@ function RetuneInner(props: RetuneConfig) {
     if (fromSelector !== toSelector) {
       preview.migrateChanges(fromSelector, toSelector);
       tracker.migrateChanges(fromSelector, toSelector);
+
+      // Also migrate pseudo-state variants (:hover, :focus, :active)
+      const pseudoStates: ForcedState[] = [":hover", ":focus", ":active"];
+      for (const ps of pseudoStates) {
+        preview.migrateChanges(fromSelector + ps, toSelector + ps);
+        tracker.migrateChanges(fromSelector + ps, toSelector + ps);
+      }
+
       syncTrackerState();
       setChangeRevision((r) => r + 1);
     }
