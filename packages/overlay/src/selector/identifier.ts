@@ -553,19 +553,7 @@ export function getSelectorCandidates(element: Element): SelectorCandidate[] {
     }
   }
 
-  // Build candidates: semantic classes first (most relevant), then ambiguous
-
-  // If multiple semantic classes, add combined selector as first option
-  if (semantic.length > 1) {
-    const selector = semantic.map((c) => `.${CSS.escape(c)}`).join("");
-    try {
-      candidates.push({
-        selector,
-        count: document.querySelectorAll(selector).length,
-        verdict: "semantic",
-      });
-    } catch { /* skip */ }
-  }
+  // Build candidates: individual semantic classes first, then ambiguous
 
   // Individual semantic classes
   for (const c of semantic) {
