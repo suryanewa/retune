@@ -183,6 +183,20 @@ function RetuneInner(props: RetuneConfig) {
         case "getFormattedChanges":
           return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelityRef.current);
         case "clearChanges": {
+          // Clean up forced pseudo-state inline styles
+          if (forcedStateRef.current) {
+            const f = forcedStylesRef.current;
+            const domEl = selectedElementRef.current?.element as HTMLElement | undefined;
+            if (domEl?.style && f.props.length > 0) {
+              for (const p of f.props) {
+                const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+                domEl.style.removeProperty(k);
+              }
+            }
+            forcedStylesRef.current = { selector: "", props: [] };
+            setForcedState(null);
+            forcedStateRef.current = null;
+          }
           preview.clearAll();
           tracker.clear();
           syncTrackerStateRef.current();
@@ -225,14 +239,7 @@ function RetuneInner(props: RetuneConfig) {
         const inspected = inspectElement(element);
         // Clear forced pseudo-state when selecting a new element
         if (forcedStateRef.current) {
-          const prev = forcedStylesRef.current;
-          if (prev.selector) {
-            for (const prop of prev.props) {
-              preview.removeChange(prev.selector, prop);
-            }
-            forcedStylesRef.current = { selector: "", props: [] };
-          }
-          setForcedState(null);
+          clearForcedInlineStyles();
         }
         // Compute style sources and selector candidates
         setStyleSources(getStyleSources(element));
@@ -320,6 +327,25 @@ function RetuneInner(props: RetuneConfig) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Force pseudo-state: apply hover/focus/active CSS rules directly to the element
+  // so getComputedStyle reflects those styles for the panel to display
+  const forcedStylesRef = useRef<{ selector: string; props: string[] }>({ selector: "", props: [] });
+
+  /** Remove all forced inline styles from the DOM element and reset tracking. */
+  const clearForcedInlineStyles = useCallback(() => {
+    const el = selectedElementRef.current?.element as HTMLElement | undefined;
+    const prev = forcedStylesRef.current;
+    if (el?.style && prev.props.length > 0) {
+      for (const prop of prev.props) {
+        const kebab = prop.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        el.style.removeProperty(kebab);
+      }
+    }
+    forcedStylesRef.current = { selector: "", props: [] };
+    setForcedState(null);
+    forcedStateRef.current = null;
+  }, []);
+
   const activateOverlay = useCallback(() => {
     setActive(true);
     pickerRef.current?.activate();
@@ -327,14 +353,16 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   const deactivateOverlay = useCallback(() => {
+    if (forcedStateRef.current) clearForcedInlineStyles();
     setActive(false);
     setSelectedElement(null);
     pickerRef.current?.deactivate();
-  }, []);
+  }, [clearForcedInlineStyles]);
 
   const toggleOverlay = useCallback(() => {
     setActive((prev) => {
       if (prev) {
+        if (forcedStateRef.current) clearForcedInlineStyles();
         setSelectedElement(null);
         pickerRef.current?.deactivate();
       } else {
@@ -343,7 +371,7 @@ function RetuneInner(props: RetuneConfig) {
       }
       return !prev;
     });
-  }, []);
+  }, [clearForcedInlineStyles]);
 
   const syncTrackerState = useCallback(() => {
     const tracker = trackerRef.current;
@@ -385,13 +413,6 @@ function RetuneInner(props: RetuneConfig) {
           const changePseudo = pseudoMatch ? pseudoMatch[0] : null;
           const baseSel = change.selector.replace(/:(hover|focus|active)$/g, "");
 
-          // Skip forced base-selector styles — they exist only for visual preview,
-          // not for panel display (they'd bleed into the default state view)
-          if (!changePseudo && forced.selector === change.selector
-              && forced.props.includes(change.property)) {
-            continue;
-          }
-
           // Default view: skip pseudo-state changes
           if (!currentState && changePseudo) continue;
           // Pseudo view: skip changes for a different pseudo-state
@@ -419,11 +440,14 @@ function RetuneInner(props: RetuneConfig) {
       ? baseSelector + forcedStateRef.current
       : baseSelector;
     preview.applyChange(selector, property, value);
-    // When editing under a forced pseudo-state, also update the forced base-selector
-    // style so the element visually reflects the change on the page.
-    // The panel filtering in refreshSelectedElement skips these for display.
+    // When editing under a forced pseudo-state, also apply as inline style
+    // on the DOM element so it visually reflects the change immediately.
     if (forcedStateRef.current) {
-      preview.applyChange(baseSelector, property, value);
+      const domEl = el.element as HTMLElement | undefined;
+      if (domEl?.style) {
+        const kebab = property.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        domEl.style.setProperty(kebab, value, 'important');
+      }
       // Track in forcedStylesRef so cleanup removes it when toggling back
       const forced = forcedStylesRef.current;
       if (forced.selector === baseSelector && !forced.props.includes(property)) {
@@ -445,40 +469,59 @@ function RetuneInner(props: RetuneConfig) {
     setChangeRevision((r) => r + 1);
   }, []);
 
-  // Force pseudo-state: apply hover/focus/active CSS rules directly to the element
-  // so getComputedStyle reflects those styles for the panel to display
-  const forcedStylesRef = useRef<{ selector: string; props: string[] }>({ selector: "", props: [] });
-
   const handleForcedStateChange = useCallback((state: ForcedState) => {
     const preview = previewRef.current;
     const el = selectedElementRef.current;
     if (!preview || !el?.element) return;
 
     const selector = activeSelectorRef.current ?? el.selector;
+    const domEl = el.element as HTMLElement;
 
-    // Remove previously forced styles
-    const prev = forcedStylesRef.current;
-    if (prev.selector) {
-      for (const prop of prev.props) {
-        preview.removeChange(prev.selector, prop);
-      }
-      forcedStylesRef.current = { selector: "", props: [] };
-    }
+    // Remove previously forced inline styles
+    clearForcedInlineStyles();
 
+    // Set the new state (after clearing, which resets to null)
     setForcedState(state);
     forcedStateRef.current = state; // sync ref immediately so refreshSelectedElement reads the correct state
 
     if (state) {
-      // Find CSS rules for this pseudo-state and apply them directly.
-      // getPseudoStateStyles returns kebab-case keys; convert to camelCase
-      // so they match computedStyles keys when merged in refreshSelectedElement.
+      // Find CSS rules for this pseudo-state and apply them as inline styles.
+      // Inline styles with !important guarantee the element visually updates,
+      // regardless of stylesheet specificity or cascade issues.
       const pseudoStyles = getPseudoStateStyles(el.element, state);
       const appliedProps: string[] = [];
+
+      // Check for existing user edits on this pseudo selector — preserve them
+      const pseudoSelector = selector + state;
+      const userEdits = new Map<string, string>();
+      for (const change of preview.getChanges()) {
+        if (change.selector === pseudoSelector) {
+          userEdits.set(change.property, change.value);
+        }
+      }
+
+      // Apply pseudo styles (prefer user edits over original stylesheet values)
+      const applied = new Set<string>();
       for (const [prop, value] of Object.entries(pseudoStyles)) {
         const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        preview.applyChange(selector, camelProp, value);
+        const finalValue = userEdits.get(camelProp) ?? value;
+        if (domEl.style) {
+          domEl.style.setProperty(prop, finalValue, 'important');
+        }
+        appliedProps.push(camelProp);
+        applied.add(camelProp);
+      }
+
+      // Also apply user edits for properties not in the original pseudo styles
+      for (const [camelProp, value] of userEdits) {
+        if (applied.has(camelProp)) continue;
+        const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        if (domEl.style) {
+          domEl.style.setProperty(kebab, value, 'important');
+        }
         appliedProps.push(camelProp);
       }
+
       forcedStylesRef.current = { selector, props: appliedProps };
     }
 
@@ -567,6 +610,54 @@ function RetuneInner(props: RetuneConfig) {
     setSide((s) => s === "right" ? "left" : "right");
   }, []);
 
+  /** After undo/redo, sync forced inline styles on the DOM element to match the current preview state. */
+  const syncForcedInlineStyles = useCallback(() => {
+    const state = forcedStateRef.current;
+    if (!state) return;
+    const el = selectedElementRef.current;
+    const preview = previewRef.current;
+    if (!el?.element || !preview) return;
+    const domEl = el.element as HTMLElement;
+    if (!domEl.style) return;
+
+    const selector = activeSelectorRef.current ?? el.selector;
+    const pseudoSelector = selector + state;
+
+    // Rebuild inline styles: start with pseudo stylesheet values, overlay user edits
+    const pseudoStyles = getPseudoStateStyles(el.element, state);
+    const userEdits = new Map<string, string>();
+    for (const change of preview.getChanges()) {
+      if (change.selector === pseudoSelector) {
+        userEdits.set(change.property, change.value);
+      }
+    }
+
+    // Remove old forced inline styles
+    const prev = forcedStylesRef.current;
+    for (const prop of prev.props) {
+      const kebab = prop.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+      domEl.style.removeProperty(kebab);
+    }
+
+    // Re-apply
+    const appliedProps: string[] = [];
+    const applied = new Set<string>();
+    for (const [prop, value] of Object.entries(pseudoStyles)) {
+      const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      const finalValue = userEdits.get(camelProp) ?? value;
+      domEl.style.setProperty(prop, finalValue, 'important');
+      appliedProps.push(camelProp);
+      applied.add(camelProp);
+    }
+    for (const [camelProp, value] of userEdits) {
+      if (applied.has(camelProp)) continue;
+      const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+      domEl.style.setProperty(kebab, value, 'important');
+      appliedProps.push(camelProp);
+    }
+    forcedStylesRef.current = { selector, props: appliedProps };
+  }, []);
+
   const handleUndo = useCallback(() => {
     const tracker = trackerRef.current;
     const preview = previewRef.current;
@@ -577,12 +668,13 @@ function RetuneInner(props: RetuneConfig) {
         if (entry.value) preview.applyChange(entry.selector, entry.property, entry.value);
         else preview.removeChange(entry.selector, entry.property);
       }
+      syncForcedInlineStyles();
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
       setChangeRevision((r) => r + 1);
     }
-  }, []);
+  }, [syncForcedInlineStyles]);
 
   const handleRedo = useCallback(() => {
     const tracker = trackerRef.current;
@@ -593,12 +685,13 @@ function RetuneInner(props: RetuneConfig) {
       for (const entry of entries) {
         preview.applyChange(entry.selector, entry.property, entry.value);
       }
+      syncForcedInlineStyles();
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
       setChangeRevision((r) => r + 1);
     }
-  }, []);
+  }, [syncForcedInlineStyles]);
 
   // Hotkey listener
   useEffect(() => {
@@ -624,6 +717,8 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = trackerRef.current;
     const preview = previewRef.current;
     if (!tracker || !preview) return;
+    // Clean up forced pseudo-state inline styles before clearing
+    if (forcedStateRef.current) clearForcedInlineStyles();
     preview.clearAll();
     tracker.clear();
     syncTrackerState();
@@ -639,7 +734,7 @@ function RetuneInner(props: RetuneConfig) {
       );
     }
     refreshSelectedElement();
-  }, [syncTrackerState, refreshSelectedElement]);
+  }, [syncTrackerState, refreshSelectedElement, clearForcedInlineStyles]);
 
   const handleSelectorChange = useCallback((newSelector: string | null) => {
     const preview = previewRef.current;
@@ -663,6 +758,11 @@ function RetuneInner(props: RetuneConfig) {
       for (const ps of pseudoStates) {
         preview.migrateChanges(fromSelector + ps, toSelector + ps);
         tracker.migrateChanges(fromSelector + ps, toSelector + ps);
+      }
+
+      // Update forcedStylesRef.selector so cleanup tracking stays correct
+      if (forcedStylesRef.current.selector === fromSelector) {
+        forcedStylesRef.current.selector = toSelector;
       }
 
       syncTrackerState();
@@ -698,6 +798,20 @@ function RetuneInner(props: RetuneConfig) {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
         if (!tracker || !preview) return;
+        // Clean up forced pseudo-state inline styles
+        if (forcedStateRef.current) {
+          const f = forcedStylesRef.current;
+          const domEl = selectedElementRef.current?.element as HTMLElement | undefined;
+          if (domEl?.style && f.props.length > 0) {
+            for (const p of f.props) {
+              const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+              domEl.style.removeProperty(k);
+            }
+          }
+          forcedStylesRef.current = { selector: "", props: [] };
+          setForcedState(null);
+          forcedStateRef.current = null;
+        }
         preview.clearAll();
         tracker.clear();
         syncTrackerStateRef.current();

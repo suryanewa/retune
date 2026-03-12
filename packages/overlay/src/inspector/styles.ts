@@ -80,23 +80,25 @@ export function getPseudoStateStyles(
   state: ":hover" | ":focus" | ":active",
 ): Record<string, string> {
   const styles: Record<string, string> = {};
+  const stateRegex = new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g");
 
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      continue; // cross-origin sheet
-    }
-
+  function walkRules(rules: CSSRuleList) {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
+
+      // Recurse into @layer, @media, @supports, etc.
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
+
       if (!(rule instanceof CSSStyleRule)) continue;
       const sel = rule.selectorText;
       if (!sel.includes(state)) continue;
 
       // Strip the pseudo-state to get the base selector, then check if element matches
-      const baseSel = sel.replace(new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), "").replace(/\s+/g, " ").trim();
+      const baseSel = sel.replace(stateRegex, "").replace(/\s+/g, " ").trim();
       if (!baseSel) continue;
 
       try {
@@ -111,6 +113,16 @@ export function getPseudoStateStyles(
         styles[prop] = rule.style.getPropertyValue(prop);
       }
     }
+  }
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // cross-origin sheet
+    }
+    walkRules(rules);
   }
 
   return styles;
@@ -131,28 +143,30 @@ export type StyleSource = {
 export function getStyleSources(element: Element): Record<string, StyleSource> {
   const sources: Record<string, StyleSource> = {};
 
+  function walkRules(rules: CSSRuleList) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const sel = rule.selectorText;
+      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
+      try { if (!element.matches(sel)) continue; } catch { continue; }
+      for (let j = 0; j < rule.style.length; j++) {
+        const prop = rule.style[j];
+        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        sources[camel] = { selector: sel, value: rule.style.getPropertyValue(prop) };
+      }
+    }
+  }
+
   for (const sheet of document.styleSheets) {
     let rules: CSSRuleList;
     try { rules = sheet.cssRules; } catch { continue; }
-
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      if (!(rule instanceof CSSStyleRule)) continue;
-      const sel = rule.selectorText;
-      // Skip pseudo-state rules
-      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
-
-      try { if (!element.matches(sel)) continue; } catch { continue; }
-
-      for (let j = 0; j < rule.style.length; j++) {
-        const prop = rule.style[j]; // kebab-case
-        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        sources[camel] = {
-          selector: sel,
-          value: rule.style.getPropertyValue(prop),
-        };
-      }
-    }
+    walkRules(rules);
   }
 
   return sources;
@@ -176,28 +190,22 @@ export function getScopedStyles(
   // Extract the class names from the scope selector (e.g. ".toc-link" → ["toc-link"])
   const scopeClasses = scopeSelector.match(/\.[a-zA-Z0-9_-]+/g) || [];
 
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try { rules = sheet.cssRules; } catch { continue; }
-
+  function walkScopedRules(rules: CSSRuleList) {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkScopedRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
       if (!(rule instanceof CSSStyleRule)) continue;
       const sel = rule.selectorText;
-      // Skip pseudo-state rules
       if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
-
       try { if (!element.matches(sel)) continue; } catch { continue; }
 
-      // Check if this rule's selector belongs to the scope.
-      // A rule belongs if its selector contains exactly the scope's classes
-      // but no additional classes beyond the scope (regardless of whether the element has them).
       const ruleClasses = sel.match(/\.[a-zA-Z0-9_-]+/g) || [];
       const hasScopeClass = scopeClasses.every((sc) => ruleClasses.includes(sc));
-      // Reject rules that require classes beyond the scope
-      // (e.g. ".toc-link.active" has ".active" which isn't in ".toc-link" scope)
       const extraClasses = ruleClasses.filter((rc) => !scopeClasses.includes(rc));
-
       if (!hasScopeClass || extraClasses.length > 0) continue;
 
       for (let j = 0; j < rule.style.length; j++) {
@@ -210,6 +218,12 @@ export function getScopedStyles(
         scopedValues[camel] = value;
       }
     }
+  }
+
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+    walkScopedRules(rules);
   }
 
   // For properties not in any scoped rule, fall back to computed
