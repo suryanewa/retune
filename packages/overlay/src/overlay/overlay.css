@@ -2145,6 +2145,17 @@
   background: rgba(0,0,0,0.12);
 }
 
+/* Token dot inside ComboInput — shift left of the trigger button */
+.retune-combo .retune-token-dot {
+  right: 36px;
+}
+.retune-combo:hover .retune-token-dot-available {
+  opacity: 1;
+}
+.retune-combo:hover .retune-token-dot-disabled {
+  opacity: 1;
+}
+
 .retune-token-tooltip {
   position: absolute;
   bottom: calc(100% + 6px);

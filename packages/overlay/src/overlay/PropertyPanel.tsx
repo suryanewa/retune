@@ -1159,7 +1159,7 @@ export function PropertyPanel({
               <NumberInput prop="fontSize" value={s.fontSize} onChange={onPropertyChange} min={1} {...tokenProps("fontSize")} />
             </Field>
             <Field label="Weight">
-              <ComboInput prop="fontWeight" value={s.fontWeight} options={FONT_WEIGHT_OPTIONS} onChange={onPropertyChange} />
+              <ComboInput prop="fontWeight" value={s.fontWeight} options={FONT_WEIGHT_OPTIONS} onChange={onPropertyChange} {...tokenProps("fontWeight")} />
             </Field>
           </Row>
           <Row>

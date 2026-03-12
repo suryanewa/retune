@@ -220,6 +220,8 @@ export function createPicker(
 
   function handleMouseMove(e: MouseEvent) {
     if (!active) return;
+    // Skip if cursor is over overlay UI (toolbar, panel) inside the shadow root
+    if (shadowRoot.elementFromPoint(e.clientX, e.clientY)) return;
     const raw = document.elementFromPoint(e.clientX, e.clientY);
     if (!raw || isOverlayElement(raw)) return;
     const el = resolveElement(raw);
@@ -262,10 +264,19 @@ export function createPicker(
   function handleClick(e: MouseEvent) {
     if (!active) return;
 
-    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns)
+    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns).
+    // Check 1: composedPath includes the shadow host (standard shadow DOM retargeting)
     const path = e.composedPath();
     const host = shadowRoot.host;
     if (path.includes(host)) return;
+    // Check 2: the click point lands on an overlay UI element inside the shadow root.
+    // This catches edge cases where composedPath may not include the host (e.g. the
+    // clicked element was re-rendered between pointerdown and click due to React state
+    // updates, causing the original target to detach from the DOM).  Elements owned by
+    // the picker (highlight / selection boxes) have pointer-events:none so they won't
+    // be returned here — only interactive UI (toolbar, panel) will match.
+    const shadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
+    if (shadowHit) return;
 
     e.preventDefault();
     e.stopPropagation();

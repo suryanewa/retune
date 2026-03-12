@@ -146,7 +146,7 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   }
 
   // DOM path (full traversal for precise identification)
-  if (change.domPath) {
+  if (fidelity !== "minimal" && change.domPath) {
     lines.push(`**DOM Path:** \`${change.domPath}\``);
   }
 
@@ -166,12 +166,12 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   lines.push(`**Selector:** \`${baseSelector}\`${selectorSuffix}`);
 
   // Element ID
-  if (change.elementId) {
+  if (fidelity === "full" && change.elementId) {
     lines.push(`**ID:** \`${change.elementId}\``);
   }
 
   // Accessible name (aria-label, alt, title, etc.)
-  if (change.accessibleName) {
+  if (fidelity === "full" && change.accessibleName) {
     lines.push(`**Accessible name:** "${change.accessibleName}"`);
   }
 
@@ -181,27 +181,27 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   }
 
   // Position and dimensions
-  if (change.position) {
+  if (fidelity === "full" && change.position) {
     lines.push(`**Position:** x:${change.position.x}, y:${change.position.y} (${change.position.width}×${change.position.height}px)`);
   }
 
   // Nearby siblings for context
-  if (change.nearbySiblings) {
+  if (fidelity === "full" && change.nearbySiblings) {
     lines.push(`**Nearby elements:** ${change.nearbySiblings}`);
   }
 
   // Parent context for disambiguation
-  if (change.parentContext) {
+  if (fidelity === "full" && change.parentContext) {
     lines.push(`**Parent:** \`${change.parentContext}\``);
   }
 
   // Child summary to help identify container elements
-  if (change.childSummary) {
+  if (fidelity === "full" && change.childSummary) {
     lines.push(`**Children:** ${change.childSummary}`);
   }
 
   // Inline styles (if any authored inline styles exist)
-  if (change.inlineStyles) {
+  if (fidelity === "full" && change.inlineStyles) {
     lines.push(`**Inline styles:** \`${change.inlineStyles}\``);
   }
 
@@ -302,7 +302,10 @@ function getImplementationHint(change: ElementChange): string | null {
   const swapHints: string[] = [];
   const twHints: string[] = [];
 
-  for (const prop of change.changes) {
+  // Collapse longhands so e.g. 4 identical border-radius values become one "borderRadius"
+  const collapsed = collapseShorthands(change.changes);
+
+  for (const prop of collapsed) {
     const kebab = camelToKebab(prop.property);
 
     // Try exact token swap first (from registry scan)

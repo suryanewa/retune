@@ -41,9 +41,35 @@ export class BridgeClient {
       this.ws = new WebSocket(`ws://localhost:${this.port}/ws`);
 
       this.ws.onopen = () => {
-        this._connected = true;
         this.reconnectDelay = 3000;
-        console.log("[Retune] Connected to MCP server");
+        // Send handshake to identify ourselves as the browser overlay.
+        // The server only accepts connections that complete this handshake,
+        // preventing non-overlay clients (e.g. ChatGPT desktop, other tools)
+        // from hijacking the WebSocket slot.
+        const handshakeId = String(++this.requestId);
+        const timer = setTimeout(() => {
+          this.pendingRequests.delete(handshakeId);
+          // Fallback: if the server doesn't respond to the handshake
+          // (older server version), still mark as connected so the
+          // bridge is usable.
+          if (!this._connected) {
+            this._connected = true;
+            console.log("[Retune] Connected to MCP server (handshake not acknowledged, assuming compatible)");
+          }
+        }, 3000);
+        this.pendingRequests.set(handshakeId, {
+          resolve: () => {
+            this._connected = true;
+            console.log("[Retune] Connected to MCP server (verified)");
+          },
+          reject: () => {
+            // Server rejected handshake — still usable but log warning
+            this._connected = true;
+            console.warn("[Retune] Handshake rejected, connected in fallback mode");
+          },
+          timer,
+        });
+        this.ws?.send(JSON.stringify({ id: handshakeId, method: "handshake", params: { client: "retune-overlay" } }));
       };
 
       this.ws.onmessage = async (event) => {

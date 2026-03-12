@@ -12,6 +12,8 @@ import { calcMenuPosition, type MenuPosition } from "./menu-position";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
 import { ChevronDown } from "./icons";
 import { useScrollLock } from "./use-scroll-lock";
+import type { TokenMatch } from "../tokens/types";
+import { TokenIndicator } from "./token-indicator";
 
 export interface ComboOption {
   value: string;
@@ -24,9 +26,17 @@ export interface ComboInputProps {
   value: string | undefined;
   options: ComboOption[];
   onChange: (prop: string, value: string) => void;
+  /** Token match — shows a dot indicator when the value comes from a utility token */
+  tokenMatch?: TokenMatch;
+  /** CSS property name for token availability detection */
+  property?: string;
+  /** Callback when user picks a different token from the picker */
+  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken) => void;
+  /** Callback when user applies a token from scratch (no existing token) */
+  onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
 }
 
-export function ComboInput({ label, prop, value, options, onChange }: ComboInputProps) {
+export function ComboInput({ label, prop, value, options, onChange, tokenMatch, property, onTokenSelect, onTokenApply }: ComboInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -222,7 +232,7 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
   };
 
   return (
-    <div className="retune-combo" ref={containerRef}>
+    <div className={`retune-combo${tokenMatch ? " retune-combo-has-token" : ""}`} ref={containerRef}>
       {label && (
         <span
           ref={labelRef}
@@ -236,7 +246,10 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
       )}
       <input
         className="retune-combo-input"
-        style={label ? undefined : { paddingLeft: 8 }}
+        style={{
+          ...(label ? {} : { paddingLeft: 8 }),
+          ...(tokenMatch ? { paddingRight: 22 } : {}),
+        }}
         value={displayValue}
         onPointerDown={!label ? handleInputPointerDown : undefined}
         onPointerMove={!label ? handleInputPointerMove : undefined}
@@ -246,6 +259,12 @@ export function ComboInput({ label, prop, value, options, onChange }: ComboInput
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         spellCheck={false}
+      />
+      <TokenIndicator
+        match={tokenMatch}
+        property={property || prop}
+        onTokenSelect={onTokenSelect}
+        onTokenApply={onTokenApply}
       />
       <button
         type="button"

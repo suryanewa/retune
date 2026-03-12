@@ -41,6 +41,22 @@ const DEFAULT_CONFIG: Required<RetuneConfig> = {
   force: false,
 };
 
+// Singleton bridge stored on `window` so it survives both React StrictMode
+// double-mounts AND Next.js HMR module re-evaluations. Without this, each
+// HMR update creates a new BridgeClient while the old one's reconnect timer
+// keeps firing, causing an infinite connect/disconnect fight on the server
+// (which only accepts one client at a time).
+const BRIDGE_KEY = "__retune_bridge" as const;
+function getOrCreateBridge(port: number): BridgeClient {
+  const existing = (window as any)[BRIDGE_KEY] as BridgeClient | undefined;
+  if (existing) {
+    return existing;
+  }
+  const bridge = new BridgeClient(port);
+  (window as any)[BRIDGE_KEY] = bridge;
+  return bridge;
+}
+
 const PANEL_ANIMATION_MS = 150;
 
 function AnimatedPanel({ visible, children }: { visible: boolean; children: React.ReactNode }) {
@@ -158,7 +174,7 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = new ChangeTracker();
     trackerRef.current = tracker;
 
-    const bridge = new BridgeClient(config.port);
+    const bridge = getOrCreateBridge(config.port);
     bridgeRef.current = bridge;
 
     bridge.onRequest(async (method, params) => {
@@ -191,6 +207,9 @@ function RetuneInner(props: RetuneConfig) {
               for (const p of f.props) {
                 const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
                 domEl.style.removeProperty(k);
+              }
+              if (domEl.getAttribute('style')?.trim() === '') {
+                domEl.removeAttribute('style');
               }
             }
             forcedStylesRef.current = { selector: "", props: [] };
@@ -273,6 +292,9 @@ function RetuneInner(props: RetuneConfig) {
         }
 
         setSelectedElement(inspected);
+        // Eagerly update the ref so the MCP bridge handler sees the value
+        // immediately, without waiting for React to re-render.
+        selectedElementRef.current = inspected;
         tracker.track(
           inspected.selector,
           inspected.tagName,
@@ -323,7 +345,9 @@ function RetuneInner(props: RetuneConfig) {
     return () => {
       picker.destroy();
       preview.destroy();
-      bridge.disconnect();
+      // Do NOT disconnect the singleton bridge here — React StrictMode
+      // will immediately re-mount and re-register the handler. The bridge
+      // must stay alive so the MCP server keeps its connection.
       unmountOverlay(mount.host);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -341,6 +365,9 @@ function RetuneInner(props: RetuneConfig) {
         const kebab = prop.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
         el.style.removeProperty(kebab);
       }
+      if (el.getAttribute('style')?.trim() === '') {
+        el.removeAttribute('style');
+      }
     }
     forcedStylesRef.current = { selector: "", props: [] };
     setForcedState(null);
@@ -357,6 +384,7 @@ function RetuneInner(props: RetuneConfig) {
     if (forcedStateRef.current) clearForcedInlineStyles();
     setActive(false);
     setSelectedElement(null);
+    selectedElementRef.current = null;
     pickerRef.current?.deactivate();
   }, [clearForcedInlineStyles]);
 
@@ -365,6 +393,7 @@ function RetuneInner(props: RetuneConfig) {
       if (prev) {
         if (forcedStateRef.current) clearForcedInlineStyles();
         setSelectedElement(null);
+        selectedElementRef.current = null;
         pickerRef.current?.deactivate();
       } else {
         pickerRef.current?.activate();
@@ -426,6 +455,8 @@ function RetuneInner(props: RetuneConfig) {
           } catch { /* invalid selector */ }
         }
       }
+      // Eagerly sync the ref for the MCP bridge handler.
+      selectedElementRef.current = inspected;
       return inspected;
     });
   }, []);
@@ -690,6 +721,22 @@ function RetuneInner(props: RetuneConfig) {
         if (entry.value) preview.applyChange(entry.selector, entry.property, entry.value);
         else preview.removeChange(entry.selector, entry.property);
       }
+      // Clean up preview rules for properties that reverted to their original values.
+      // After popUndo, some properties may have truthy entry.value (the original computed
+      // value, e.g. "20px") even though there's no net change — remove those stale rules.
+      const pending = tracker.getPendingChanges();
+      const activeProps = new Set<string>();
+      for (const el of pending) {
+        for (const c of el.changes) {
+          activeProps.add(`${el.selector}::${c.property}`);
+        }
+      }
+      for (const entry of entries) {
+        const key = `${entry.selector}::${entry.property}`;
+        if (!activeProps.has(key)) {
+          preview.removeChange(entry.selector, entry.property);
+        }
+      }
       syncForcedInlineStyles();
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
@@ -836,6 +883,9 @@ function RetuneInner(props: RetuneConfig) {
             for (const p of f.props) {
               const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
               domEl.style.removeProperty(k);
+            }
+            if (domEl.getAttribute('style')?.trim() === '') {
+              domEl.removeAttribute('style');
             }
           }
           forcedStylesRef.current = { selector: "", props: [] };
