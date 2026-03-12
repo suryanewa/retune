@@ -154,16 +154,16 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       const num = parseFloat(localValue);
-      const base = isNaN(num) ? 0 : num;
+      // If the current value is a non-numeric keyword (e.g. "normal"), ignore arrow keys
+      if (isNaN(num)) return;
       const baseStep = stepProp ?? 1;
       const step = e.shiftKey ? baseStep * 10 : baseStep;
       const delta = e.key === "ArrowUp" ? step : -step;
-      const raw = base + delta;
+      const raw = num + delta;
       const precision = baseStep < 1 ? Math.ceil(-Math.log10(baseStep)) : 0;
       const rounded = precision > 0 ? parseFloat(raw.toFixed(precision)) : raw;
       const clamped = clampNum(rounded, min, max);
-      // When starting from a keyword like "normal", default to px
-      const unit = isNaN(num) ? "px" : (localValue.match(/[a-z%]+$/i)?.[0] || "");
+      const unit = localValue.match(/[a-z%]+$/i)?.[0] || "";
       const newVal = `${clamped}${unit}`;
       setLocalValue(newVal);
       onChange(prop, newVal);

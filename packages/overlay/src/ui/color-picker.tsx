@@ -32,6 +32,12 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
   const panelRef = useRef<HTMLDivElement>(null);
   const [hsva, setHsva] = useState<HSVA>(() => hexToHsva(value || "#000000"));
   const lastSentRef = useRef("");
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
+  // Clean up any active drag listeners on unmount
+  useEffect(() => {
+    return () => { dragCleanupRef.current?.(); };
+  }, []);
 
   // Sync from parent when value changes externally
   const [prevValue, setPrevValue] = useState(value);
@@ -155,9 +161,14 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     const handleUp = () => {
       document.removeEventListener("pointermove", handleMove);
       document.removeEventListener("pointerup", handleUp);
+      dragCleanupRef.current = null;
     };
     document.addEventListener("pointermove", handleMove);
     document.addEventListener("pointerup", handleUp);
+    dragCleanupRef.current = () => {
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("pointerup", handleUp);
+    };
   }, [getSV, emitChange]);
 
   // ── Hue Slider ──────────────────────────────────────────────────────
@@ -185,9 +196,14 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     const handleUp = () => {
       document.removeEventListener("pointermove", handleMove);
       document.removeEventListener("pointerup", handleUp);
+      dragCleanupRef.current = null;
     };
     document.addEventListener("pointermove", handleMove);
     document.addEventListener("pointerup", handleUp);
+    dragCleanupRef.current = () => {
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("pointerup", handleUp);
+    };
   }, [getHue, emitChange]);
 
   // ── Alpha Slider ───────────────────────────────────────────────────
@@ -224,9 +240,14 @@ export function ColorPicker({ value, alpha = 100, onChange, onAlphaChange, onClo
     const handleUp = () => {
       document.removeEventListener("pointermove", handleMove);
       document.removeEventListener("pointerup", handleUp);
+      dragCleanupRef.current = null;
     };
     document.addEventListener("pointermove", handleMove);
     document.addEventListener("pointerup", handleUp);
+    dragCleanupRef.current = () => {
+      document.removeEventListener("pointermove", handleMove);
+      document.removeEventListener("pointerup", handleUp);
+    };
   }, [getAlpha]);
 
   // ── Hex commit ──────────────────────────────────────────────────────

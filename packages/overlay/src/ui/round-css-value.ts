@@ -15,7 +15,7 @@ export function roundCssValue(val: string): string {
   return val.replace(/-?\d+\.\d+/g, (match) => {
     const num = parseFloat(match);
     if (Math.abs(num) < 1) {
-      return String(parseFloat(num.toFixed(3)));
+      return String(parseFloat(num.toFixed(2)));
     }
     return String(Math.round(num));
   });

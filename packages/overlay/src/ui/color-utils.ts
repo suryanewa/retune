@@ -150,6 +150,8 @@ export function parseCssColor(color: string): { hex: string; opacity: number } {
   if (rgbaMatch) {
     const hex = rgbToHex(parseInt(rgbaMatch[1]), parseInt(rgbaMatch[2]), parseInt(rgbaMatch[3]));
     const alpha = parseFloat(rgbaMatch[4]);
+    // Note: opacity is rounded to integer percent (0-100) by design — the opacity UI
+    // (arrow keys, commit, display) all operate on integer percentages.
     return { hex, opacity: Math.round(alpha * 100) };
   }
 

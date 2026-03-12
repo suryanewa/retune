@@ -2137,7 +2137,8 @@
   cursor: default;
 }
 .retune-prop:hover .retune-token-dot-disabled,
-.retune-color-hex-section:hover .retune-token-dot-disabled {
+.retune-color-hex-section:hover .retune-token-dot-disabled,
+.retune-color-row:hover .retune-token-dot-disabled {
   opacity: 1;
 }
 .retune-token-dot-disabled .retune-token-dot-inner {
@@ -2357,6 +2358,12 @@
   background: rgba(59,130,246,0.08);
 }
 .retune-token-dialog-item-active:hover {
+  background: rgba(59,130,246,0.12);
+}
+.retune-token-dialog-item-highlighted {
+  background: rgba(0,0,0,0.04);
+}
+.retune-token-dialog-item-active.retune-token-dialog-item-highlighted {
   background: rgba(59,130,246,0.12);
 }
 

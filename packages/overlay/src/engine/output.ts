@@ -308,9 +308,11 @@ function getImplementationHint(change: ElementChange): string | null {
     // Try exact token swap first (from registry scan)
     const fromToken = findUtilityToken(kebab, prop.from);
     const toToken = findUtilityToken(kebab, prop.to);
-    if (fromToken && toToken && fromToken.className !== toToken.className) {
+    // Only suggest swapping a class if the from-class is actually on the element
+    const fromClassPresent = fromToken ? change.classes.includes(fromToken.className) : false;
+    if (fromToken && toToken && fromToken.className !== toToken.className && fromClassPresent) {
       swapHints.push(`swap \`.${fromToken.className}\` → \`.${toToken.className}\``);
-    } else if (fromToken && !toToken && isTw) {
+    } else if (fromToken && fromClassPresent && !toToken && isTw) {
       // We know the old class but no exact token match for new value — suggest Tailwind class
       const tw = suggestTailwindClass(prop.property, prop.to);
       if (tw) {
@@ -319,7 +321,7 @@ function getImplementationHint(change: ElementChange): string | null {
         swapHints.push(`remove \`.${fromToken.className}\`, apply \`${kebab}: ${prop.to}\` via Tailwind arbitrary value \`[${kebab}:${prop.to}]\` or closest utility`);
       }
     } else if (isTw) {
-      // No from-token, but project is Tailwind — suggest the target class
+      // No from-token on element, but project is Tailwind — suggest the target class
       const tw = suggestTailwindClass(prop.property, prop.to);
       if (tw) twHints.push(tw);
     }

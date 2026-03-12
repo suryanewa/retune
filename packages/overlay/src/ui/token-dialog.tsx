@@ -7,11 +7,10 @@
  * delegation doesn't work inside Shadow DOM portals (see token-indicator.tsx).
  */
 
-import { useEffect, useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState, useCallback } from "react";
 import type { UtilityToken } from "../tokens/types";
 import { getTokensForProperty } from "../tokens/resolver";
 import { getCategoryForProperty } from "../tokens/categories";
-import { useScrollLock } from "./use-scroll-lock";
 
 export interface TokenDialogProps {
   property: string;
@@ -44,7 +43,7 @@ export function TokenDialog({ property, currentToken, onSelect, onClose, anchorR
   const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
-  useScrollLock(true);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   const allTokens = useMemo(() => getTokensForProperty(property), [property]);
   const category = getCategoryForProperty(property.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`));
@@ -59,6 +58,22 @@ export function TokenDialog({ property, currentToken, onSelect, onClose, anchorR
     );
   }, [allTokens, search]);
 
+  // Reset highlight when the filtered list changes (e.g. new search query)
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [filtered]);
+
+  // Auto-scroll highlighted item into view
+  useEffect(() => {
+    if (highlightedIndex < 0) return;
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.querySelector(`[data-token-index="${highlightedIndex}"]`);
+    if (item) {
+      item.scrollIntoView({ block: "nearest" });
+    }
+  }, [highlightedIndex]);
+
   // Store refs for native handlers
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -66,6 +81,32 @@ export function TokenDialog({ property, currentToken, onSelect, onClose, anchorR
   onCloseRef.current = onClose;
   const filteredRef = useRef(filtered);
   filteredRef.current = filtered;
+
+  // Keyboard navigation handler for the search input
+  const handleSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    const count = filteredRef.current.length;
+    if (count === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev + 1) % count);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex(prev => (prev <= 0 ? count - 1 : prev - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      setHighlightedIndex(curr => {
+        if (curr >= 0 && curr < count) {
+          const token = filteredRef.current[curr];
+          if (token) {
+            onSelectRef.current(token);
+            onCloseRef.current();
+          }
+        }
+        return curr;
+      });
+    }
+  }, []);
 
   // Auto-focus search on mount
   useEffect(() => {
@@ -188,6 +229,7 @@ export function TokenDialog({ property, currentToken, onSelect, onClose, anchorR
           placeholder="Search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={handleSearchKeyDown}
           spellCheck={false}
         />
       </div>
@@ -197,10 +239,11 @@ export function TokenDialog({ property, currentToken, onSelect, onClose, anchorR
         )}
         {filtered.map((token, i) => {
           const isActive = currentToken?.className === token.className;
+          const isHighlighted = i === highlightedIndex;
           return (
             <div
               key={token.className}
-              className={`retune-token-dialog-item${isActive ? " retune-token-dialog-item-active" : ""}`}
+              className={`retune-token-dialog-item${isActive ? " retune-token-dialog-item-active" : ""}${isHighlighted ? " retune-token-dialog-item-highlighted" : ""}`}
               data-token-index={i}
             >
               {isActive && <span className="retune-token-dialog-active-dot" />}

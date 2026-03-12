@@ -125,7 +125,129 @@ export function getPseudoStateStyles(
     walkRules(rules);
   }
 
-  return styles;
+  return expandShorthands(styles);
+}
+
+/**
+ * Expand CSS shorthand properties to their longhand equivalents.
+ * When stylesheet rules use shorthands like `padding: 10px 20px`, the CSSOM
+ * enumerates only the shorthand — the individual longhands (padding-left, etc.)
+ * are missing. This function detects known shorthands and expands them so
+ * downstream consumers always see individual longhand values.
+ */
+function expandShorthands(styles: Record<string, string>): Record<string, string> {
+  const result = { ...styles };
+
+  // Helper: parse 1–4 value shorthand (padding, margin, border-width, etc.)
+  function expandBoxValues(
+    shorthand: string,
+    sides: [string, string, string, string],
+  ) {
+    if (!(shorthand in result)) return;
+    const raw = result[shorthand].trim();
+    const parts = raw.split(/\s+/);
+    let top: string, right: string, bottom: string, left: string;
+    switch (parts.length) {
+      case 1:
+        top = right = bottom = left = parts[0];
+        break;
+      case 2:
+        top = bottom = parts[0];
+        right = left = parts[1];
+        break;
+      case 3:
+        top = parts[0];
+        right = left = parts[1];
+        bottom = parts[2];
+        break;
+      default: // 4+
+        top = parts[0];
+        right = parts[1];
+        bottom = parts[2];
+        left = parts[3];
+        break;
+    }
+    // Only set longhands that aren't already explicitly declared
+    if (!(sides[0] in result)) result[sides[0]] = top;
+    if (!(sides[1] in result)) result[sides[1]] = right;
+    if (!(sides[2] in result)) result[sides[2]] = bottom;
+    if (!(sides[3] in result)) result[sides[3]] = left;
+    delete result[shorthand];
+  }
+
+  // Helper: expand border-radius (uses a slightly different 1–4 pattern for corners)
+  function expandBorderRadius() {
+    if (!("border-radius" in result)) return;
+    const raw = result["border-radius"].trim();
+    // Handle slash syntax (horizontal / vertical) — take horizontal only for simplicity
+    const horizontal = raw.split("/")[0].trim();
+    const parts = horizontal.split(/\s+/);
+    const corners = [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ];
+    let tl: string, tr: string, br: string, bl: string;
+    switch (parts.length) {
+      case 1:
+        tl = tr = br = bl = parts[0];
+        break;
+      case 2:
+        tl = br = parts[0];
+        tr = bl = parts[1];
+        break;
+      case 3:
+        tl = parts[0];
+        tr = bl = parts[1];
+        br = parts[2];
+        break;
+      default:
+        tl = parts[0];
+        tr = parts[1];
+        br = parts[2];
+        bl = parts[3];
+        break;
+    }
+    if (!(corners[0] in result)) result[corners[0]] = tl;
+    if (!(corners[1] in result)) result[corners[1]] = tr;
+    if (!(corners[2] in result)) result[corners[2]] = br;
+    if (!(corners[3] in result)) result[corners[3]] = bl;
+    delete result["border-radius"];
+  }
+
+  // Helper: expand gap → row-gap + column-gap
+  function expandGap() {
+    if (!("gap" in result)) return;
+    const raw = result["gap"].trim();
+    const parts = raw.split(/\s+/);
+    const rowGap = parts[0];
+    const colGap = parts.length > 1 ? parts[1] : parts[0];
+    if (!("row-gap" in result)) result["row-gap"] = rowGap;
+    if (!("column-gap" in result)) result["column-gap"] = colGap;
+    delete result["gap"];
+  }
+
+  // Expand known shorthands
+  expandBoxValues("padding", [
+    "padding-top", "padding-right", "padding-bottom", "padding-left",
+  ]);
+  expandBoxValues("margin", [
+    "margin-top", "margin-right", "margin-bottom", "margin-left",
+  ]);
+  expandBoxValues("border-width", [
+    "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+  ]);
+  expandBoxValues("border-color", [
+    "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+  ]);
+  expandBoxValues("border-style", [
+    "border-top-style", "border-right-style", "border-bottom-style", "border-left-style",
+  ]);
+  expandBorderRadius();
+  expandGap();
+
+  return result;
 }
 
 export type StyleSource = {
@@ -226,21 +348,19 @@ export function getScopedStyles(
     walkScopedRules(rules);
   }
 
-  // For properties not in any scoped rule, fall back to computed
+  // ALWAYS use computed values for display accuracy — authored rule values
+  // don't expand shorthands (e.g. "padding: 8px 16px" doesn't yield paddingLeft).
+  // Scoped rules are only used in the output/change-tracking layer, not for display.
   const computed = window.getComputedStyle(element);
   const styles: Record<string, string> = {};
 
   for (const prop of ALL_PROPS) {
-    if (scopedValues[prop] !== undefined) {
-      styles[prop] = scopedValues[prop];
-    } else {
-      let value = computed.getPropertyValue(camelToKebab(prop));
-      if (value) {
-        if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {
-          value = "0px";
-        }
-        styles[prop] = value;
+    let value = computed.getPropertyValue(camelToKebab(prop));
+    if (value) {
+      if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {
+        value = "0px";
       }
+      styles[prop] = value;
     }
   }
 

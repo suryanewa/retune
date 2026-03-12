@@ -120,7 +120,10 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
 
   const commitValue = (val: string) => {
     const trimmed = val.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      setLocalValue(computeDisplay(values));
+      return;
+    }
 
     // Parse: "10" -> all same, "10, 20" or "10 20" -> individual
     const parts = trimmed.includes(",")

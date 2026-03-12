@@ -162,9 +162,18 @@ export class ChangeTracker {
         const currentValue = tracked.currentStyles[entry.property] || "";
         this.redoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: redoGroup });
         tracked.currentStyles[entry.property] = entry.value;
+
+        // If reverting to original value, clear any token association for this property
+        if (tracked.tokenAssociations) {
+          const camelProp = entry.property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+          if (entry.value === (tracked.originalStyles[entry.property] || "")) {
+            delete tracked.tokenAssociations[camelProp];
+          }
+        }
       }
     }
 
+    this.persist();
     return entries;
   }
 
@@ -192,6 +201,7 @@ export class ChangeTracker {
       }
     }
 
+    this.persist();
     return entries;
   }
 
@@ -262,6 +272,23 @@ export class ChangeTracker {
         to.currentStyles[prop] = currentVal;
         // Reset source back to original
         from.currentStyles[prop] = originalVal;
+      }
+    }
+
+    // Migrate token associations for properties that were actually migrated
+    if (from.tokenAssociations) {
+      if (!to.tokenAssociations) to.tokenAssociations = {};
+      for (const { property } of migrated) {
+        const camelProp = property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        if (from.tokenAssociations[camelProp]) {
+          to.tokenAssociations[camelProp] = from.tokenAssociations[camelProp];
+          delete from.tokenAssociations[camelProp];
+        }
+        // Also check kebab-case key
+        if (from.tokenAssociations[property]) {
+          to.tokenAssociations[property] = from.tokenAssociations[property];
+          delete from.tokenAssociations[property];
+        }
       }
     }
 

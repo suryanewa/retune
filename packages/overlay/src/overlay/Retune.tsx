@@ -200,6 +200,7 @@ function RetuneInner(props: RetuneConfig) {
           preview.clearAll();
           tracker.clear();
           syncTrackerStateRef.current();
+          setChangeRevision((r) => r + 1);
           const el = selectedElementRef.current;
           if (el) {
             tracker.track(
@@ -743,6 +744,7 @@ function RetuneInner(props: RetuneConfig) {
     preview.clearAll();
     tracker.clear();
     syncTrackerState();
+    setChangeRevision((r) => r + 1);
     // Re-track the currently selected element so future changes are recorded
     const el = selectedElementRef.current;
     if (el) {
@@ -793,8 +795,15 @@ function RetuneInner(props: RetuneConfig) {
     // Update ref before refresh so scoped styles use the new selector
     activeSelectorRef.current = newSelector;
     setActiveSelector(newSelector);
+
+    // If a pseudo-state is forced, rebuild inline styles for the new selector context
+    // so the DOM element reflects the correct pseudo-state values after migration.
+    if (forcedStateRef.current) {
+      syncForcedInlineStyles();
+    }
+
     refreshSelectedElement();
-  }, [syncTrackerState, refreshSelectedElement]);
+  }, [syncTrackerState, refreshSelectedElement, syncForcedInlineStyles]);
 
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
@@ -836,6 +845,7 @@ function RetuneInner(props: RetuneConfig) {
         preview.clearAll();
         tracker.clear();
         syncTrackerStateRef.current();
+        setChangeRevision((r) => r + 1);
         const el = selectedElementRef.current;
         if (el) {
           tracker.track(
