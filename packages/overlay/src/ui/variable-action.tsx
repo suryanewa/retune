@@ -45,7 +45,7 @@ export interface VariableActionProps {
   property: string;
   /** For shorthand inputs: all properties in the group */
   relatedProperties?: string[];
-  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken) => void;
+  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => void;
   onTokenApply?: (token: UtilityToken, properties: string[]) => void;
   onTokenUnlink?: () => void;
   /** When provided, icon click calls this instead of opening the internal TokenDialog.
@@ -131,10 +131,10 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
   }
 
   const handleSelect = useCallback((token: UtilityToken) => {
+    const props = relatedProperties || [property];
     if (match) {
-      onTokenSelect?.(match.token, token);
+      onTokenSelect?.(match.token, token, props);
     } else {
-      const props = relatedProperties || [property];
       onTokenApply?.(token, props);
     }
   }, [match, property, relatedProperties, onTokenSelect, onTokenApply]);

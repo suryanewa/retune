@@ -224,7 +224,9 @@ export function PropertyPanel({
   // Handle token swap: swap classes on the element.
   // If the old token's class is on the element, do a class swap.
   // If not (value-only apply), just update values without touching classes.
-  const handleTokenSelect = useCallback((oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken) => {
+  // `fallbackProperties` provides the affected CSS properties when the token was
+  // auto-detected from stylesheets (no entry in tokenAssociations).
+  const handleTokenSelect = useCallback((oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, fallbackProperties?: string[]) => {
     const el = element.element;
     if (!el) return;
     const isClassBased = el.classList.contains(oldToken.className);
@@ -244,6 +246,10 @@ export function PropertyPanel({
         if (ref.className === oldToken.className) {
           affectedProps.push(prop);
         }
+      }
+      // Fallback for element-scanned tokens (detected from stylesheets, no explicit association)
+      if (affectedProps.length === 0 && fallbackProperties) {
+        affectedProps.push(...fallbackProperties);
       }
       const value = Object.values(newToken.values)[0];
       if (!value) return;

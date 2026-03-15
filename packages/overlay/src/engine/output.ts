@@ -86,7 +86,8 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
   const tokenMap = getTokenMap();
   const lines: string[] = [];
 
-  // Header
+  // Header — preamble gives the AI model clear intent + identification
+  lines.push("Apply these Retune visual changes to the source code:\n");
   lines.push(`# Visual Changes (${changes.length} element${changes.length > 1 ? "s" : ""})`);
   lines.push("");
 
@@ -306,7 +307,8 @@ function formatResolutionContext(enriched: EnrichedPropertyChange[]): string | n
     if (prop.recommended) {
       const r = prop.recommended;
       const label = r.exact ? "exact" : r.distance || "fuzzy";
-      lines.push(`- Recommended: \`.${r.type === "css-variable" ? r.name : r.name}\` (${label}, \`${r.value}\`)`);
+      const nameStr = r.type === "css-variable" ? `\`${r.name}\`` : `\`.${r.name}\``;
+      lines.push(`- Recommended: ${nameStr} (${label}, \`${r.value}\`)`);
     }
 
     if (hasAlternatives) {

@@ -18,7 +18,7 @@ export interface ColorInputProps {
   onChange: (prop: string, value: string) => void;
   tokenMatch?: TokenMatch;
   property?: string;
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken) => void;
+  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, properties?: string[]) => void;
   onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
   onTokenUnlink?: () => void;
   /** Whether this property has been changed from its original value */
@@ -133,8 +133,8 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
     setPickerOpen(false);
   }, [onTokenApply]);
 
-  const handlePickerTokenSelect = useCallback((oldToken: UtilityToken, newToken: UtilityToken) => {
-    onTokenSelect?.(oldToken, newToken);
+  const handlePickerTokenSelect = useCallback((oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => {
+    onTokenSelect?.(oldToken, newToken, properties);
     releaseDialog(stableCloseRef.current);
     setPickerOpen(false);
   }, [onTokenSelect]);

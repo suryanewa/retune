@@ -42,7 +42,7 @@ export interface ColorPickerProps {
   // Token integration
   property?: string;
   currentToken?: UtilityToken;
-  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken) => void;
+  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => void;
   onTokenApply?: (token: UtilityToken, properties: string[]) => void;
   onTokenUnlink?: () => void;
   initialTab?: "custom" | "tokens";
@@ -148,10 +148,11 @@ export function ColorPicker({
         if (curr >= 0 && curr < count) {
           const token = filteredTokensRef.current[curr];
           if (token) {
+            const props = propertyRef.current ? [propertyRef.current] : [];
             if (currentTokenRef.current) {
-              onTokenSelectRef.current?.(currentTokenRef.current, token);
+              onTokenSelectRef.current?.(currentTokenRef.current, token, props);
             } else {
-              onTokenApplyRef.current?.(token, propertyRef.current ? [propertyRef.current] : []);
+              onTokenApplyRef.current?.(token, props);
             }
             onCloseRef.current();
           }
@@ -161,7 +162,8 @@ export function ColorPicker({
     }
   }, []);
 
-  // Native click handler for token items
+  // Native click handler for token items — re-attach when tab changes
+  // (the token list isn't mounted when the Custom tab is active)
   useEffect(() => {
     const list = tokenListRef.current;
     if (!list) return;
@@ -174,17 +176,18 @@ export function ColorPicker({
       const idx = parseInt(item.dataset.tokenIndex!, 10);
       const token = filteredTokensRef.current[idx];
       if (token) {
+        const props = propertyRef.current ? [propertyRef.current] : [];
         if (currentTokenRef.current) {
-          onTokenSelectRef.current?.(currentTokenRef.current, token);
+          onTokenSelectRef.current?.(currentTokenRef.current, token, props);
         } else {
-          onTokenApplyRef.current?.(token, propertyRef.current ? [propertyRef.current] : []);
+          onTokenApplyRef.current?.(token, props);
         }
         onCloseRef.current();
       }
     };
     list.addEventListener("pointerdown", handleClick);
     return () => list.removeEventListener("pointerdown", handleClick);
-  }, []);
+  }, [activeTab]);
 
   // ── Color picker state ────────────────────────────────────────────
 
@@ -418,7 +421,7 @@ export function ColorPicker({
         style={isUnlinkDisabled ? { opacity: 0.3, cursor: "default" } : undefined}
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M12.3533 14.646C12.5485 14.8412 12.5484 15.1578 12.3533 15.3531L11.3534 16.353C10.3297 17.3765 8.67028 17.3766 7.64665 16.353C6.62317 15.3294 6.62317 13.6699 7.64665 12.6462L8.64654 11.6463C8.84181 11.4512 9.15844 11.4511 9.35364 11.6463C9.54883 11.8415 9.54874 12.1582 9.35364 12.3534L8.35375 13.3533C7.7208 13.9865 7.7208 15.0128 8.35375 15.6459C8.98687 16.279 10.0132 16.2789 10.6463 15.6459L11.6462 14.646C11.8414 14.451 12.1581 14.4511 12.3533 14.646ZM8.0002 9.00021C8.27634 9.00021 8.50015 9.22401 8.50015 9.50015C8.49994 9.77612 8.27622 10.0001 8.0002 10.0001H6.50036C6.22434 10.0001 6.00061 9.77612 6.00041 9.50015C6.00041 9.22401 6.22422 9.00021 6.50036 9.00021H8.0002ZM14.5002 15.5002C14.7763 15.5002 15.0001 15.724 15.0001 16.0001V17.5C15 17.776 14.7763 17.9999 14.5002 17.9999C14.2241 17.9999 14.0004 17.776 14.0002 17.5V16.0001C14.0002 15.724 14.2241 15.5002 14.5002 15.5002ZM9.50073 5.99984C9.77664 6.00011 10.0007 6.22381 10.0007 6.49978V7.99962C10.0007 8.2756 9.77664 8.4993 9.50073 8.49957C9.22459 8.49957 9.00078 8.27576 9.00078 7.99962V6.49978C9.00078 6.22364 9.22459 5.99984 9.50073 5.99984ZM17.5006 13.9997C17.7765 13.9998 18.0004 14.2237 18.0005 14.4996C18.0005 14.7757 17.7766 14.9994 17.5006 14.9996H16.0007C15.7246 14.9996 15.5008 14.7758 15.5008 14.4996C15.5009 14.2235 15.7246 13.9997 16.0007 13.9997H17.5006ZM16.3543 7.64676C17.3774 8.67043 17.3776 10.33 16.3543 11.3535L15.3544 12.3534C15.1592 12.5486 14.8426 12.5484 14.6473 12.3534C14.452 12.1582 14.452 11.8416 14.6473 11.6463L15.6472 10.6464C16.28 10.0134 16.2798 8.98702 15.6472 8.35387C15.0141 7.72075 13.9871 7.72018 13.3539 8.35317L12.354 9.35307C12.1588 9.54825 11.8422 9.54808 11.6469 9.35307C11.4519 9.15779 11.4517 8.84114 11.6469 8.64596L12.6468 7.64607C13.6705 6.62254 15.3306 6.62312 16.3543 7.64676Z" fill="rgba(0,0,0,0.9)" />
+          <path fillRule="evenodd" clipRule="evenodd" d="M8.14694 12.1475C8.3422 11.9522 8.65871 11.9522 8.85397 12.1475C9.04903 12.3427 9.04916 12.6593 8.85397 12.8545L7.35397 14.3545C6.72133 14.9876 6.72123 16.0134 7.35397 16.6465C7.98708 17.2796 9.01376 17.2795 9.64694 16.6465L11.1469 15.1465C11.3421 14.9517 11.6588 14.9517 11.854 15.1465C12.0491 15.3416 12.0488 15.6582 11.854 15.8535L10.354 17.3535C9.33027 18.377 7.67057 18.3771 6.64694 17.3535C5.62359 16.3299 5.6235 14.6701 6.64694 13.6465L8.14694 12.1475ZM14.5005 15.5C14.7764 15.5001 15.0004 15.724 15.0005 16V17.5C15.0005 17.7761 14.7765 17.9999 14.5005 18C14.2243 18 14.0005 17.7761 14.0005 17.5V16C14.0005 15.7239 14.2244 15.5 14.5005 15.5ZM17.5005 14C17.7764 14.0001 18.0004 14.224 18.0005 14.5C18.0005 14.7761 17.7765 14.9999 17.5005 15H16.0005C15.7243 15 15.5005 14.7761 15.5005 14.5C15.5005 14.2239 15.7244 14 16.0005 14H17.5005ZM13.6469 6.64648C14.6706 5.62308 16.3303 5.62301 17.354 6.64648C18.3774 7.6701 18.3774 9.32986 17.354 10.3535L15.854 11.8535C15.6587 12.0487 15.3422 12.0487 15.1469 11.8535C14.9517 11.6583 14.9518 11.3417 15.1469 11.1465L16.6469 9.64648C17.2798 9.01335 17.2799 7.98661 16.6469 7.35351C16.0138 6.72057 14.9871 6.72064 14.354 7.35351L12.854 8.85351C12.6588 9.04859 12.3422 9.04843 12.1469 8.85351C11.952 8.65825 11.9519 8.34165 12.1469 8.14648L13.6469 6.64648ZM8.00045 9C8.27642 9.00014 8.50036 9.22402 8.50045 9.5C8.50045 9.77605 8.27647 9.99985 8.00045 10H6.50045C6.22431 10 6.00045 9.77614 6.00045 9.5C6.00054 9.22393 6.22437 9 6.50045 9H8.00045ZM9.50045 6C9.77642 6.00014 10.0004 6.22402 10.0005 6.5V8C10.0005 8.27605 9.77647 8.49985 9.50045 8.5C9.22431 8.5 9.00045 8.27614 9.00045 8V6.5C9.00054 6.22393 9.22437 6 9.50045 6Z" fill="rgba(0,0,0,0.9)" />
         </svg>
       </button>
     </Tooltip>

@@ -2183,8 +2183,8 @@
 /* ── Change Indicator (blue dot at top-left corner of changed inputs) ── */
 .retune-change-dot {
   position: absolute;
-  top: -7px;
-  left: -7px;
+  top: 8px;
+  left: -8px;
   width: 16px;
   height: 16px;
   z-index: 3;
@@ -2386,6 +2386,12 @@
 
 .retune-token-dialog-item-active {
   background: rgba(110, 17, 176, 0.1);
+}
+.retune-token-dialog-item-active .retune-token-dialog-name {
+  color: #6E11B0;
+}
+.retune-token-dialog-item-active .retune-token-dialog-value {
+  color: rgba(110, 17, 176, 0.7);
 }
 .retune-token-dialog-item-active:hover {
   background: rgba(110, 17, 176, 0.15);

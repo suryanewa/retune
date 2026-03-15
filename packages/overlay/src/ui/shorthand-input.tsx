@@ -43,7 +43,7 @@ export interface ShorthandInputProps {
   /** CSS property name for token availability detection */
   property?: string;
   /** Callback when user picks a different token from the picker */
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken) => void;
+  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, properties?: string[]) => void;
   /** Callback when user applies a token from scratch (no existing token) */
   onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
   /** Callback when user unlinks a token */
