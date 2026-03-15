@@ -2226,11 +2226,14 @@
 .retune-color-hex-section:hover .retune-variable-action {
   opacity: 1;
 }
-/* Unlink icon always visible when variable is applied */
+/* Unlink icon: purple color, 80% opacity at rest, full on hover */
+.retune-variable-unlink {
+  color: #6E11B0;
+}
 .retune-prop-variable-applied .retune-variable-unlink,
 .retune-combo-variable-applied .retune-variable-unlink,
 .retune-color-variable-applied .retune-variable-unlink {
-  opacity: 0;
+  opacity: 0.8;
 }
 .retune-prop-variable-applied:hover .retune-variable-unlink,
 .retune-combo-variable-applied:hover .retune-variable-unlink,
@@ -2256,11 +2259,13 @@
 .retune-combo-variable-applied .retune-combo-trigger {
   display: none;
 }
-.retune-color-variable-applied .retune-color-hex-input {
-  color: #6E11B0;
-}
 .retune-color-variable-applied {
   background: #E9D4FF;
+}
+.retune-color-variable-applied .retune-color-hex-input,
+.retune-color-variable-applied .retune-color-opacity-input,
+.retune-color-variable-applied .retune-color-opacity-unit {
+  color: #6E11B0;
 }
 
 /* ── Token Picker (floating panel for swapping tokens) ── */

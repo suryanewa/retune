@@ -188,10 +188,10 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
   })();
 
   return (
-    <div className={`retune-color-row${tokenMatch ? " retune-color-variable-applied" : ""}`}>
+    <div className="retune-color-row">
       <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       {/* Left half: swatch + hex */}
-      <div className="retune-color-hex-section">
+      <div className={`retune-color-hex-section${tokenMatch ? " retune-color-variable-applied" : ""}`}>
         <div
           ref={swatchRef}
           className="retune-color-swatch"
@@ -219,7 +219,7 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
       </div>
 
       {/* Right half: opacity */}
-      <div className="retune-color-opacity-section">
+      <div className={`retune-color-opacity-section${tokenMatch ? " retune-color-variable-applied" : ""}`}>
         <input
           className="retune-color-opacity-input"
           inputMode="numeric"
