@@ -2183,7 +2183,7 @@
 /* ── Change Indicator (blue dot at top-left corner of changed inputs) ── */
 .retune-change-dot {
   position: absolute;
-  top: 8px;
+  top: -8px;
   left: -8px;
   width: 16px;
   height: 16px;
