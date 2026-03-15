@@ -51,9 +51,11 @@ export interface VariableActionProps {
   /** When provided, icon click calls this instead of opening the internal TokenDialog.
    *  Used by ColorInput to open the color picker to the variables tab. */
   onRequestOpen?: () => void;
+  /** Ref that receives the openPicker function so parent can trigger it (e.g. on input click) */
+  openPickerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export function VariableAction({ match, property, relatedProperties, onTokenSelect, onTokenApply, onTokenUnlink, onRequestOpen }: VariableActionProps) {
+export function VariableAction({ match, property, relatedProperties, onTokenSelect, onTokenApply, onTokenUnlink, onRequestOpen, openPickerRef }: VariableActionProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const pickerOpenRef = useRef(false);
@@ -151,7 +153,7 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
     : null;
 
   // Expose openPicker for parent components (e.g. when clicking a variable-applied input)
-  // This is done via the ref on the icon element — parents can call openPicker on this component
+  if (openPickerRef) openPickerRef.current = openPicker;
 
   return (
     <>

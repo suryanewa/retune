@@ -3,7 +3,7 @@
  * Equivalent to the portfolio editor's NumberInput component.
  */
 
-import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
 import type { TokenMatch } from "../tokens/types";
 import { ChangeIndicator } from "./change-indicator";
@@ -57,6 +57,11 @@ export interface NumberInputProps {
 export function NumberInput({ label, prop, value, placeholder, onChange, min, max, step: stepProp, tokenMatch, property, onTokenSelect, onTokenApply, onTokenUnlink, isChanged, onReset }: NumberInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const labelRef = useRef<HTMLSpanElement>(null);
+  const varPickerRef = useRef<(() => void) | null>(null);
+
+  const handleInputClick = useCallback(() => {
+    if (tokenMatch) varPickerRef.current?.();
+  }, [tokenMatch]);
 
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue) {
@@ -184,9 +189,10 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         <span
           ref={labelRef}
           className="retune-prop-label"
-          onPointerDown={handleLabelPointerDown}
-          onPointerMove={handleLabelPointerMove}
-          onPointerUp={handleLabelPointerUp}
+          onClick={handleInputClick}
+          onPointerDown={tokenMatch ? undefined : handleLabelPointerDown}
+          onPointerMove={tokenMatch ? undefined : handleLabelPointerMove}
+          onPointerUp={tokenMatch ? undefined : handleLabelPointerUp}
         >
           {label}
         </span>
@@ -197,13 +203,15 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
         placeholder={placeholder}
-        onPointerDown={!label ? handleInputPointerDown : undefined}
-        onPointerMove={!label ? handleInputPointerMove : undefined}
-        onPointerUp={!label ? handleInputPointerUp : undefined}
-        onFocus={handleFocus}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
+        readOnly={!!tokenMatch}
+        onClick={handleInputClick}
+        onPointerDown={!label && !tokenMatch ? handleInputPointerDown : undefined}
+        onPointerMove={!label && !tokenMatch ? handleInputPointerMove : undefined}
+        onPointerUp={!label && !tokenMatch ? handleInputPointerUp : undefined}
+        onFocus={tokenMatch ? undefined : handleFocus}
+        onChange={tokenMatch ? undefined : handleChange}
+        onBlur={tokenMatch ? undefined : handleBlur}
+        onKeyDown={tokenMatch ? undefined : handleKeyDown}
         spellCheck={false}
       />
       <VariableAction
@@ -212,6 +220,7 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         onTokenSelect={onTokenSelect}
         onTokenApply={onTokenApply}
         onTokenUnlink={onTokenUnlink}
+        openPickerRef={varPickerRef}
       />
     </div>
   );

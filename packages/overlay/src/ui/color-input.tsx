@@ -195,17 +195,19 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
         <div
           ref={swatchRef}
           className="retune-color-swatch"
-          onClick={handleSwatchClick}
+          onClick={tokenMatch ? handleTokenDotOpen : handleSwatchClick}
         >
           <div className="retune-color-swatch-inner" style={swatchStyle} />
         </div>
         <input
           className="retune-color-hex-input"
           value={hexLocal}
-          onChange={(e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
-          onFocus={(e) => { hexFocusedRef.current = true; e.target.select(); }}
-          onBlur={commitHex}
-          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          readOnly={!!tokenMatch}
+          onClick={tokenMatch ? handleTokenDotOpen : undefined}
+          onChange={tokenMatch ? undefined : (e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
+          onFocus={tokenMatch ? undefined : (e) => { hexFocusedRef.current = true; e.target.select(); }}
+          onBlur={tokenMatch ? undefined : commitHex}
+          onKeyDown={tokenMatch ? undefined : (e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
           spellCheck={false}
         />
         <VariableAction
@@ -219,15 +221,16 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
       </div>
 
       {/* Right half: opacity */}
-      <div className={`retune-color-opacity-section${tokenMatch ? " retune-color-variable-applied" : ""}`}>
+      <div className={`retune-color-opacity-section${tokenMatch ? " retune-color-variable-applied" : ""}`} onClick={tokenMatch ? handleTokenDotOpen : undefined}>
         <input
           className="retune-color-opacity-input"
           inputMode="numeric"
           value={opacityLocal}
-          onChange={(e) => setOpacityLocal(e.target.value)}
-          onFocus={(e) => { opacityFocusedRef.current = true; e.target.select(); }}
-          onBlur={commitOpacity}
-          onKeyDown={handleOpacityKeyDown}
+          readOnly={!!tokenMatch}
+          onChange={tokenMatch ? undefined : (e) => setOpacityLocal(e.target.value)}
+          onFocus={tokenMatch ? undefined : (e) => { opacityFocusedRef.current = true; e.target.select(); }}
+          onBlur={tokenMatch ? undefined : commitOpacity}
+          onKeyDown={tokenMatch ? undefined : handleOpacityKeyDown}
         />
         <span className="retune-color-opacity-unit">%</span>
       </div>
@@ -244,6 +247,7 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
           currentToken={tokenMatch?.token}
           onTokenSelect={handlePickerTokenSelect}
           onTokenApply={handlePickerTokenApply}
+          onTokenUnlink={onTokenUnlink}
           initialTab={initialTab}
         />
       )}
