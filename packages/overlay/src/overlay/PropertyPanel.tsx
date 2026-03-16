@@ -657,42 +657,149 @@ export function PropertyPanel({
     <>
       {/* Element */}
       <Section label={element.tagName.toLowerCase()}>
-        {scopeLevels.length > 1 && onScopeLevelChange && (
-          <RowGroup label="Target">
-            <div className="retune-selector-field">
-              {scopeLevels.map((level, index) => {
-                const isActive = index === activeLevelIndex;
-                const isIncluded = index < activeLevelIndex;
-                const isElementLevel = level.selector === null;
-                const nextLevel = scopeLevels[index + 1];
-                const nextIsClassLevel = nextLevel && nextLevel.selector !== null;
-                const nextIsIncludedOrActive = (index + 1) < activeLevelIndex || (index + 1) === activeLevelIndex;
-                const showBridge = !isElementLevel && nextIsClassLevel && (isIncluded || isActive) && nextIsIncludedOrActive;
-                return (
-                  <Fragment key={level.selector ?? "__element"}>
-                    {isElementLevel && scopeLevels.length > 1 && (
-                      <span className="retune-selector-divider" />
-                    )}
-                    <button
-                      className={`retune-selector-tag${isActive ? " active" : ""}${isIncluded ? " included" : ""}`}
-                      onClick={() => onScopeLevelChange(index)}
-                    >
-                      <span className="retune-selector-tag-name" title={level.label}>
-                        {middleTruncate(level.label, 24)}
-                      </span>
-                      {level.count > 1 && (
-                        <span className="retune-selector-tag-count">{level.count}</span>
+        {scopeLevels.length > 1 && onScopeLevelChange && (() => {
+          // Track previous level to detect bridge changes and animate
+          const prevLevelRef = useRef(activeLevelIndex);
+          const fieldRef = useRef<HTMLDivElement>(null);
+          const computeBridgesForLevel = (level: number) => {
+            const bridges = new Set<number>();
+            for (let i = 0; i < scopeLevels.length - 1; i++) {
+              const cur = scopeLevels[i];
+              const nxt = scopeLevels[i + 1];
+              if (cur.selector !== null && nxt && nxt.selector !== null && i < level && (i + 1) <= level) {
+                bridges.add(i);
+              }
+            }
+            return bridges;
+          };
+          const [bridgeVisible, setBridgeVisible] = useState<Set<number>>(() => computeBridgesForLevel(activeLevelIndex));
+
+          const computeBridges = computeBridgesForLevel;
+
+          // Animate bridge connections/disconnections on level change
+          useEffect(() => {
+            const prev = prevLevelRef.current;
+            prevLevelRef.current = activeLevelIndex;
+            if (prev === activeLevelIndex) return;
+
+            const oldBridges = computeBridges(prev);
+            const newBridges = computeBridges(activeLevelIndex);
+
+            // Find appearing and disappearing bridges
+            const appearing: number[] = [];
+            const disappearing: number[] = [];
+            newBridges.forEach(b => { if (!oldBridges.has(b)) appearing.push(b); });
+            oldBridges.forEach(b => { if (!newBridges.has(b)) disappearing.push(b); });
+
+            if (appearing.length === 0 && disappearing.length === 0) {
+              setBridgeVisible(newBridges);
+              return;
+            }
+
+            const field = fieldRef.current;
+            if (!field) { setBridgeVisible(newBridges); return; }
+            const pills = field.querySelectorAll<HTMLElement>('.retune-selector-tag');
+
+            const DURATION = 220;
+            const EASING = 'cubic-bezier(0.77, 0, 0.175, 1)';
+            const STRETCH = 5; // px extra padding per side
+
+            // Animate appearing bridges: pills stretch → touch → shrink, then show bridge
+            for (const bridgeIdx of appearing) {
+              const leftPill = pills[bridgeIdx];
+              const rightPill = pills[bridgeIdx + 1];
+              if (!leftPill || !rightPill) continue;
+
+              const leftPad = parseFloat(getComputedStyle(leftPill).paddingRight) || 8;
+              const rightPad = parseFloat(getComputedStyle(rightPill).paddingLeft) || 8;
+
+              leftPill.animate([
+                { paddingRight: `${leftPad}px` },
+                { paddingRight: `${leftPad + STRETCH}px` },
+                { paddingRight: `${leftPad}px` },
+              ], { duration: DURATION, easing: EASING });
+
+              rightPill.animate([
+                { paddingLeft: `${rightPad}px` },
+                { paddingLeft: `${rightPad + STRETCH}px` },
+                { paddingLeft: `${rightPad}px` },
+              ], { duration: DURATION, easing: EASING });
+            }
+
+            // Animate disappearing bridges: remove bridge, pills stretch → shrink
+            for (const bridgeIdx of disappearing) {
+              const leftPill = pills[bridgeIdx];
+              const rightPill = pills[bridgeIdx + 1];
+              if (!leftPill || !rightPill) continue;
+
+              const leftPad = parseFloat(getComputedStyle(leftPill).paddingRight) || 8;
+              const rightPad = parseFloat(getComputedStyle(rightPill).paddingLeft) || 8;
+
+              leftPill.animate([
+                { paddingRight: `${leftPad}px` },
+                { paddingRight: `${leftPad + STRETCH}px` },
+                { paddingRight: `${leftPad}px` },
+              ], { duration: DURATION, easing: EASING });
+
+              rightPill.animate([
+                { paddingLeft: `${rightPad}px` },
+                { paddingLeft: `${rightPad + STRETCH}px` },
+                { paddingLeft: `${rightPad}px` },
+              ], { duration: DURATION, easing: EASING });
+            }
+
+            // Remove disappearing bridges immediately
+            if (disappearing.length > 0) {
+              const interim = new Set(oldBridges);
+              disappearing.forEach(b => interim.delete(b));
+              // Keep existing bridges that aren't disappearing, don't add appearing ones yet
+              setBridgeVisible(interim);
+            }
+
+            // Show appearing bridges at the midpoint (when pills are touching)
+            if (appearing.length > 0) {
+              setTimeout(() => {
+                setBridgeVisible(newBridges);
+              }, DURATION / 2);
+            } else {
+              setBridgeVisible(newBridges);
+            }
+          }, [activeLevelIndex, scopeLevels]);
+
+          return (
+            <RowGroup label="Target">
+              <div className="retune-selector-field" ref={fieldRef}>
+                {scopeLevels.map((level, index) => {
+                  const isActive = index === activeLevelIndex;
+                  const isIncluded = index < activeLevelIndex;
+                  const isElementLevel = level.selector === null;
+                  const showBridge = bridgeVisible.has(index);
+                  return (
+                    <Fragment key={level.selector ?? "__element"}>
+                      {isElementLevel && scopeLevels.length > 1 && (
+                        <span className="retune-selector-divider" />
                       )}
-                    </button>
-                    {showBridge && (
-                      <span className="retune-selector-bridge filled" />
-                    )}
-                  </Fragment>
-                );
-              })}
-            </div>
-          </RowGroup>
-        )}
+                      <button
+                        className={`retune-selector-tag${isActive ? " active" : ""}${isIncluded ? " included" : ""}`}
+                        onClick={() => onScopeLevelChange(index)}
+                      >
+                        <span className="retune-selector-tag-name" title={level.label}>
+                          {middleTruncate(level.label, 24)}
+                        </span>
+                        {level.count > 1 && (
+                          <span className="retune-selector-tag-count">{level.count}</span>
+                        )}
+                      </button>
+                      {showBridge && (
+                        <span className="retune-selector-bridge filled" />
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </div>
+            </RowGroup>
+          );
+        })()}
         {onForcedStateChange && (
           <RowGroup label="State">
             <div className="retune-row">
