@@ -658,78 +658,146 @@ export function PropertyPanel({
       {/* Element */}
       <Section label={element.tagName.toLowerCase()}>
         {scopeLevels.length > 1 && onScopeLevelChange && (() => {
+          const prevLevelRef = useRef(activeLevelIndex);
           const fieldRef = useRef<HTMLDivElement>(null);
-          const blobLayerRef = useRef<HTMLDivElement>(null);
-          const initializedRef = useRef(false);
 
-          // All class-level pills get blobs — active ones visible, inactive ones hidden via opacity
-          const classLevels = scopeLevels.filter(l => l.selector !== null);
-
-          // Sync blob positions with pill positions
-          useEffect(() => {
-            const field = fieldRef.current;
-            const blobLayer = blobLayerRef.current;
-            if (!field || !blobLayer) return;
-
-            const fieldRect = field.getBoundingClientRect();
-            const blobs = Array.from(blobLayer.children) as HTMLElement[];
-
-            // Match blobs to their pills via data attribute
-            blobs.forEach(blob => {
-              const selector = blob.dataset.blobSelector;
-              if (!selector) return;
-              const levelIdx = scopeLevels.findIndex(l => l.selector === selector);
-              if (levelIdx === -1) return;
-              const pill = field.querySelector<HTMLElement>(`[data-level-index="${levelIdx}"]`);
-              if (!pill) return;
-
-              const rect = pill.getBoundingClientRect();
-              blob.style.left = `${rect.left - fieldRect.left}px`;
-              blob.style.top = `${rect.top - fieldRect.top}px`;
-              blob.style.width = `${rect.width}px`;
-              blob.style.height = `${rect.height}px`;
-
-              // Only show blobs for active/included pills
-              const isActive = levelIdx === activeLevelIndex;
-              const isIncluded = levelIdx < activeLevelIndex;
-              blob.style.opacity = (isActive || isIncluded) ? '1' : '0';
-            });
-
-            // Enable transitions after first paint (skip animate-on-load)
-            if (!initializedRef.current) {
-              initializedRef.current = true;
-              requestAnimationFrame(() => {
-                blobs.forEach(b => b.classList.add('retune-selector-blob-ready'));
-              });
+          const computeBridgesForLevel = (level: number) => {
+            if (scopeLevels[level]?.selector === null) return new Set<number>(); // "This element" — no bridges
+            const bridges = new Set<number>();
+            for (let i = 0; i < scopeLevels.length - 1; i++) {
+              const cur = scopeLevels[i];
+              const nxt = scopeLevels[i + 1];
+              if (cur.selector !== null && nxt && nxt.selector !== null && i < level && (i + 1) <= level) {
+                bridges.add(i);
+              }
             }
+            return bridges;
+          };
+          const [bridgeVisible, setBridgeVisible] = useState<Set<number>>(() => computeBridgesForLevel(activeLevelIndex));
+
+          // Capture pill colors after paint for the NEXT transition
+          const pillColorsRef = useRef<Map<number, { bg: string; color: string }>>(new Map());
+          useEffect(() => {
+            const f = fieldRef.current;
+            if (!f) return;
+            const colors = new Map<number, { bg: string; color: string }>();
+            f.querySelectorAll<HTMLElement>('[data-level-index]').forEach(pill => {
+              const idx = parseInt(pill.dataset.levelIndex || '0', 10);
+              const style = getComputedStyle(pill);
+              colors.set(idx, { bg: style.backgroundColor, color: style.color });
+            });
+            pillColorsRef.current = colors;
           });
 
+          // Animate on level change
+          useEffect(() => {
+            const prev = prevLevelRef.current;
+            prevLevelRef.current = activeLevelIndex;
+            if (prev === activeLevelIndex) return;
+
+            const oldBridges = computeBridgesForLevel(prev);
+            const newBridges = computeBridgesForLevel(activeLevelIndex);
+
+            const appearing: number[] = [];
+            const disappearing: number[] = [];
+            newBridges.forEach(b => { if (!oldBridges.has(b)) appearing.push(b); });
+            oldBridges.forEach(b => { if (!newBridges.has(b)) disappearing.push(b); });
+
+            if (appearing.length === 0 && disappearing.length === 0) {
+              setBridgeVisible(newBridges);
+              return;
+            }
+
+            const field = fieldRef.current;
+            if (!field) { setBridgeVisible(newBridges); return; }
+
+            const DURATION = 220;
+            const EASING = 'cubic-bezier(0.77, 0, 0.175, 1)';
+            const EXTEND = 4;
+            const getPill = (idx: number) => field.querySelector<HTMLElement>(`[data-level-index="${idx}"]`);
+
+            const allBridges = [...appearing, ...disappearing];
+            const pillSides = new Map<number, Set<'left' | 'right'>>();
+            for (const bridgeIdx of allBridges) {
+              if (!pillSides.has(bridgeIdx)) pillSides.set(bridgeIdx, new Set());
+              pillSides.get(bridgeIdx)!.add('right');
+              if (!pillSides.has(bridgeIdx + 1)) pillSides.set(bridgeIdx + 1, new Set());
+              pillSides.get(bridgeIdx + 1)!.add('left');
+            }
+
+            // Freeze pill colors to pre-change appearance
+            const snapshotColors = pillColorsRef.current;
+            const frozenPills: HTMLElement[] = [];
+            for (const [pillIdx] of pillSides) {
+              const pill = getPill(pillIdx);
+              if (!pill) continue;
+              const old = snapshotColors.get(pillIdx);
+              if (old) {
+                pill.style.backgroundColor = old.bg;
+                pill.style.color = old.color;
+                frozenPills.push(pill);
+              }
+            }
+
+            // Hide disappearing bridges
+            for (const bridgeIdx of disappearing) {
+              const leftPill = getPill(bridgeIdx);
+              if (!leftPill) continue;
+              const bridge = leftPill.nextElementSibling as HTMLElement | null;
+              if (bridge?.classList.contains('retune-selector-bridge')) {
+                bridge.style.opacity = '0';
+              }
+            }
+
+            // Animate box-shadow + border-radius
+            for (const [pillIdx, sides] of pillSides) {
+              const pill = getPill(pillIdx);
+              if (!pill) continue;
+              const bg = snapshotColors.get(pillIdx)?.bg || '#f5f5f4';
+
+              const shadows: string[] = [];
+              if (sides.has('right')) shadows.push(`${EXTEND}px 0 0 0 ${bg}`);
+              if (sides.has('left')) shadows.push(`-${EXTEND}px 0 0 0 ${bg}`);
+              const peakShadow = shadows.join(', ');
+              const zeroShadows = shadows.map(() => `0px 0 0 0 ${bg}`).join(', ');
+
+              const R = '8px';
+              const Z = '0px';
+              const peakRadius = `${sides.has('left') ? Z : R} ${sides.has('right') ? Z : R} ${sides.has('right') ? Z : R} ${sides.has('left') ? Z : R}`;
+
+              pill.animate([
+                { boxShadow: zeroShadows, borderRadius: `${R} ${R} ${R} ${R}` },
+                { boxShadow: peakShadow, borderRadius: peakRadius },
+                { boxShadow: zeroShadows, borderRadius: `${R} ${R} ${R} ${R}` },
+              ], { duration: DURATION, easing: EASING });
+            }
+
+            // Midpoint: unfreeze colors + update bridges
+            setTimeout(() => {
+              for (const pill of frozenPills) {
+                pill.style.removeProperty('background-color');
+                pill.style.removeProperty('color');
+              }
+              setBridgeVisible(newBridges);
+            }, DURATION / 2);
+          }, [activeLevelIndex, scopeLevels]);
 
           return (
             <RowGroup label="Target">
-              <div className="retune-selector-field" ref={fieldRef} style={{ position: 'relative' }}>
-                {/* Blob layer — gooey filter via data URL (avoids Shadow DOM url(#id) resolution issues) */}
-                <div ref={blobLayerRef} className="retune-selector-blob-layer" style={{ filter: `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns=\'http://www.w3.org/2000/svg\'><filter id=\'g\' color-interpolation-filters=\'sRGB\'><feGaussianBlur in=\'SourceGraphic\' stdDeviation=\'5\'/><feColorMatrix type=\'matrix\' values=\'1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 22 -11\'/></filter></svg>')}#g")` }}>
-                  {classLevels.map(level => (
-                    <div
-                      key={level.selector}
-                      className="retune-selector-blob"
-                      data-blob-selector={level.selector}
-                    />
-                  ))}
-                </div>
-                {/* Real pills — class-level pills transparent, text stays crisp */}
+              <div className="retune-selector-field" ref={fieldRef}>
                 {scopeLevels.map((level, index) => {
                   const isActive = index === activeLevelIndex;
-                  const isIncluded = index < activeLevelIndex;
                   const isElementLevel = level.selector === null;
+                  const activeIsElementLevel = scopeLevels[activeLevelIndex]?.selector === null;
+                  const isIncluded = index < activeLevelIndex && !activeIsElementLevel;
+                  const showBridge = bridgeVisible.has(index);
                   return (
                     <Fragment key={level.selector ?? "__element"}>
                       {isElementLevel && scopeLevels.length > 1 && (
                         <span className="retune-selector-divider" />
                       )}
                       <button
-                        className={`retune-selector-tag${isElementLevel ? '' : ' retune-selector-tag-gooey'}${isActive ? " active" : ""}${isIncluded ? " included" : ""}`}
+                        className={`retune-selector-tag${isActive ? " active" : ""}${isIncluded ? " included" : ""}`}
                         data-level-index={index}
                         onClick={() => onScopeLevelChange(index)}
                       >
@@ -740,6 +808,9 @@ export function PropertyPanel({
                           <span className="retune-selector-tag-count">{level.count}</span>
                         )}
                       </button>
+                      {showBridge && (
+                        <span className="retune-selector-bridge filled" />
+                      )}
                     </Fragment>
                   );
                 })}
