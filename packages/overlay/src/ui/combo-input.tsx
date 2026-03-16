@@ -307,7 +307,7 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
   // Variable-applied transformation: render as number-input-like display
   if (tokenMatch) {
     return (
-      <div className="retune-combo retune-combo-variable-applied" ref={containerRef}>
+      <div className="retune-combo" ref={containerRef}>
         <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
         {label && (
           <span
@@ -318,7 +318,7 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
           </span>
         )}
         <input
-          className="retune-combo-input"
+          className="retune-combo-input retune-combo-variable-applied"
           style={label ? undefined : { paddingLeft: 8 }}
           value={displayValue}
           readOnly

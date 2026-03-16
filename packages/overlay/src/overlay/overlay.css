@@ -1004,6 +1004,8 @@
 .retune-prop:hover:not(.retune-prop-variable-applied) { background: #e7e5e4; }
 .retune-prop:focus-within:not(.retune-prop-variable-applied) {
   background: #f5f5f4;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
 }
 
 .retune-prop-label {
@@ -1094,6 +1096,11 @@
   padding: 0;
 }
 
+.retune-color-hex-input:focus { outline: none; }
+.retune-color-hex-section:focus-within {
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
 .retune-color-hex-input::selection { background: #bfdbfe; }
 
 .retune-color-opacity-section {
@@ -1122,6 +1129,11 @@
   -moz-appearance: textfield;
 }
 
+.retune-color-opacity-input:focus { outline: none; }
+.retune-color-opacity-section:focus-within {
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
 .retune-color-opacity-input::-webkit-outer-spin-button,
 .retune-color-opacity-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -1856,7 +1868,7 @@
 
 .retune-font-input:hover { background: #e7e5e4; }
 .retune-font-input:focus-within {
-  outline: 1px solid #1c1917;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
   background: #f5f5f4;
 }
@@ -1891,7 +1903,7 @@
 
 .retune-text-input:hover { background: #e7e5e4; }
 .retune-text-input:focus-within {
-  outline: 1px solid #1c1917;
+  outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
   background: #f5f5f4;
 }
@@ -1962,10 +1974,16 @@
 }
 
 .retune-combo-input:hover { background: #e7e5e4; }
-.retune-combo-input:focus {
-  outline: 1px solid #1c1917;
+.retune-combo-input:focus { outline: none; }
+.retune-combo:focus-within {
+  outline: 1px solid rgba(0, 0, 0, 0.1);
   outline-offset: -1px;
-  background: #f5f5f4;
+}
+.retune-combo-variable-applied:hover { background: rgba(110, 17, 176, 0.15); }
+.retune-combo-variable-applied:focus {
+  outline: 1px solid #6E11B0;
+  outline-offset: -1px;
+  background: rgba(110, 17, 176, 0.1);
 }
 .retune-combo-input::selection { background: #bfdbfe; }
 
@@ -2255,12 +2273,12 @@
   color: #6E11B0;
 }
 .retune-prop-variable-applied .retune-variable-unlink,
-.retune-combo-variable-applied .retune-variable-unlink,
+.retune-combo:has(.retune-combo-variable-applied) .retune-variable-unlink,
 .retune-color-variable-applied .retune-variable-unlink {
   opacity: 0;
 }
 .retune-prop-variable-applied:hover .retune-variable-unlink,
-.retune-combo-variable-applied:hover .retune-variable-unlink,
+.retune-combo:has(.retune-combo-variable-applied):hover .retune-variable-unlink,
 .retune-color-variable-applied:hover .retune-variable-unlink {
   opacity: 0.8;
 }
@@ -2279,13 +2297,15 @@
 }
 .retune-combo-variable-applied {
   background: rgba(110, 17, 176, 0.1);
+  color: #6E11B0;
+  cursor: pointer;
+  border-radius: 8px;
 }
-.retune-combo-variable-applied .retune-combo-input,
-.retune-combo-variable-applied .retune-combo-label {
+.retune-combo:has(.retune-combo-variable-applied) .retune-combo-label {
   color: #6E11B0;
   cursor: pointer;
 }
-.retune-combo-variable-applied .retune-combo-trigger {
+.retune-combo:has(.retune-combo-variable-applied) .retune-combo-trigger {
   display: none;
 }
 .retune-color-variable-applied {

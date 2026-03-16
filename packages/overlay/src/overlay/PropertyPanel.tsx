@@ -676,7 +676,7 @@ export function PropertyPanel({
           const meaningful = selectorCandidates.filter(c => c.verdict !== "utility");
           if (meaningful.length === 0) return null;
           return (
-            <RowGroup label="Scope">
+            <RowGroup label="Target">
               <div className="retune-selector-field">
                 <button
                   className={`retune-selector-tag${isElementMode ? " active" : ""}`}
