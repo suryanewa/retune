@@ -240,6 +240,35 @@ export default function TestPage() {
           </div>
         </section>
 
+        {/* ── Section: 3-level class depth (for testing scope rail) ── */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Deep Class Nesting</h2>
+          <p className="text-sm text-gray-500 mb-4">Elements with 3+ semantic classes for testing the scope rail.</p>
+          <div className="flex flex-col gap-4">
+            <div className="alert alert-warning alert-dismissible">
+              Warning: Your trial expires in 3 days.
+              <button className="alert-close">&times;</button>
+            </div>
+            <div className="alert alert-error alert-dismissible">
+              Error: Payment method declined.
+              <button className="alert-close">&times;</button>
+            </div>
+            <div className="alert alert-success">
+              Success: Your changes have been saved.
+            </div>
+            <div className="flex gap-3">
+              <button className="btn btn-primary btn-lg btn-rounded">Rounded Large</button>
+              <button className="btn btn-danger btn-sm btn-rounded">Rounded Small</button>
+            </div>
+            <div className="flex gap-3">
+              <span className="tag tag-blue tag-lg">Feature</span>
+              <span className="tag tag-green tag-lg">Approved</span>
+              <span className="tag tag-red tag-sm">Urgent</span>
+              <span className="tag tag-gray tag-sm">Draft</span>
+            </div>
+          </div>
+        </section>
+
         {/* ── Section: Mixed semantic + utility (sidebar layout) ── */}
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 text-gray-900">Sidebar Layout</h2>

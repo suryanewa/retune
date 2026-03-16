@@ -965,7 +965,12 @@ function RetuneInner(props: RetuneConfig) {
     if (!tracker || !el || index < 0 || index >= levels.length) return;
 
     const oldIndex = activeLevelIndexRef.current;
-    if (index === oldIndex) return;
+    // Clicking the active pill deselects it — move to the previous level
+    if (index === oldIndex && index > 0) {
+      index = index - 1;
+    } else if (index === oldIndex) {
+      return;
+    }
 
     const oldSelector = levels[oldIndex]?.selector ?? el.selector;
     const newSelector = levels[index]?.selector ?? el.selector;
