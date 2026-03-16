@@ -289,14 +289,23 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
   // Ref callback for unlink icon: native pointerdown for Shadow DOM compatibility
   const onTokenUnlinkRef = useRef(onTokenUnlink);
   onTokenUnlinkRef.current = onTokenUnlink;
+  const unlinkElRef = useRef<HTMLSpanElement | null>(null);
+  const unlinkHandlerRef = useRef<((e: PointerEvent) => void) | null>(null);
   const unlinkRef = useCallback((el: HTMLSpanElement | null) => {
-    if (!el) return;
-    const handler = (e: PointerEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      onTokenUnlinkRef.current?.();
-    };
-    el.addEventListener("pointerdown", handler);
+    // Remove old listener
+    if (unlinkElRef.current && unlinkHandlerRef.current) {
+      unlinkElRef.current.removeEventListener("pointerdown", unlinkHandlerRef.current);
+    }
+    unlinkElRef.current = el;
+    if (el) {
+      const handler = (e: PointerEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        onTokenUnlinkRef.current?.();
+      };
+      unlinkHandlerRef.current = handler;
+      el.addEventListener("pointerdown", handler);
+    }
   }, []);
 
   // Portal target for variable picker dialog

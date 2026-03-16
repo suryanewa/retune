@@ -113,7 +113,7 @@ function buildScopeLevels(candidates: SelectorCandidate[]): ScopeLevel[] {
   for (const candidate of meaningful) {
     const className = candidate.selector.replace(/^\./, '');
     parts.push(className);
-    const compound = parts.slice().sort().map(c => `.${c}`).join('');
+    const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
     let count: number;
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
     levels.push({ label: className, selector: compound, count });
@@ -648,9 +648,9 @@ function RetuneInner(props: RetuneConfig) {
     const el = selectedElementRef.current;
     if (!tracker || !el) return;
     const selector = activeSelectorRef.current ?? el.selector;
-    tracker.setTokenAssociation(selector, properties, token);
+    tracker.setVariableAssociation(selector, properties, token);
     // Clear unlinked state — user is picking a new token
-    tracker.relinkToken(selector, properties);
+    tracker.relinkVariable(selector, properties);
     tracker.persist();
     setChangeRevision((r) => r + 1);
   }, []);
@@ -671,17 +671,17 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = trackerRef.current;
     if (!tracker || !selectedElement) return {};
     const selector = activeSelector ?? selectedElement.selector;
-    return { ...(tracker.getTokenAssociations(selector) ?? {}) };
+    return { ...(tracker.getVariableAssociations(selector) ?? {}) };
   // changeRevision ensures we re-read after new associations are recorded
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedElement, activeSelector, changeRevision]);
 
   // Get unlinked token properties for the selected element
-  const selectedUnlinkedTokens = useMemo(() => {
+  const selectedUnlinkedVariables = useMemo(() => {
     const tracker = trackerRef.current;
     if (!tracker || !selectedElement) return new Set<string>();
     const selector = activeSelector ?? selectedElement.selector;
-    return new Set(tracker.getUnlinkedTokens(selector));
+    return new Set(tracker.getUnlinkedVariables(selector));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedElement, activeSelector, changeRevision]);
 
@@ -1171,7 +1171,7 @@ function RetuneInner(props: RetuneConfig) {
                 onTokenAssociate={handleTokenAssociate}
                 onTokenUnlink={handleTokenUnlink}
                 variableAssociations={selectedVariableAssociations}
-                unlinkedTokens={selectedUnlinkedTokens}
+                unlinkedVariables={selectedUnlinkedVariables}
                 changedProperties={selectedChangedProperties}
                 onPropertyReset={handlePropertyReset}
                 selectorCandidates={selectorCandidates}

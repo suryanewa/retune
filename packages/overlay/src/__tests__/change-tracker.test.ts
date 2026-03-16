@@ -16,63 +16,63 @@ describe("ChangeTracker", () => {
   // ─── Token association & unlinking ─────────────────────────────────
 
   describe("token association", () => {
-    it("setTokenAssociation stores and getTokenAssociation retrieves", () => {
+    it("setVariableAssociation stores and getVariableAssociation retrieves", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
-      expect(tracker.getTokenAssociation(sel, "padding")).toBe(tokenRef);
+      const varRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
+      expect(tracker.getVariableAssociation(sel, "padding")).toBe(varRef);
     });
 
-    it("clearTokenAssociation removes the association", () => {
+    it("clearVariableAssociation removes the association", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
-      tracker.clearTokenAssociation(sel, ["padding"]);
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
+      const varRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
+      tracker.clearVariableAssociation(sel, ["padding"]);
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
     });
 
-    it("getTokenAssociations returns all associations", () => {
+    it("getVariableAssociations returns all associations", () => {
       trackElement();
       const t1 = { className: "var(--spacing-3)", values: { padding: "12px" } };
       const t2 = { className: "var(--color-brand)", values: { color: "blue" } };
-      tracker.setTokenAssociation(sel, ["padding"], t1);
-      tracker.setTokenAssociation(sel, ["color"], t2);
-      const all = tracker.getTokenAssociations(sel);
+      tracker.setVariableAssociation(sel, ["padding"], t1);
+      tracker.setVariableAssociation(sel, ["color"], t2);
+      const all = tracker.getVariableAssociations(sel);
       expect(all).toEqual({ padding: t1, color: t2 });
     });
   });
 
-  describe("unlinkToken", () => {
+  describe("unlinkVariable", () => {
     it("marks properties as unlinked", () => {
       trackElement();
-      tracker.unlinkToken(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
-      expect(tracker.isTokenUnlinked(sel, "color")).toBe(false);
+      tracker.unlinkVariable(sel, ["padding"]);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "color")).toBe(false);
     });
 
     it("clears value-only associations when unlinking", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
-      tracker.unlinkToken(sel, ["padding"]);
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      const varRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
+      tracker.unlinkVariable(sel, ["padding"]);
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
     });
 
-    it("getUnlinkedTokens returns all unlinked properties", () => {
+    it("getUnlinkedVariables returns all unlinked properties", () => {
       trackElement();
-      tracker.unlinkToken(sel, ["padding", "color"]);
-      const unlinked = tracker.getUnlinkedTokens(sel);
+      tracker.unlinkVariable(sel, ["padding", "color"]);
+      const unlinked = tracker.getUnlinkedVariables(sel);
       expect(unlinked.has("padding")).toBe(true);
       expect(unlinked.has("color")).toBe(true);
     });
 
-    it("relinkToken clears the unlinked state", () => {
+    it("relinkVariable clears the unlinked state", () => {
       trackElement();
-      tracker.unlinkToken(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
-      tracker.relinkToken(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      tracker.unlinkVariable(sel, ["padding"]);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
+      tracker.relinkVariable(sel, ["padding"]);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
     });
   });
 
@@ -82,15 +82,15 @@ describe("ChangeTracker", () => {
     it("marks properties as unlinked", () => {
       trackElement();
       tracker.recordUnlink(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
     });
 
     it("clears value-only associations when unlinking", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
+      const varRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
       tracker.recordUnlink(sel, ["padding"]);
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
     });
 
     it("pushes to undo stack (canUndo becomes true)", () => {
@@ -103,28 +103,28 @@ describe("ChangeTracker", () => {
     it("undo restores the unlinked property (relinks)", () => {
       trackElement();
       tracker.recordUnlink(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
       tracker.popUndo();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
     });
 
     it("undo restores saved token association", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
+      const varRef = { className: "var(--spacing-3)", values: { padding: "12px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
       tracker.recordUnlink(sel, ["padding"]);
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
       tracker.popUndo();
-      expect(tracker.getTokenAssociation(sel, "padding")).toEqual(tokenRef);
+      expect(tracker.getVariableAssociation(sel, "padding")).toEqual(varRef);
     });
 
     it("redo re-unlinks after undo", () => {
       trackElement();
       tracker.recordUnlink(sel, ["padding"]);
       tracker.popUndo();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
       tracker.popRedo();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
     });
 
     it("clears redo stack on new action", () => {
@@ -139,12 +139,12 @@ describe("ChangeTracker", () => {
     it("unlinks multiple properties in one group", () => {
       trackElement();
       tracker.recordUnlink(sel, ["padding", "color"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
-      expect(tracker.isTokenUnlinked(sel, "color")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "color")).toBe(true);
       // Undo should relink both at once
       tracker.popUndo();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
-      expect(tracker.isTokenUnlinked(sel, "color")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "color")).toBe(false);
     });
   });
 
@@ -153,13 +153,13 @@ describe("ChangeTracker", () => {
   describe("unlinked properties as changes", () => {
     it("isPropertyChanged returns true for unlinked property", () => {
       trackElement();
-      tracker.unlinkToken(sel, ["padding"]);
+      tracker.unlinkVariable(sel, ["padding"]);
       expect(tracker.isPropertyChanged(sel, "padding")).toBe(true);
     });
 
     it("getChangedProperties includes unlinked properties", () => {
       trackElement();
-      tracker.unlinkToken(sel, ["padding"]);
+      tracker.unlinkVariable(sel, ["padding"]);
       const changed = tracker.getChangedProperties(sel);
       expect(changed.has("padding")).toBe(true);
     });
@@ -171,7 +171,7 @@ describe("ChangeTracker", () => {
       const result = tracker.resetProperty(sel, "padding");
       expect(result).not.toBeNull();
       expect(tracker.isPropertyChanged(sel, "padding")).toBe(false);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
     });
   });
 
@@ -241,20 +241,20 @@ describe("ChangeTracker", () => {
 
     it("clears token association on reset", () => {
       trackElement();
-      const tokenRef = { className: "var(--spacing-4)", values: { padding: "16px" } };
+      const varRef = { className: "var(--spacing-4)", values: { padding: "16px" } };
       tracker.recordChange(sel, "padding", "16px");
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
       tracker.resetProperty(sel, "padding");
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
     });
 
     it("clears unlinked state on reset", () => {
       trackElement();
       tracker.recordChange(sel, "padding", "16px");
-      tracker.unlinkToken(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      tracker.unlinkVariable(sel, ["padding"]);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
       tracker.resetProperty(sel, "padding");
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
     });
 
     it("supports undo after reset (restores the changed value)", () => {
@@ -312,18 +312,18 @@ describe("ChangeTracker", () => {
     it("undo restores previous token association after value change", () => {
       trackElement();
       const tokenA = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenA);
+      tracker.setVariableAssociation(sel, ["padding"], tokenA);
       // Force new undo group
       (tracker as any).lastChange = null;
       // Change value (simulating a token swap to tokenB)
       tracker.recordChange(sel, "padding", "16px");
       const tokenB = { className: "var(--spacing-4)", values: { padding: "16px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenB);
-      expect(tracker.getTokenAssociation(sel, "padding")).toEqual(tokenB);
+      tracker.setVariableAssociation(sel, ["padding"], tokenB);
+      expect(tracker.getVariableAssociation(sel, "padding")).toEqual(tokenB);
 
       // Undo the value change — should restore tokenA
       tracker.popUndo();
-      expect(tracker.getTokenAssociation(sel, "padding")).toEqual(tokenA);
+      expect(tracker.getVariableAssociation(sel, "padding")).toEqual(tokenA);
     });
 
     it("undo clears association when none existed before the change", () => {
@@ -331,44 +331,44 @@ describe("ChangeTracker", () => {
       // No association initially
       tracker.recordChange(sel, "padding", "16px");
       const tokenA = { className: "var(--spacing-4)", values: { padding: "16px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenA);
+      tracker.setVariableAssociation(sel, ["padding"], tokenA);
 
       tracker.popUndo();
-      expect(tracker.getTokenAssociation(sel, "padding")).toBeUndefined();
+      expect(tracker.getVariableAssociation(sel, "padding")).toBeUndefined();
     });
 
     it("redo restores token association after undo", () => {
       trackElement();
       const tokenA = { className: "var(--spacing-3)", values: { padding: "12px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenA);
+      tracker.setVariableAssociation(sel, ["padding"], tokenA);
       (tracker as any).lastChange = null;
       tracker.recordChange(sel, "padding", "16px");
       const tokenB = { className: "var(--spacing-4)", values: { padding: "16px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenB);
+      tracker.setVariableAssociation(sel, ["padding"], tokenB);
 
       tracker.popUndo(); // restores tokenA
-      expect(tracker.getTokenAssociation(sel, "padding")).toEqual(tokenA);
+      expect(tracker.getVariableAssociation(sel, "padding")).toEqual(tokenA);
 
       tracker.popRedo(); // restores tokenB
-      expect(tracker.getTokenAssociation(sel, "padding")).toEqual(tokenB);
+      expect(tracker.getVariableAssociation(sel, "padding")).toEqual(tokenB);
     });
 
     it("undo restores unlinked state when change was made after unlink", () => {
       trackElement();
       tracker.recordUnlink(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
 
       // Force new undo group
       (tracker as any).lastChange = null;
       // Real flow: recordChange runs first (snapshots prevUnlinked=true),
-      // then relinkToken clears the unlinked state
+      // then relinkVariable clears the unlinked state
       tracker.recordChange(sel, "padding", "16px");
-      tracker.relinkToken(sel, ["padding"]);
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(false);
+      tracker.relinkVariable(sel, ["padding"]);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(false);
 
       // Undo the value change — should restore the unlinked state
       tracker.popUndo();
-      expect(tracker.isTokenUnlinked(sel, "padding")).toBe(true);
+      expect(tracker.isVariableUnlinked(sel, "padding")).toBe(true);
     });
   });
 
@@ -378,13 +378,13 @@ describe("ChangeTracker", () => {
     it("includes variableAssociations in getPendingChanges when set", () => {
       trackElement();
       tracker.recordChange(sel, "padding", "16px");
-      const tokenRef = { className: "var(--spacing-4)", values: { padding: "16px" } };
-      tracker.setTokenAssociation(sel, ["padding"], tokenRef);
+      const varRef = { className: "var(--spacing-4)", values: { padding: "16px" } };
+      tracker.setVariableAssociation(sel, ["padding"], varRef);
 
       const changes = tracker.getPendingChanges();
       expect(changes.length).toBe(1);
       expect(changes[0].variableAssociations).toBeDefined();
-      expect(changes[0].variableAssociations!["padding"]).toEqual(tokenRef);
+      expect(changes[0].variableAssociations!["padding"]).toEqual(varRef);
     });
 
     it("omits variableAssociations when none are set", () => {

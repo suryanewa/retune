@@ -164,7 +164,7 @@ export function PropertyPanel({
   onTokenAssociate,
   onTokenUnlink,
   variableAssociations = {},
-  unlinkedTokens,
+  unlinkedVariables,
   changedProperties,
   onPropertyReset,
   selectorCandidates = [],
@@ -189,7 +189,7 @@ export function PropertyPanel({
   /** Current value-only token associations from change tracker */
   variableAssociations?: Record<string, { className: string; values: Record<string, string> }>;
   /** Properties explicitly unlinked from their token */
-  unlinkedTokens?: Set<string>;
+  unlinkedVariables?: Set<string>;
   /** Properties that have been changed from their original value */
   changedProperties?: Set<string>;
   /** Reset a single property to its original value */
@@ -216,7 +216,7 @@ export function PropertyPanel({
   // user explicitly chose a token (e.g., swapping var(--spacing-4) → var(--spacing-8)).
   const getVariableMatch = useCallback((camelProp: string): TokenMatch | undefined => {
     // Skip properties that the user explicitly unlinked
-    if (unlinkedTokens?.has(camelProp)) return undefined;
+    if (unlinkedVariables?.has(camelProp)) return undefined;
     const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
     // Check persisted associations first (user's explicit choice takes priority)
     const assoc = variableAssociations[camelProp];
@@ -225,7 +225,7 @@ export function PropertyPanel({
     const match = tokenMatches.get(kebab);
     if (match && !isRawUtility(match.token)) return match;
     return undefined;
-  }, [tokenMatches, variableAssociations, unlinkedTokens]);
+  }, [tokenMatches, variableAssociations, unlinkedVariables]);
 
   // Handle token swap: swap classes on the element.
   // If the old token's class is on the element, do a class swap.
@@ -773,13 +773,16 @@ export function PropertyPanel({
             }
 
             // Midpoint: unfreeze colors + update bridges
-            setTimeout(() => {
+            const timer = setTimeout(() => {
               for (const pill of frozenPills) {
                 pill.style.removeProperty('background-color');
                 pill.style.removeProperty('color');
               }
               setBridgeVisible(newBridges);
             }, DURATION / 2);
+
+            // Cleanup: cancel stale timeout if level changes again before animation finishes
+            return () => clearTimeout(timer);
           }, [activeLevelIndex, scopeLevels]);
 
           return (
