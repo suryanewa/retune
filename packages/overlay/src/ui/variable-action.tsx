@@ -133,9 +133,9 @@ export function VariableAction({ match, property, relatedProperties, onVariableS
   const handleSelect = useCallback((variable: DesignVariable) => {
     const props = relatedProperties || [property];
     if (match) {
-      onVariableSelect?.(match.variable, token, props);
+      onVariableSelect?.(match.variable, variable, props);
     } else {
-      onVariableApply?.(token, props);
+      onVariableApply?.(variable, props);
     }
   }, [match, property, relatedProperties, onVariableSelect, onVariableApply]);
 

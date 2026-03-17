@@ -269,9 +269,9 @@ export function ComboInput({ label, prop, value, options, onChange, variableMatc
 
   const handleVariableSelectInternal = useCallback((variable: DesignVariable) => {
     if (variableMatch) {
-      onVariableSelect?.(variableMatch.variable, token);
+      onVariableSelect?.(variableMatch.variable, variable);
     } else {
-      onVariableApply?.(token, [property || prop]);
+      onVariableApply?.(variable, [property || prop]);
     }
   }, [variableMatch, property, prop, onVariableSelect, onVariableApply]);
 

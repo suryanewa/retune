@@ -128,7 +128,7 @@ export function ColorInput({ prop, value, onChange, variableMatch, property, onV
 
   // Token apply from within the color picker (tokens tab)
   const handlePickerVariableApply = useCallback((variable: DesignVariable, properties: string[]) => {
-    onVariableApply?.(token, properties);
+    onVariableApply?.(variable, properties);
     releaseDialog(stableCloseRef.current);
     setPickerOpen(false);
   }, [onVariableApply]);

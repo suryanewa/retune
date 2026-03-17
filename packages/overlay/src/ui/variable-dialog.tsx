@@ -34,7 +34,7 @@ function formatName(className: string): string {
 
 /** Format a variable value for display (first property value, simplified) */
 function formatValue(variable: DesignVariable): string {
-  const vals = Object.values(token.values);
+  const vals = Object.values(variable.values);
   if (vals.length === 0) return "";
   const val = vals[0];
   return val.length > 20 ? val.slice(0, 20) + "\u2026" : val;
@@ -42,7 +42,7 @@ function formatValue(variable: DesignVariable): string {
 
 /** Get a swatch color if this is a color variable */
 function getSwatchColor(variable: DesignVariable): string | null {
-  for (const [prop, val] of Object.entries(token.values)) {
+  for (const [prop, val] of Object.entries(variable.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
     }
@@ -176,23 +176,23 @@ export function VariableDialog({ property, currentVariable, onSelect, onUnlink, 
         {filtered.length === 0 && (
           <div className="retune-variable-dialog-empty">No variables found</div>
         )}
-        {filtered.map((token, i) => {
-          const isActive = currentVariable?.className === token.className;
+        {filtered.map((v, i) => {
+          const isActive = currentVariable?.className === v.className;
           const isHighlighted = i === highlightedIndex;
           return (
             <div
-              key={token.className}
+              key={v.className}
               className={`retune-variable-dialog-item${isActive ? " retune-variable-dialog-item-active" : ""}${isHighlighted ? " retune-variable-dialog-item-highlighted" : ""}`}
               data-token-index={i}
             >
               {isColor && (
                 <span
                   className="retune-variable-dialog-swatch"
-                  style={{ backgroundColor: getSwatchColor(token) || "transparent" }}
+                  style={{ backgroundColor: getSwatchColor(v) || "transparent" }}
                 />
               )}
-              <span className="retune-variable-dialog-name">{formatName(token.className)}</span>
-              <span className="retune-variable-dialog-value">{formatValue(token)}</span>
+              <span className="retune-variable-dialog-name">{formatName(v.className)}</span>
+              <span className="retune-variable-dialog-value">{formatValue(v)}</span>
             </div>
           );
         })}

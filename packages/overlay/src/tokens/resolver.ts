@@ -47,7 +47,7 @@ export function resolveVariablesForElement(
         const normalizedComputed = normalizeValue(computed);
 
         if (normalizedToken === normalizedComputed) {
-          matches.set(prop, { variable, property: prop });
+          matches.set(prop, { variable: token, property: prop });
         }
       }
     }

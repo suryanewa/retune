@@ -54,15 +54,15 @@ function clamp(v: number, min: number, max: number): number {
 
 /** Format a token value for display */
 function formatTokenValue(variable: DesignVariable): string {
-  const vals = Object.values(token.values);
+  const vals = Object.values(variable.values);
   if (vals.length === 0) return "";
   const val = vals[0];
   return val.length > 20 ? val.slice(0, 20) + "\u2026" : val;
 }
 
-/** Get a swatch color from a token */
+/** Get a swatch color from a variable */
 function getSwatchColor(variable: DesignVariable): string | null {
-  for (const [prop, val] of Object.entries(token.values)) {
+  for (const [prop, val] of Object.entries(variable.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
     }
@@ -146,13 +146,13 @@ export function ColorPicker({
       e.preventDefault();
       setHighlightedIndex(curr => {
         if (curr >= 0 && curr < count) {
-          const token = filteredVariablesRef.current[curr];
-          if (token) {
+          const v = filteredVariablesRef.current[curr];
+          if (v) {
             const props = propertyRef.current ? [propertyRef.current] : [];
             if (currentVariableRef.current) {
-              onVariableSelectRef.current?.(currentVariableRef.current, token, props);
+              onVariableSelectRef.current?.(currentVariableRef.current, v, props);
             } else {
-              onVariableApplyRef.current?.(token, props);
+              onVariableApplyRef.current?.(v, props);
             }
             onCloseRef.current();
           }
@@ -174,13 +174,13 @@ export function ColorPicker({
       e.preventDefault();
       e.stopPropagation();
       const idx = parseInt(item.dataset.tokenIndex!, 10);
-      const token = filteredVariablesRef.current[idx];
-      if (token) {
+      const v = filteredVariablesRef.current[idx];
+      if (v) {
         const props = propertyRef.current ? [propertyRef.current] : [];
         if (currentVariableRef.current) {
-          onVariableSelectRef.current?.(currentVariableRef.current, token, props);
+          onVariableSelectRef.current?.(currentVariableRef.current, v, props);
         } else {
-          onVariableApplyRef.current?.(token, props);
+          onVariableApplyRef.current?.(v, props);
         }
         onCloseRef.current();
       }
@@ -506,20 +506,20 @@ export function ColorPicker({
       {filteredVariables.length === 0 && (
         <div className="retune-variable-dialog-empty">No variables found</div>
       )}
-      {filteredVariables.map((token, i) => {
-        const isActive = currentVariable?.className === token.className;
+      {filteredVariables.map((v, i) => {
+        const isActive = currentVariable?.className === v.className;
         const isHighlighted = i === highlightedIndex;
         return (
           <div
-            key={token.className}
+            key={v.className}
             className={`retune-variable-dialog-item${isActive ? " retune-variable-dialog-item-active" : ""}${isHighlighted ? " retune-variable-dialog-item-highlighted" : ""}`}
             data-token-index={i}
           >
             <span
               className="retune-variable-dialog-swatch"
-              style={{ backgroundColor: getSwatchColor(token) || "transparent" }}
+              style={{ backgroundColor: getSwatchColor(v) || "transparent" }}
             />
-            <span className="retune-variable-dialog-name">{formatVarName(token.className)}</span>
+            <span className="retune-variable-dialog-name">{formatVarName(v.className)}</span>
           </div>
         );
       })}
