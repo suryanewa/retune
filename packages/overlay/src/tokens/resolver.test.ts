@@ -178,4 +178,58 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
     expect(matches.has("column-gap")).toBe(true);
     expect(matches.get("row-gap")!.token.className).toBe("var(--spacing-4)");
   });
+
+  it("tryClear: inline raw value after var shorthand clears the var match", () => {
+    // Simulate realistic browser order: shorthand longhands iterated first (from shorthand),
+    // then a separate inline property overrides one longhand.
+    // First element has shorthand var for all padding:
+    const el1 = mockElement(
+      { "padding-top": "", "padding-right": "", "padding-bottom": "", "padding-left": "" },
+      { shorthandValues: { padding: "var(--spacing-4)" } },
+    );
+    const matches1 = resolveTokensForElement(el1, { paddingTop: "16px" });
+    expect(matches1.has("padding-right")).toBe(true); // var from shorthand
+
+    // Second element: same shorthand but padding-right has a raw inline override
+    // In real browsers, the raw longhand appears in style.item() AFTER shorthand expansion
+    // and getPropertyValue returns the raw value for that specific longhand
+    const el2 = mockElement(
+      {
+        "padding-top": "var(--spacing-4)",
+        "padding-right": "40px",  // raw override
+        "padding-bottom": "var(--spacing-4)",
+        "padding-left": "var(--spacing-4)",
+      },
+    );
+    const matches2 = resolveTokensForElement(el2, { paddingTop: "16px", paddingRight: "40px" });
+    expect(matches2.has("padding-top")).toBe(true);
+    expect(matches2.has("padding-right")).toBe(false); // cleared by tryClear
+    expect(matches2.has("padding-bottom")).toBe(true);
+    expect(matches2.has("padding-left")).toBe(true);
+  });
+
+  it("tryClear: does not clear when value contains var()", () => {
+    const el = mockElement({
+      color: "var(--color-brand)",
+      "font-size": "var(--font-sm)",
+    });
+    const matches = resolveTokensForElement(el, { color: "#2563eb", fontSize: "14px" });
+    // Both should have var matches (tryClear skips var() values)
+    expect(matches.has("color")).toBe(true);
+    expect(matches.has("font-size")).toBe(true);
+  });
+
+  it("tryClear: does not clear on empty value", () => {
+    // Simulate: shorthand expansion artifact where longhand has empty value
+    const el = mockElement(
+      { "padding-top": "", "padding-right": "", "padding-bottom": "", "padding-left": "" },
+      { shorthandValues: { padding: "var(--spacing-4)" } },
+    );
+    const matches = resolveTokensForElement(el, { paddingTop: "16px" });
+    // All should have var matches (empty strings don't trigger tryClear)
+    expect(matches.has("padding-top")).toBe(true);
+    expect(matches.has("padding-right")).toBe(true);
+    expect(matches.has("padding-bottom")).toBe(true);
+    expect(matches.has("padding-left")).toBe(true);
+  });
 });

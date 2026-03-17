@@ -563,6 +563,8 @@
 }
 
 .retune-section:last-child { border-bottom: none; }
+/* Remove border from last section when followed by non-section elements (e.g., scroll anchor) */
+.retune-section:has(+ :not(.retune-section)) { border-bottom: none; }
 
 .retune-section-header {
   display: flex;
