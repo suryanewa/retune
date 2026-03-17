@@ -725,7 +725,7 @@ export function PropertyPanel({
             const field = fieldRef.current;
             if (!field) { setBridgeVisible(newBridges); return; }
 
-            const DURATION = 220;
+            const DURATION = 320;
             const EASING = 'cubic-bezier(0.77, 0, 0.175, 1)';
             const EXTEND = 4;
             const getPill = (idx: number) => field.querySelector<HTMLElement>(`[data-level-index="${idx}"]`);
@@ -750,16 +750,6 @@ export function PropertyPanel({
                 pill.style.backgroundColor = old.bg;
                 pill.style.color = old.color;
                 frozenPills.push(pill);
-              }
-            }
-
-            // Hide disappearing bridges
-            for (const bridgeIdx of disappearing) {
-              const leftPill = getPill(bridgeIdx);
-              if (!leftPill) continue;
-              const bridge = leftPill.nextElementSibling as HTMLElement | null;
-              if (bridge?.classList.contains('retune-selector-bridge')) {
-                bridge.style.opacity = '0';
               }
             }
 
