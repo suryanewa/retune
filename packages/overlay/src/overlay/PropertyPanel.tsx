@@ -172,6 +172,7 @@ export function PropertyPanel({
   scopeLevels = [] as ScopeLevel[],
   activeLevelIndex = 0,
   onScopeLevelChange,
+  ownedProperties,
   styleSources = {},
   forcedState = null,
   onForcedStateChange,
@@ -199,6 +200,8 @@ export function PropertyPanel({
   scopeLevels?: ScopeLevel[];
   activeLevelIndex?: number;
   onScopeLevelChange?: (index: number) => void;
+  /** Properties owned by CSS rules matching the active scope. undefined = show all. */
+  ownedProperties?: Set<string>;
   styleSources?: Record<string, StyleSource>;
   forcedState?: ForcedState;
   onForcedStateChange?: (state: ForcedState) => void;
@@ -296,13 +299,20 @@ export function PropertyPanel({
     };
   }, [getVariableMatch, handleTokenSelect, handleTokenApply, handleTokenUnlink]);
 
-  // Token props for ShorthandInput — finds the first matching token among the shorthand's props
+  // Token props for ShorthandInput — only shows variable indicator when ALL props share the same variable
   const shorthandTokenProps = useCallback((camelProps: string[]) => {
-    for (const p of camelProps) {
-      const match = getVariableMatch(p);
-      if (match) return {
-        tokenMatch: match, property: p, onTokenSelect: handleTokenSelect, onTokenApply: handleTokenApply,
-        // Unlink ALL properties in the shorthand group so one click detaches fully
+    const allMatches = camelProps.map(p => getVariableMatch(p));
+    const firstMatch = allMatches.find(m => m !== undefined);
+    if (!firstMatch) return { property: camelProps[0], onTokenApply: handleTokenApply };
+
+    // Only show as variable-applied when ALL properties share the same variable
+    const allSameVar = allMatches.every(
+      m => m !== undefined && m.token.className === firstMatch.token.className
+    );
+    if (allSameVar) {
+      return {
+        tokenMatch: firstMatch, property: camelProps[0],
+        onTokenSelect: handleTokenSelect, onTokenApply: handleTokenApply,
         onTokenUnlink: () => onTokenUnlink?.(camelProps),
       };
     }

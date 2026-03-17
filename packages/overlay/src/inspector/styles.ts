@@ -302,12 +302,18 @@ export function getStyleSources(element: Element): Record<string, StyleSource> {
  *
  * For properties not set by any matching rule, falls back to computed style.
  */
+export interface ScopedStyleResult {
+  styles: Record<string, string>;
+  /** camelCase properties that are set by CSS rules matching the scope selector */
+  ownedProperties: Set<string>;
+}
+
 export function getScopedStyles(
   element: Element,
   scopeSelector: string,
-): Record<string, string> {
-  // Collect values from rules that belong to this scope
-  const scopedValues: Record<string, string> = {};
+): ScopedStyleResult {
+  // Collect properties owned by rules matching this scope
+  const ownedProperties = new Set<string>();
 
   // Extract the class names from the scope selector (e.g. ".toc-link" → ["toc-link"])
   const scopeClasses = scopeSelector.match(/\.[a-zA-Z0-9_-]+/g) || [];
@@ -333,11 +339,7 @@ export function getScopedStyles(
       for (let j = 0; j < rule.style.length; j++) {
         const prop = rule.style[j];
         const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        let value = rule.style.getPropertyValue(prop);
-        if (value === "normal" && NORMAL_TO_ZERO.has(camel)) {
-          value = "0px";
-        }
-        scopedValues[camel] = value;
+        ownedProperties.add(camel);
       }
     }
   }
@@ -350,7 +352,6 @@ export function getScopedStyles(
 
   // ALWAYS use computed values for display accuracy — authored rule values
   // don't expand shorthands (e.g. "padding: 8px 16px" doesn't yield paddingLeft).
-  // Scoped rules are only used in the output/change-tracking layer, not for display.
   const computed = window.getComputedStyle(element);
   const styles: Record<string, string> = {};
 
@@ -364,7 +365,7 @@ export function getScopedStyles(
     }
   }
 
-  return styles;
+  return { styles, ownedProperties };
 }
 
 // Properties where "normal" should be resolved to "0px" for usability

@@ -125,13 +125,21 @@ function resolveVarTokens(element: Element, matches: Map<string, TokenMatch>): v
     }
   };
 
-  // Check inline styles
+  /** Clear a var match when a higher-specificity rule overrides with a raw value */
+  const tryClear = (prop: string, raw: string) => {
+    if (!raw || raw === "") return;     // shorthand expansion artifact, skip
+    if (raw.includes("var(")) return;   // still a var reference, don't clear
+    matches.delete(prop);               // raw value overrides previous var match
+  };
+
+  // Check inline styles (highest priority — clears any stylesheet var match)
   if (htmlEl.style && htmlEl.style.length > 0) {
     // First check longhand properties from style.item()
     for (let i = 0; i < htmlEl.style.length; i++) {
       const prop = htmlEl.style.item(i);
       const raw = htmlEl.style.getPropertyValue(prop);
       tryMatch(prop, raw);
+      tryClear(prop, raw);
     }
 
     // Then check shorthands — browsers expand them into longhands with empty
@@ -154,6 +162,7 @@ function resolveVarTokens(element: Element, matches: Map<string, TokenMatch>): v
             const prop = rule.style.item(i);
             const raw = rule.style.getPropertyValue(prop);
             tryMatch(prop, raw);
+            tryClear(prop, raw);
           }
           // Also check shorthands in stylesheet rules
           for (const shorthand of Object.keys(SHORTHAND_LONGHANDS)) {

@@ -157,6 +157,8 @@ function RetuneInner(props: RetuneConfig) {
   const [copied, setCopied] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
+  // Properties owned by CSS rules matching the active scope selector (undefined = show all)
+  const [ownedProperties, setOwnedProperties] = useState<Set<string> | undefined>(undefined);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
@@ -321,7 +323,11 @@ function RetuneInner(props: RetuneConfig) {
 
         // Apply scoped styles if a class selector is the default
         if (newActiveSelector) {
-          inspected.computedStyles = getScopedStyles(element, newActiveSelector);
+          const scoped = getScopedStyles(element, newActiveSelector);
+          inspected.computedStyles = scoped.styles;
+          setOwnedProperties(scoped.ownedProperties);
+        } else {
+          setOwnedProperties(undefined);
         }
 
         // Overlay preview changes so re-selecting a previously edited element
@@ -469,7 +475,9 @@ function RetuneInner(props: RetuneConfig) {
       const inspected = inspectElement(prev.element);
       const scope = activeSelectorRef.current;
       if (scope) {
-        inspected.computedStyles = getScopedStyles(prev.element, scope);
+        const scoped = getScopedStyles(prev.element, scope);
+        inspected.computedStyles = scoped.styles;
+        setOwnedProperties(scoped.ownedProperties);
       }
       // Overlay preview changes so the panel reflects what the user changed.
       // State-aware: only merge changes relevant to the current view.
@@ -1179,6 +1187,7 @@ function RetuneInner(props: RetuneConfig) {
                 scopeLevels={scopeLevels}
                 activeLevelIndex={activeLevelIndex}
                 onScopeLevelChange={handleScopeLevelChange}
+                ownedProperties={ownedProperties}
                 styleSources={styleSources}
                 forcedState={forcedState}
                 onForcedStateChange={handleForcedStateChange}
