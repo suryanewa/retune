@@ -374,6 +374,7 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
         className="retune-combo-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={displayValue}
+        placeholder="–"
         onPointerDown={!label ? handleInputPointerDown : undefined}
         onPointerMove={!label ? handleInputPointerMove : undefined}
         onPointerUp={!label ? handleInputPointerUp : undefined}

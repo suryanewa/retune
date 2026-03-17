@@ -206,7 +206,11 @@ export function PropertyPanel({
   forcedState?: ForcedState;
   onForcedStateChange?: (state: ForcedState) => void;
 }) {
-  const s = element.computedStyles;
+  const rawStyles = element.computedStyles;
+
+  // Scope-aware styles: getScopedStyles already returns scoped values for owned
+  // properties and computed values for the rest. No Proxy needed.
+  const s = rawStyles;
 
   // ── Token resolution ──
   const tokenMatches = useMemo(() => {

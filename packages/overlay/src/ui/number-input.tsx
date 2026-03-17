@@ -202,7 +202,7 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         className="retune-prop-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
-        placeholder={placeholder}
+        placeholder={placeholder || "–"}
         readOnly={!!tokenMatch}
         onClick={handleInputClick}
         onPointerDown={!label && !tokenMatch ? handleInputPointerDown : undefined}

@@ -201,7 +201,7 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
       <input
         className="retune-prop-input"
         value={localValue}
-        placeholder={placeholder}
+        placeholder={placeholder || "–"}
         readOnly={!!tokenMatch}
         onClick={handleInputClick}
         onPointerDown={!label && !tokenMatch ? handleInputPointerDown : undefined}

@@ -312,11 +312,17 @@ export function getScopedStyles(
   element: Element,
   scopeSelector: string,
 ): ScopedStyleResult {
-  // Collect properties owned by rules matching this scope
+  // Collect owned properties AND their resolved values from scope-matching rules.
+  // A probe element resolves var() references to actual values.
   const ownedProperties = new Set<string>();
+  const scopedValues: Record<string, string> = {};
 
-  // Extract the class names from the scope selector (e.g. ".toc-link" → ["toc-link"])
   const scopeClasses = scopeSelector.match(/\.[a-zA-Z0-9_-]+/g) || [];
+
+  // Probe element for resolving var() values
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;";
+  document.body.appendChild(probe);
 
   function walkScopedRules(rules: CSSRuleList) {
     for (let i = 0; i < rules.length; i++) {
@@ -332,14 +338,37 @@ export function getScopedStyles(
       try { if (!element.matches(sel)) continue; } catch { continue; }
 
       const ruleClasses = sel.match(/\.[a-zA-Z0-9_-]+/g) || [];
-      const hasScopeClass = scopeClasses.every((sc) => ruleClasses.includes(sc));
-      const extraClasses = ruleClasses.filter((rc) => !scopeClasses.includes(rc));
-      if (!hasScopeClass || extraClasses.length > 0) continue;
+      // Skip rules with no classes (universal selectors like *, ::before, tag selectors)
+      if (ruleClasses.length === 0) continue;
+      const ruleWithinScope = ruleClasses.every((rc) => scopeClasses.includes(rc));
+      if (!ruleWithinScope) continue;
 
       for (let j = 0; j < rule.style.length; j++) {
         const prop = rule.style[j];
         const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
         ownedProperties.add(camel);
+
+        // Resolve the value (handles var() references via probe)
+        let val = rule.style.getPropertyValue(prop).trim();
+
+        // If longhand value is empty, check if it came from a shorthand
+        if (!val) {
+          for (const sh of ["padding", "margin", "border-radius", "gap", "border-width", "border-color", "border-style"]) {
+            const shVal = rule.style.getPropertyValue(sh).trim();
+            if (shVal && prop.startsWith(sh.split("-")[0])) {
+              // Apply shorthand to probe and read the resolved longhand
+              probe.style.setProperty(sh, shVal);
+              val = getComputedStyle(probe).getPropertyValue(prop).trim();
+              probe.style.removeProperty(sh);
+              break;
+            }
+          }
+        } else if (val.includes("var(")) {
+          probe.style.setProperty(prop, val);
+          val = getComputedStyle(probe).getPropertyValue(prop).trim();
+          probe.style.removeProperty(prop);
+        }
+        if (val) scopedValues[camel] = val;
       }
     }
   }
@@ -350,12 +379,20 @@ export function getScopedStyles(
     walkScopedRules(rules);
   }
 
-  // ALWAYS use computed values for display accuracy — authored rule values
-  // don't expand shorthands (e.g. "padding: 8px 16px" doesn't yield paddingLeft).
+  probe.remove();
+
+  // Use scoped values for owned properties, computed values for everything else.
+  // This ensures .alert's padding shows its own value (16px), not the cascade
+  // result after .alert-dismissible overrides padding-right to 40px.
   const computed = window.getComputedStyle(element);
   const styles: Record<string, string> = {};
 
   for (const prop of ALL_PROPS) {
+    // Prefer scoped value if this property is owned by a matching rule
+    if (scopedValues[prop]) {
+      styles[prop] = scopedValues[prop];
+      continue;
+    }
     let value = computed.getPropertyValue(camelToKebab(prop));
     if (value) {
       if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {

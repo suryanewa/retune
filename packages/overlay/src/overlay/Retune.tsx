@@ -469,15 +469,24 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
   syncTrackerStateRef.current = syncTrackerState;
 
+  // Flag to skip ownedProperties update in refreshSelectedElement when it was just set directly
+  const skipOwnedUpdateRef = useRef(false);
+
   const refreshSelectedElement = useCallback(() => {
+    // Compute scoped styles once, use for both ownedProperties and computedStyles
+    const el = selectedElementRef.current?.element;
+    const scope = activeSelectorRef.current;
+    const scopedResult = el && scope ? getScopedStyles(el, scope) : null;
+    if (!skipOwnedUpdateRef.current) {
+      setOwnedProperties(scopedResult?.ownedProperties);
+    }
+    skipOwnedUpdateRef.current = false;
+
     setSelectedElement((prev) => {
       if (!prev?.element) return prev;
       const inspected = inspectElement(prev.element);
-      const scope = activeSelectorRef.current;
-      if (scope) {
-        const scoped = getScopedStyles(prev.element, scope);
-        inspected.computedStyles = scoped.styles;
-        setOwnedProperties(scoped.ownedProperties);
+      if (scopedResult) {
+        inspected.computedStyles = scopedResult.styles;
       }
       // Overlay preview changes so the panel reflects what the user changed.
       // State-aware: only merge changes relevant to the current view.
@@ -997,6 +1006,19 @@ function RetuneInner(props: RetuneConfig) {
     activeLevelIndexRef.current = index;
     setActiveLevelIndex(index);
 
+    // Eagerly update activeSelectorRef so refreshSelectedElement reads the new scope
+    activeSelectorRef.current = newSelector;
+
+    // Update ownedProperties immediately (can't wait for render since activeSelector is derived)
+    if (newSelector && el.element) {
+      const scoped = getScopedStyles(el.element, newSelector);
+      setOwnedProperties(scoped.ownedProperties);
+    } else {
+      setOwnedProperties(undefined);
+    }
+
+    // Skip the ownedProperties update in refreshSelectedElement — we just set it with the correct scope
+    skipOwnedUpdateRef.current = true;
     if (forcedStateRef.current) syncForcedInlineStyles();
     refreshSelectedElement();
   }, [migrateSelector, syncForcedInlineStyles, refreshSelectedElement]);
