@@ -428,7 +428,6 @@
   background: #E7E5E4;
   flex-shrink: 0;
   align-self: center;
-  margin: 0 8px;
 }
 
 /* ── Tab bar ── */
@@ -2361,7 +2360,7 @@
 .retune-change-dot {
   position: absolute;
   top: -8px;
-  left: -8px;
+  right: -8px;
   width: 16px;
   height: 16px;
   z-index: 3;
