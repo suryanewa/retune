@@ -287,17 +287,8 @@ export function FontInput({ prop, value, onChange, isChanged, onReset }: FontInp
               </>
             )}
 
-            {/* System fonts */}
-            {systemFonts === null && (fontCategory === "all" || fontCategory === "system") ? (
-              <div className="retune-font-system-prompt">
-                <button
-                  className="retune-font-system-btn"
-                  data-font-name="__load_system"
-                >
-                  Load system fonts
-                </button>
-              </div>
-            ) : filteredSystem.length > 0 ? (
+            {/* System fonts (loaded) */}
+            {filteredSystem.length > 0 && (
               <>
                 <div className="retune-font-section-title">System fonts</div>
                 {filteredSystem.map(font => {
@@ -315,7 +306,7 @@ export function FontInput({ prop, value, onChange, isChanged, onReset }: FontInp
                   );
                 })}
               </>
-            ) : null}
+            )}
 
             {/* Fallback fonts */}
             {filteredFallbacks.length > 0 && (
@@ -340,6 +331,18 @@ export function FontInput({ prop, value, onChange, isChanged, onReset }: FontInp
 
             {allFiltered.length === 0 && (
               <div className="retune-font-empty">No fonts found</div>
+            )}
+
+            {/* Load system fonts button (shown at end when not yet loaded) */}
+            {systemFonts === null && (fontCategory === "all" || fontCategory === "system") && (
+              <div className="retune-font-system-prompt">
+                <button
+                  className="retune-font-system-btn"
+                  data-font-name="__load_system"
+                >
+                  Load system fonts
+                </button>
+              </div>
             )}
           </div>
         </FloatingDialog>,
