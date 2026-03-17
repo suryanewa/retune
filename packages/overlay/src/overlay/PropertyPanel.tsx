@@ -727,7 +727,7 @@ export function PropertyPanel({
 
             const DURATION = 320;
             const EASING = 'cubic-bezier(0.77, 0, 0.175, 1)';
-            const EXTEND = 4;
+            const EXTEND = 6;
             const getPill = (idx: number) => field.querySelector<HTMLElement>(`[data-level-index="${idx}"]`);
 
             const allBridges = [...appearing, ...disappearing];
@@ -808,11 +808,21 @@ export function PropertyPanel({
                         data-level-index={index}
                         onClick={() => onScopeLevelChange(index)}
                       >
-                        <span className="retune-selector-tag-name" title={level.label}>
-                          {middleTruncate(level.label, 24)}
-                        </span>
+                        {level.label.length > 24 ? (
+                          <Tooltip content={level.label} side="bottom" delay={300}>
+                            <span className="retune-selector-tag-name">
+                              {middleTruncate(level.label, 24)}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="retune-selector-tag-name">
+                            {level.label}
+                          </span>
+                        )}
                         {level.count > 1 && (
-                          <span className="retune-selector-tag-count">{level.count}</span>
+                          <Tooltip content={`${level.count} elements match this selector`} side="bottom" delay={300}>
+                            <span className="retune-selector-tag-count">{level.count}</span>
+                          </Tooltip>
                         )}
                       </button>
                       {showBridge && (
