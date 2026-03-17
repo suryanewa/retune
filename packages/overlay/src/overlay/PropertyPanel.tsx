@@ -1558,37 +1558,82 @@ export function PropertyPanel({
       </Section>
 
       {/* Fill */}
-      <Section
-        label="Fill"
-        gap={8}
-        action={
-          hasFill ? (
-            <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
-          ) : (
-            <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
-          )
-        }
-      >
-        {hasFill && (
-          <>
-            <Row>
-              <SelectInput
-                prop="fillMode"
-                value={fillMode === "solid" ? "solid" : gradient.type}
-                options={["solid", "linear", "radial", "conic"]}
-                onChange={handleFillModeChange}
-              />
-            </Row>
-            {fillMode === "solid" ? (
+      {(() => {
+        const fillVarMatch = getVariableMatch("backgroundColor");
+        const fillHasVariable = !!fillVarMatch;
+
+        return (
+          <Section
+            label="Fill"
+            gap={8}
+            action={
+              <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                {!fillHasVariable && (
+                  <VariableAction
+                    property="backgroundColor"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={(v, props) => {
+                      const val = Object.values(v.values)[0];
+                      if (val) onPropertyChange("backgroundColor", val);
+                      onVariableAssociate?.(props, { className: v.className, values: v.values });
+                    }}
+                  />
+                )}
+                {hasFill || fillHasVariable ? (
+                  <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
+                ) : (
+                  <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
+                )}
+              </div>
+            }
+          >
+            {fillHasVariable ? (
               <Row>
-                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
+                <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1 }}>
+                  <ChangeIndicator isChanged={changeProps("backgroundColor").isChanged} onReset={changeProps("backgroundColor").onReset} />
+                  <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
+                    {fillVarMatch.variable.className.startsWith("var(--")
+                      ? fillVarMatch.variable.className.slice(6, -1)
+                      : fillVarMatch.variable.className}
+                  </span>
+                  <VariableAction
+                    match={fillVarMatch}
+                    property="backgroundColor"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={handleVariableApply}
+                    onVariableUnlink={() => onVariableUnlink?.(["backgroundColor"])}
+                  />
+                </div>
               </Row>
-            ) : (
-              <GradientEditor gradient={gradient} onChange={handleGradientChange} />
-            )}
-          </>
-        )}
-      </Section>
+            ) : hasFill ? (
+              <>
+                <Row>
+                  <SelectInput
+                    prop="fillMode"
+                    value={fillMode === "solid" ? "solid" : gradient.type}
+                    options={["solid", "linear", "radial", "conic"]}
+                    onChange={handleFillModeChange}
+                    isChanged={changeProps("backgroundImage").isChanged}
+                    onReset={() => { onPropertyReset?.("backgroundImage"); onPropertyReset?.("backgroundColor"); }}
+                  />
+                </Row>
+                {fillMode === "solid" ? (
+                  <Row>
+                    <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
+                  </Row>
+                ) : (
+                  <GradientEditor
+                    gradient={gradient}
+                    onChange={handleGradientChange}
+                    originalGradient={detectedFillMode !== "solid" ? parseCssGradient(element.computedStyles?.backgroundImage || "") ?? undefined : undefined}
+                    isNewGradient={detectedFillMode === "solid"}
+                  />
+                )}
+              </>
+            ) : null}
+          </Section>
+        );
+      })()}
 
       {/* Border */}
       <Section
