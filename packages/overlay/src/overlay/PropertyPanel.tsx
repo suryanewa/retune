@@ -449,6 +449,14 @@ export function PropertyPanel({
   // ── Fill mode (solid vs gradient) ──
   const detectedFillMode = detectFillMode(s.backgroundColor, s.backgroundImage);
   const [fillMode, setFillMode] = useState<FillMode>(detectedFillMode);
+  // Capture the ORIGINAL fill mode and gradient at mount time (for change tracking)
+  const [initialFillMode] = useState<FillMode>(detectedFillMode);
+  const [initialGradient] = useState<GradientFill | null>(() => {
+    if (s.backgroundImage && s.backgroundImage !== "none") {
+      return parseCssGradient(s.backgroundImage) ?? null;
+    }
+    return null;
+  });
   const [gradient, setGradient] = useState<GradientFill>(() => {
     if (s.backgroundImage && s.backgroundImage !== "none") {
       const parsed = parseCssGradient(s.backgroundImage);
@@ -1625,8 +1633,8 @@ export function PropertyPanel({
                   <GradientEditor
                     gradient={gradient}
                     onChange={handleGradientChange}
-                    originalGradient={detectedFillMode !== "solid" ? parseCssGradient(element.computedStyles?.backgroundImage || "") ?? undefined : undefined}
-                    isNewGradient={detectedFillMode === "solid"}
+                    originalGradient={initialGradient ?? undefined}
+                    isNewGradient={initialFillMode === "solid"}
                   />
                 )}
               </>
