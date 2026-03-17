@@ -1,7 +1,7 @@
-import type { TokenCategory } from "./types";
+import type { VariableCategory } from "./types";
 
 /** Map CSS properties to token categories */
-const PROPERTY_CATEGORY: Record<string, TokenCategory> = {
+const PROPERTY_CATEGORY: Record<string, VariableCategory> = {
   // Spacing
   "padding": "spacing", "padding-top": "spacing", "padding-right": "spacing",
   "padding-bottom": "spacing", "padding-left": "spacing",
@@ -44,19 +44,19 @@ const PROPERTY_CATEGORY: Record<string, TokenCategory> = {
 };
 
 /** Get the token category for a CSS property, or null if not categorized */
-export function getCategoryForProperty(prop: string): TokenCategory | null {
+export function getCategoryForProperty(prop: string): VariableCategory | null {
   return PROPERTY_CATEGORY[prop] ?? null;
 }
 
 /** Get all CSS properties that belong to a category */
-export function getPropertiesForCategory(category: TokenCategory): string[] {
+export function getPropertiesForCategory(category: VariableCategory): string[] {
   return Object.entries(PROPERTY_CATEGORY)
     .filter(([, cat]) => cat === category)
     .map(([prop]) => prop);
 }
 
 /** Get the category for a camelCase property name (converts to kebab-case first) */
-export function getCategoryForCamelProp(prop: string): TokenCategory | null {
+export function getCategoryForCamelProp(prop: string): VariableCategory | null {
   const kebab = prop.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
   return getCategoryForProperty(kebab);
 }

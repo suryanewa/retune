@@ -8,19 +8,19 @@
  */
 
 import { useEffect, useRef, useCallback } from "react";
-import type { UtilityToken, TokenMatch } from "../tokens/types";
-import { getAlternativeTokens } from "../tokens/resolver";
+import type { DesignVariable, VariableMatch } from "../tokens/types";
+import { getAlternativeVariables } from "../tokens/resolver";
 import { getCategoryForProperty } from "../tokens/categories";
 
 export interface TokenPickerProps {
-  match: TokenMatch;
-  onSelect: (newToken: UtilityToken) => void;
+  match: VariableMatch;
+  onSelect: (newToken: DesignVariable) => void;
   onClose: () => void;
   anchorRect: { top: number; left: number; width: number; height: number };
 }
 
 /** Format a token value for display (first property value, simplified) */
-function formatValue(token: UtilityToken): string {
+function formatValue(token: DesignVariable): string {
   const vals = Object.values(token.values);
   if (vals.length === 0) return "";
   const val = vals[0];
@@ -28,7 +28,7 @@ function formatValue(token: UtilityToken): string {
 }
 
 /** Get a swatch color if this is a color token */
-function getSwatchColor(token: UtilityToken): string | null {
+function getSwatchColor(token: DesignVariable): string | null {
   for (const [prop, val] of Object.entries(token.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
@@ -40,7 +40,7 @@ function getSwatchColor(token: UtilityToken): string | null {
 export function TokenPicker({ match, onSelect, onClose, anchorRect }: TokenPickerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const alternatives = getAlternativeTokens(match.property, match.token);
+  const alternatives = getAlternativeVariables(match.property, match.variable);
   const category = getCategoryForProperty(match.property);
   const onSelectRef = useRef(onSelect);
   onSelectRef.current = onSelect;
@@ -135,11 +135,11 @@ export function TokenPicker({ match, onSelect, onClose, anchorRect }: TokenPicke
           {isColor && (
             <span
               className="retune-token-picker-swatch"
-              style={{ backgroundColor: getSwatchColor(match.token) || "transparent" }}
+              style={{ backgroundColor: getSwatchColor(match.variable) || "transparent" }}
             />
           )}
-          <span className="retune-token-picker-name">.{match.token.className}</span>
-          <span className="retune-token-picker-value">{formatValue(match.token)}</span>
+          <span className="retune-token-picker-name">.{match.variable.className}</span>
+          <span className="retune-token-picker-value">{formatValue(match.variable)}</span>
         </div>
         {/* Alternatives */}
         {alternatives.map((token, i) => (

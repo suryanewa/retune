@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback } from "react";
 import { parseCssColor, hexToRgba } from "./color-utils";
 import { ColorPicker } from "./color-picker";
-import type { TokenMatch, UtilityToken } from "../tokens/types";
+import type { VariableMatch, DesignVariable } from "../tokens/types";
 import { ChangeIndicator } from "./change-indicator";
 import { VariableAction } from "./variable-action";
 import { claimDialog, releaseDialog } from "./dialog-singleton";
@@ -16,11 +16,11 @@ export interface ColorInputProps {
   prop: string;
   value: string | undefined;
   onChange: (prop: string, value: string) => void;
-  tokenMatch?: TokenMatch;
+  variableMatch?: VariableMatch;
   property?: string;
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, properties?: string[]) => void;
-  onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
-  onTokenUnlink?: () => void;
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */
   isChanged?: boolean;
   /** Reset this property to its original value */
@@ -35,7 +35,7 @@ function formatVarName(className: string): string {
   return className;
 }
 
-export function ColorInput({ prop, value, onChange, tokenMatch, property, onTokenSelect, onTokenApply, onTokenUnlink, isChanged, onReset }: ColorInputProps) {
+export function ColorInput({ prop, value, onChange, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: ColorInputProps) {
   const parsed = parseCssColor(value || "");
   const [hexLocal, setHexLocal] = useState(parsed.hex.replace("#", "").toUpperCase());
   const [opacityLocal, setOpacityLocal] = useState(String(parsed.opacity));
@@ -127,17 +127,17 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
   }, []);
 
   // Token apply from within the color picker (tokens tab)
-  const handlePickerTokenApply = useCallback((token: UtilityToken, properties: string[]) => {
-    onTokenApply?.(token, properties);
+  const handlePickerVariableApply = useCallback((variable: DesignVariable, properties: string[]) => {
+    onVariableApply?.(token, properties);
     releaseDialog(stableCloseRef.current);
     setPickerOpen(false);
-  }, [onTokenApply]);
+  }, [onVariableApply]);
 
-  const handlePickerTokenSelect = useCallback((oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => {
-    onTokenSelect?.(oldToken, newToken, properties);
+  const handlePickerTokenSelect = useCallback((oldToken: DesignVariable, newToken: DesignVariable, properties?: string[]) => {
+    onVariableSelect?.(oldToken, newToken, properties);
     releaseDialog(stableCloseRef.current);
     setPickerOpen(false);
-  }, [onTokenSelect]);
+  }, [onVariableSelect]);
 
   // ── Hex input ──
   const commitHex = useCallback(() => {
@@ -199,37 +199,37 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
     <div className="retune-color-row">
       <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       {/* Left half: swatch + hex (or variable name when token applied) */}
-      <div className={`retune-color-hex-section${tokenMatch ? " retune-color-variable-applied" : ""}`}>
+      <div className={`retune-color-hex-section${variableMatch ? " retune-color-variable-applied" : ""}`}>
         <div
           ref={swatchRef}
           className="retune-color-swatch"
-          onClick={tokenMatch ? handleTokenDotOpen : handleSwatchClick}
+          onClick={variableMatch ? handleTokenDotOpen : handleSwatchClick}
         >
           <div className="retune-color-swatch-inner" style={swatchStyle} />
         </div>
         <input
           className="retune-color-hex-input"
-          value={tokenMatch ? formatVarName(tokenMatch.token.className) : hexLocal}
-          readOnly={!!tokenMatch}
-          onClick={tokenMatch ? handleTokenDotOpen : undefined}
-          onChange={tokenMatch ? undefined : (e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
-          onFocus={tokenMatch ? undefined : (e) => { hexFocusedRef.current = true; e.target.select(); }}
-          onBlur={tokenMatch ? undefined : commitHex}
-          onKeyDown={tokenMatch ? undefined : (e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          value={variableMatch ? formatVarName(variableMatch.variable.className) : hexLocal}
+          readOnly={!!variableMatch}
+          onClick={variableMatch ? handleTokenDotOpen : undefined}
+          onChange={variableMatch ? undefined : (e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
+          onFocus={variableMatch ? undefined : (e) => { hexFocusedRef.current = true; e.target.select(); }}
+          onBlur={variableMatch ? undefined : commitHex}
+          onKeyDown={variableMatch ? undefined : (e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
           spellCheck={false}
         />
         <VariableAction
-          match={tokenMatch}
+          match={variableMatch}
           property={property || prop}
-          onTokenSelect={onTokenSelect}
-          onTokenApply={onTokenApply}
-          onTokenUnlink={onTokenUnlink}
+          onVariableSelect={onVariableSelect}
+          onVariableApply={onVariableApply}
+          onVariableUnlink={onVariableUnlink}
           onRequestOpen={handleTokenDotOpen}
         />
       </div>
 
       {/* Right half: opacity — hidden when variable is applied */}
-      {!tokenMatch && (
+      {!variableMatch && (
         <div className="retune-color-opacity-section">
           <input
             className="retune-color-opacity-input"
@@ -253,10 +253,10 @@ export function ColorInput({ prop, value, onChange, tokenMatch, property, onToke
           onClose={handlePickerClose}
           anchorRect={anchorRect}
           property={property || prop}
-          currentToken={tokenMatch?.token}
-          onTokenSelect={handlePickerTokenSelect}
-          onTokenApply={handlePickerTokenApply}
-          onTokenUnlink={onTokenUnlink}
+          currentVariable={variableMatch?.variable}
+          onVariableSelect={handlePickerTokenSelect}
+          onVariableApply={handlePickerVariableApply}
+          onVariableUnlink={onVariableUnlink}
           initialTab={initialTab}
         />
       )}

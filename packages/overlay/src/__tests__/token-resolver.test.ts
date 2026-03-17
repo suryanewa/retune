@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import type { UtilityToken, TokenRegistry, TokenCategory } from "../tokens/types";
+import type { DesignVariable, VariableRegistry, VariableCategory } from "../tokens/types";
 
 // ---------------------------------------------------------------------------
 // Mock the token registry at module scope (hoisted by vitest)
 // ---------------------------------------------------------------------------
-const spacingTokens: UtilityToken[] = [
-  // Raw utilities (should be excluded by getAlternativeTokens)
+const spacingTokens: DesignVariable[] = [
+  // Raw utilities (should be excluded by getAlternativeVariables)
   { className: "p-1", values: { padding: "0.25rem" }, layerName: "utilities" },
   { className: "p-2", values: { padding: "0.5rem" }, layerName: "utilities" },
   { className: "p-4", values: { padding: "1rem" }, layerName: "utilities" },
@@ -17,8 +17,8 @@ const spacingTokens: UtilityToken[] = [
   { className: "gap-sm", values: { gap: "0.5rem" }, layerName: "components" },
 ];
 
-const mockRegistry: TokenRegistry = {
-  groups: new Map<TokenCategory, UtilityToken[]>([
+const mockRegistry: VariableRegistry = {
+  groups: new Map<VariableCategory, DesignVariable[]>([
     ["spacing", spacingTokens],
   ]),
   valueLookup: new Map(),
@@ -27,20 +27,20 @@ const mockRegistry: TokenRegistry = {
 };
 
 vi.mock("../tokens/registry", () => ({
-  getTokenRegistry: () => mockRegistry,
+  getVariableRegistry: () => mockRegistry,
 }));
 
 // Import after mock declaration so vitest can wire it up
-import { isRawUtility, isTailwindUtility, getAlternativeTokens } from "../tokens/resolver";
+import { isRawUtility, isTailwindUtility, getAlternativeVariables } from "../tokens/resolver";
 
 // ---------------------------------------------------------------------------
-// Helper to create a UtilityToken
+// Helper to create a DesignVariable
 // ---------------------------------------------------------------------------
 function makeToken(
   className: string,
   values: Record<string, string>,
   layerName?: string,
-): UtilityToken {
+): DesignVariable {
   return { className, values, layerName };
 }
 
@@ -149,12 +149,12 @@ describe("isTailwindUtility", () => {
 });
 
 // ---------------------------------------------------------------------------
-// getAlternativeTokens tests
+// getAlternativeVariables tests
 // ---------------------------------------------------------------------------
-describe("getAlternativeTokens", () => {
-  // 7. getAlternativeTokens excludes raw utilities
+describe("getAlternativeVariables", () => {
+  // 7. getAlternativeVariables excludes raw utilities
   it("excludes raw utilities", () => {
-    const alternatives = getAlternativeTokens("padding");
+    const alternatives = getAlternativeVariables("padding");
     const classNames = alternatives.map((t) => t.className);
     // Should NOT include p-1, p-2, p-4 (raw utilities in @layer utilities)
     expect(classNames).not.toContain("p-1");
@@ -166,9 +166,9 @@ describe("getAlternativeTokens", () => {
     expect(classNames).toContain("spacing-lg");
   });
 
-  // 8. getAlternativeTokens only returns tokens with the exact same property
+  // 8. getAlternativeVariables only returns tokens with the exact same property
   it("only returns tokens with the exact same property", () => {
-    const alternatives = getAlternativeTokens("padding");
+    const alternatives = getAlternativeVariables("padding");
     // gap-sm has "gap" not "padding" — should be excluded
     const classNames = alternatives.map((t) => t.className);
     expect(classNames).not.toContain("gap-sm");
@@ -176,7 +176,7 @@ describe("getAlternativeTokens", () => {
 
   it("excludes the current token from results", () => {
     const current = makeToken("spacing-md", { padding: "1rem" }, "components");
-    const alternatives = getAlternativeTokens("padding", current);
+    const alternatives = getAlternativeVariables("padding", current);
     const classNames = alternatives.map((t) => t.className);
     expect(classNames).not.toContain("spacing-md");
     expect(classNames).toContain("spacing-sm");
@@ -184,14 +184,14 @@ describe("getAlternativeTokens", () => {
   });
 
   it("returns empty array for unknown properties", () => {
-    const alternatives = getAlternativeTokens("unknownProperty");
+    const alternatives = getAlternativeVariables("unknownProperty");
     expect(alternatives).toEqual([]);
   });
 
   it("accepts camelCase property names and converts to kebab-case", () => {
     // "paddingLeft" is converted to "padding-left" internally.
     // Our mock tokens only have "padding" (not "padding-left"), so no matches.
-    const alternatives = getAlternativeTokens("paddingLeft");
+    const alternatives = getAlternativeVariables("paddingLeft");
     expect(alternatives).toEqual([]);
   });
 });

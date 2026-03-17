@@ -6,32 +6,32 @@
  * and enables "swap py-3 → py-4" prescriptive output.
  */
 
-import type { UtilityToken, TokenMatch, TokenRegistry, TokenCategory } from "./types";
-import { getTokenRegistry } from "./registry";
+import type { DesignVariable, VariableMatch, VariableRegistry, VariableCategory } from "./types";
+import { getVariableRegistry } from "./registry";
 import { getCategoryForProperty } from "./categories";
 import { scanDesignTokens, type DesignToken } from "../inspector/tokens";
 
 /**
  * Resolve which tokens are active on a given element.
- * Returns a map of CSS property → TokenMatch (the token providing that value).
+ * Returns a map of CSS property → VariableMatch (the token providing that value).
  *
  * Detects two kinds of tokens:
  * 1. Utility classes: element has a class like "spacing-xl" whose values match computed styles
  * 2. CSS variables: element's applied styles (inline or from rules) use var(--name) references
  */
-export function resolveTokensForElement(
+export function resolveVariablesForElement(
   element: Element,
   computedStyles: Record<string, string>,
   /** Optional scope selector — when provided, only scan rules matching this scope */
   scopeSelector?: string,
-): Map<string, TokenMatch> {
-  const registry = getTokenRegistry();
-  const matches = new Map<string, TokenMatch>();
+): Map<string, VariableMatch> {
+  const registry = getVariableRegistry();
+  const matches = new Map<string, VariableMatch>();
 
   // ── 1. Class-based token resolution ──
   const classes = element.classList ? Array.from(element.classList) : [];
   if (classes.length > 0) {
-    const activeTokens: UtilityToken[] = [];
+    const activeTokens: DesignVariable[] = [];
     for (const cls of classes) {
       const token = registry.classLookup.get(cls);
       if (token) activeTokens.push(token);
@@ -47,7 +47,7 @@ export function resolveTokensForElement(
         const normalizedComputed = normalizeValue(computed);
 
         if (normalizedToken === normalizedComputed) {
-          matches.set(prop, { token, property: prop });
+          matches.set(prop, { variable, property: prop });
         }
       }
     }
@@ -83,13 +83,13 @@ const SHORTHAND_LONGHANDS: Record<string, string[]> = {
  * Scan an element's applied styles for var(--*) references and add matching
  * CSS variable tokens to the matches map. Class-based matches take priority.
  */
-function resolveVarTokens(element: Element, matches: Map<string, TokenMatch>, scopeSelector?: string): void {
+function resolveVarTokens(element: Element, matches: Map<string, VariableMatch>, scopeSelector?: string): void {
   const htmlEl = element as HTMLElement;
 
-  // Build a lookup of known CSS variable tokens: "--name" → UtilityToken
+  // Build a lookup of known CSS variable tokens: "--name" → DesignVariable
   const { tokens: varTokens } = getCssVarTokens();
   if (varTokens.length === 0) return;
-  const varLookup = new Map<string, UtilityToken>();
+  const varLookup = new Map<string, DesignVariable>();
   for (const t of varTokens) {
     const name = t.className.slice(4, -1); // strip "var(" and ")"
     varLookup.set(name, t);
@@ -101,29 +101,29 @@ function resolveVarTokens(element: Element, matches: Map<string, TokenMatch>, sc
     // Allow CSS variable to overwrite a raw utility match (e.g., Tailwind p-4)
     // so the variable isn't lost when the utility gets filtered in getVariableMatch
     const existing = matches.get(prop);
-    if (existing && !isRawUtility(existing.token)) return;
+    if (existing && !isRawUtility(existing.variable)) return;
 
     // Find the first var() reference that exists in our token lookup
     VAR_REF_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
-    let token: UtilityToken | undefined;
+    let variable: DesignVariable | undefined;
     while ((m = VAR_REF_RE.exec(raw)) !== null) {
-      token = varLookup.get(m[1]);
-      if (token) break;
+      variable = varLookup.get(m[1]);
+      if (variable) break;
     }
-    if (!token) return;
+    if (!variable) return;
 
     // If this is a shorthand, apply to all longhands
     const longhands = SHORTHAND_LONGHANDS[prop];
     if (longhands) {
       for (const lh of longhands) {
         const lhExisting = matches.get(lh);
-        if (!lhExisting || isRawUtility(lhExisting.token)) {
-          matches.set(lh, { token, property: lh });
+        if (!lhExisting || isRawUtility(lhExisting.variable)) {
+          matches.set(lh, { variable, property: lh });
         }
       }
     } else {
-      matches.set(prop, { token, property: prop });
+      matches.set(prop, { variable, property: prop });
     }
   };
 
@@ -196,11 +196,11 @@ function resolveVarTokens(element: Element, matches: Map<string, TokenMatch>, sc
  * Returns tokens from the same category, sorted by the registry's ordering.
  * Accepts both camelCase and kebab-case property names.
  */
-export function getAlternativeTokens(
+export function getAlternativeVariables(
   property: string,
-  currentToken?: UtilityToken,
-): UtilityToken[] {
-  const registry = getTokenRegistry();
+  currentVariable?: DesignVariable,
+): DesignVariable[] {
+  const registry = getVariableRegistry();
   // Normalize: accept both camelCase ("paddingLeft") and kebab-case ("padding-left")
   const kebab = camelToKebab(property);
   const category = getCategoryForProperty(kebab);
@@ -215,7 +215,7 @@ export function getAlternativeTokens(
     // Must affect the exact same property (token values always use kebab-case)
     if (!Object.keys(t.values).includes(kebab)) return false;
     // Exclude current token
-    if (currentToken && t.className === currentToken.className) return false;
+    if (currentVariable && t.className === currentVariable.className) return false;
     // Exclude raw utilities: @layer is the definitive signal (v3+),
     // regex fallback for projects without @layer (v1/v2)
     if (isRawUtility(t)) return false;
@@ -228,11 +228,11 @@ export function getAlternativeTokens(
  * Given a property and new value, find the token whose value best matches.
  * Accepts both camelCase and kebab-case property names.
  */
-export function findTokenForValue(
+export function findVariableForValue(
   property: string,
   value: string,
-): UtilityToken | null {
-  const registry = getTokenRegistry();
+): DesignVariable | null {
+  const registry = getVariableRegistry();
   // Normalize: accept both camelCase and kebab-case
   const kebab = camelToKebab(property);
   const key = `${kebab}:${normalizeValue(value)}`;
@@ -253,7 +253,7 @@ export function findTokenForValue(
   const numValue = parseFloat(value);
   if (isNaN(numValue)) return null;
 
-  let closest: UtilityToken | null = null;
+  let closest: DesignVariable | null = null;
   let closestDist = Infinity;
 
   for (const token of group) {
@@ -301,7 +301,7 @@ function kebabToCamel(str: string): string {
  * Fallback: regex for projects without @layer (Tailwind v1/v2, whose utility sets
  * are frozen and fully enumerable).
  */
-export function isRawUtility(token: UtilityToken): boolean {
+export function isRawUtility(token: DesignVariable): boolean {
   // Definitive: token lives in @layer utilities
   if (token.layerName === "utilities") return true;
   // No layer info — fall back to regex for legacy Tailwind (v1/v2)
@@ -321,10 +321,10 @@ export function isTailwindUtility(className: string): boolean {
 // ── CSS custom property categorization ──
 
 /** Cached CSS variable tokens */
-let cssVarTokensCache: { tokens: UtilityToken[]; byCategory: Map<TokenCategory, UtilityToken[]> } | null = null;
+let cssVarTokensCache: { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } | null = null;
 
 /** Pattern-based category detection for CSS custom property names */
-const VAR_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: TokenCategory }> = [
+const VAR_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: VariableCategory }> = [
   { pattern: /^--(spacing|space|gap|pad|margin)/i, category: "spacing" },
   { pattern: /^--(size|width|height)/i, category: "sizing" },
   { pattern: /^--(color|bg|text-color|border-color|foreground|background|accent|muted|destructive|primary|secondary)/i, category: "colors" },
@@ -334,7 +334,7 @@ const VAR_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: TokenCategory }>
 ];
 
 /** Detect category from a CSS variable value */
-function categoryFromValue(value: string): TokenCategory | null {
+function categoryFromValue(value: string): VariableCategory | null {
   const v = value.trim().toLowerCase();
   // Color values
   if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl") || v.startsWith("oklch") || v.startsWith("oklab")) {
@@ -349,7 +349,7 @@ function categoryFromValue(value: string): TokenCategory | null {
 }
 
 /** Categorize a CSS custom property into a token category */
-function categorizeVariable(token: DesignToken): TokenCategory | null {
+function categorizeVariable(token: DesignToken): VariableCategory | null {
   // Try name-based patterns first
   for (const { pattern, category } of VAR_CATEGORY_PATTERNS) {
     if (pattern.test(token.name)) return category;
@@ -358,13 +358,13 @@ function categorizeVariable(token: DesignToken): TokenCategory | null {
   return categoryFromValue(token.value);
 }
 
-/** Get CSS custom properties as UtilityToken format, grouped by category */
-function getCssVarTokens(): { tokens: UtilityToken[]; byCategory: Map<TokenCategory, UtilityToken[]> } {
+/** Get CSS custom properties as DesignVariable format, grouped by category */
+function getCssVarTokens(): { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } {
   if (cssVarTokensCache) return cssVarTokensCache;
 
   const tokenMap = scanDesignTokens();
-  const tokens: UtilityToken[] = [];
-  const byCategory = new Map<TokenCategory, UtilityToken[]>();
+  const tokens: DesignVariable[] = [];
+  const byCategory = new Map<VariableCategory, DesignVariable[]>();
   const seen = new Set<string>();
 
   for (const dt of tokenMap.tokens) {
@@ -375,7 +375,7 @@ function getCssVarTokens(): { tokens: UtilityToken[]; byCategory: Map<TokenCateg
     const category = categorizeVariable(dt);
     if (!category) continue;
 
-    const ut: UtilityToken = {
+    const ut: DesignVariable = {
       className: `var(${dt.name})`,
       values: { [dt.name]: dt.value },
     };
@@ -396,7 +396,7 @@ function getCssVarTokens(): { tokens: UtilityToken[]; byCategory: Map<TokenCateg
  * Only returns CSS variables — class-based tokens are excluded from the picker.
  * Accepts both camelCase and kebab-case property names.
  */
-export function getVariablesForProperty(property: string): UtilityToken[] {
+export function getVariablesForProperty(property: string): DesignVariable[] {
   const kebab = camelToKebab(property);
   const category = getCategoryForProperty(kebab);
   if (!category) return [];

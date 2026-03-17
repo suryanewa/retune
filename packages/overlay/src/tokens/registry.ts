@@ -3,7 +3,7 @@
  * and groups them by property category (spacing, colors, typography, etc.).
  */
 
-import type { TokenRegistry, UtilityToken, TokenCategory, CssFramework } from "./types";
+import type { VariableRegistry, DesignVariable, VariableCategory, CssFramework } from "./types";
 import { getCategoryForProperty } from "./categories";
 import {
   countAuthoredProperties,
@@ -17,11 +17,11 @@ import {
 const MAX_UTILITY_PROPS = 1;
 
 /** Cache: avoid rebuilding when stylesheets haven't changed */
-let cachedRegistry: TokenRegistry | null = null;
+let cachedRegistry: VariableRegistry | null = null;
 let cachedSheetCount = -1;
 
 /** Build or return cached token registry by scanning all accessible stylesheets */
-export function getTokenRegistry(): TokenRegistry {
+export function getVariableRegistry(): VariableRegistry {
   const sheetCount = document.styleSheets.length;
   if (cachedRegistry && cachedSheetCount === sheetCount) return cachedRegistry;
 
@@ -31,20 +31,20 @@ export function getTokenRegistry(): TokenRegistry {
 }
 
 /** Force rebuild on next call (e.g., after dynamic style injection) */
-export function invalidateTokenRegistry(): void {
+export function invalidateVariableRegistry(): void {
   cachedRegistry = null;
   cachedSheetCount = -1;
 }
 
 /** Check if the project uses Tailwind CSS */
 export function isTailwind(): boolean {
-  return getTokenRegistry().framework === "tailwind";
+  return getVariableRegistry().framework === "tailwind";
 }
 
-function buildRegistry(): TokenRegistry {
-  const groups = new Map<TokenCategory, UtilityToken[]>();
-  const valueLookup = new Map<string, UtilityToken[]>();
-  const classLookup = new Map<string, UtilityToken>();
+function buildRegistry(): VariableRegistry {
+  const groups = new Map<VariableCategory, DesignVariable[]>();
+  const valueLookup = new Map<string, DesignVariable[]>();
+  const classLookup = new Map<string, DesignVariable>();
 
   // Hidden element for resolving computed values of CSS variables
   const probe = document.createElement("div");
@@ -91,7 +91,7 @@ function detectTailwindVars(rules: CSSRuleList): boolean {
 }
 
 /** Determine framework from registry contents */
-function detectFramework(hasTwVars: boolean, classLookup: Map<string, UtilityToken>): CssFramework {
+function detectFramework(hasTwVars: boolean, classLookup: Map<string, DesignVariable>): CssFramework {
   if (hasTwVars) return "tailwind";
   // Heuristic: if many classes follow Tailwind naming patterns
   const twPattern = /^(p|m|w|h|gap|text|bg|border|rounded|shadow|opacity|font|leading|tracking|flex|grid|z|inset|top|right|bottom|left)([xytrbl])?-/;
@@ -107,9 +107,9 @@ function detectFramework(hasTwVars: boolean, classLookup: Map<string, UtilityTok
 function scanRules(
   rules: CSSRuleList,
   probe: HTMLDivElement,
-  groups: Map<TokenCategory, UtilityToken[]>,
-  valueLookup: Map<string, UtilityToken[]>,
-  classLookup: Map<string, UtilityToken>,
+  groups: Map<VariableCategory, DesignVariable[]>,
+  valueLookup: Map<string, DesignVariable[]>,
+  classLookup: Map<string, DesignVariable>,
   layerName: string | undefined,
 ): void {
   for (let i = 0; i < rules.length; i++) {
@@ -173,7 +173,7 @@ function scanRules(
 
     // Determine category — all properties must belong to the same category.
     // Multi-category classes (e.g., font-size + color) are component styles, not tokens.
-    let category: TokenCategory | null = null;
+    let category: VariableCategory | null = null;
     let multiCategory = false;
     for (const prop of Object.keys(values)) {
       const cat = getCategoryForProperty(prop);
@@ -183,7 +183,7 @@ function scanRules(
     }
     if (!category || multiCategory) continue;
 
-    const token: UtilityToken = { className, values, layerName };
+    const token: DesignVariable = { className, values, layerName };
     classLookup.set(className, token);
 
     // Add to category group
@@ -200,7 +200,7 @@ function scanRules(
 }
 
 /** Sort tokens within a category for logical picker ordering */
-function sortTokens(tokens: UtilityToken[], category: TokenCategory): UtilityToken[] {
+function sortTokens(tokens: DesignVariable[], category: VariableCategory): DesignVariable[] {
   if (category === "colors") {
     // Sort by hue (extracted from rgb/hex values)
     return tokens.sort((a, b) => {

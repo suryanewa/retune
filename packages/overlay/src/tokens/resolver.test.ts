@@ -21,7 +21,7 @@ vi.mock("../inspector/tokens", () => ({
 
 // Mock registry to return empty (picker only shows CSS variables now)
 vi.mock("./registry", () => ({
-  getTokenRegistry: vi.fn(() => ({
+  getVariableRegistry: vi.fn(() => ({
     groups: new Map(),
     valueLookup: new Map(),
     classLookup: new Map(),
@@ -29,7 +29,7 @@ vi.mock("./registry", () => ({
   })),
 }));
 
-import { getVariablesForProperty, hasVariablesForProperty, resolveTokensForElement } from "./resolver";
+import { getVariablesForProperty, hasVariablesForProperty, resolveVariablesForElement } from "./resolver";
 
 describe("Variable picker — getVariablesForProperty", () => {
   it("returns only CSS variables for spacing (no class tokens)", () => {
@@ -83,7 +83,7 @@ describe("hasVariablesForProperty — only checks CSS variables", () => {
   });
 });
 
-describe("resolveTokensForElement — detects var() in applied styles", () => {
+describe("resolveVariablesForElement — detects var() in applied styles", () => {
   function mockElement(
     iteratedProps: Record<string, string>,
     options: { classes?: string[]; shorthandValues?: Record<string, string> } = {},
@@ -107,27 +107,27 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
 
   it("detects var(--color-brand) in inline color", () => {
     const el = mockElement({ color: "var(--color-brand)" });
-    const matches = resolveTokensForElement(el, { color: "#2563eb" });
+    const matches = resolveVariablesForElement(el, { color: "#2563eb" });
     expect(matches.has("color")).toBe(true);
-    expect(matches.get("color")!.token.className).toBe("var(--color-brand)");
+    expect(matches.get("color")!.variable.className).toBe("var(--color-brand)");
   });
 
   it("detects var(--font-sm) in inline font-size", () => {
     const el = mockElement({ "font-size": "var(--font-sm)" });
-    const matches = resolveTokensForElement(el, { fontSize: "14px" });
+    const matches = resolveVariablesForElement(el, { fontSize: "14px" });
     expect(matches.has("font-size")).toBe(true);
-    expect(matches.get("font-size")!.token.className).toBe("var(--font-sm)");
+    expect(matches.get("font-size")!.variable.className).toBe("var(--font-sm)");
   });
 
   it("returns no matches for element without var() usage", () => {
     const el = mockElement({ padding: "16px" });
-    const matches = resolveTokensForElement(el, { padding: "16px" });
+    const matches = resolveVariablesForElement(el, { padding: "16px" });
     expect(matches.size).toBe(0);
   });
 
   it("returns no matches for unknown CSS variables", () => {
     const el = mockElement({ color: "var(--unknown-var)" });
-    const matches = resolveTokensForElement(el, { color: "#abc" });
+    const matches = resolveVariablesForElement(el, { color: "#abc" });
     expect(matches.size).toBe(0);
   });
 
@@ -136,13 +136,13 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       color: "var(--color-brand)",
       "font-size": "var(--font-sm)",
     });
-    const matches = resolveTokensForElement(el, {
+    const matches = resolveVariablesForElement(el, {
       color: "#2563eb",
       fontSize: "14px",
     });
     expect(matches.size).toBe(2);
-    expect(matches.get("color")!.token.className).toBe("var(--color-brand)");
-    expect(matches.get("font-size")!.token.className).toBe("var(--font-sm)");
+    expect(matches.get("color")!.variable.className).toBe("var(--color-brand)");
+    expect(matches.get("font-size")!.variable.className).toBe("var(--font-sm)");
   });
 
   it("detects shorthand padding: var() expanded to longhands", () => {
@@ -150,12 +150,12 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       { "padding-top": "", "padding-right": "", "padding-bottom": "", "padding-left": "" },
       { shorthandValues: { padding: "var(--spacing-4)" } },
     );
-    const matches = resolveTokensForElement(el, { paddingTop: "16px" });
+    const matches = resolveVariablesForElement(el, { paddingTop: "16px" });
     expect(matches.has("padding-top")).toBe(true);
     expect(matches.has("padding-right")).toBe(true);
     expect(matches.has("padding-bottom")).toBe(true);
     expect(matches.has("padding-left")).toBe(true);
-    expect(matches.get("padding-top")!.token.className).toBe("var(--spacing-4)");
+    expect(matches.get("padding-top")!.variable.className).toBe("var(--spacing-4)");
   });
 
   it("detects shorthand border-radius: var() expanded to longhands", () => {
@@ -163,9 +163,9 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       { "border-top-left-radius": "", "border-top-right-radius": "", "border-bottom-right-radius": "", "border-bottom-left-radius": "" },
       { shorthandValues: { "border-radius": "var(--radius-md)" } },
     );
-    const matches = resolveTokensForElement(el, { borderRadius: "8px" });
+    const matches = resolveVariablesForElement(el, { borderRadius: "8px" });
     expect(matches.has("border-top-left-radius")).toBe(true);
-    expect(matches.get("border-top-left-radius")!.token.className).toBe("var(--radius-md)");
+    expect(matches.get("border-top-left-radius")!.variable.className).toBe("var(--radius-md)");
   });
 
   it("detects shorthand gap: var() expanded to longhands", () => {
@@ -173,10 +173,10 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       { "row-gap": "", "column-gap": "" },
       { shorthandValues: { gap: "var(--spacing-4)" } },
     );
-    const matches = resolveTokensForElement(el, { gap: "16px" });
+    const matches = resolveVariablesForElement(el, { gap: "16px" });
     expect(matches.has("row-gap")).toBe(true);
     expect(matches.has("column-gap")).toBe(true);
-    expect(matches.get("row-gap")!.token.className).toBe("var(--spacing-4)");
+    expect(matches.get("row-gap")!.variable.className).toBe("var(--spacing-4)");
   });
 
   it("tryClear: inline raw value after var shorthand clears the var match", () => {
@@ -187,7 +187,7 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       { "padding-top": "", "padding-right": "", "padding-bottom": "", "padding-left": "" },
       { shorthandValues: { padding: "var(--spacing-4)" } },
     );
-    const matches1 = resolveTokensForElement(el1, { paddingTop: "16px" });
+    const matches1 = resolveVariablesForElement(el1, { paddingTop: "16px" });
     expect(matches1.has("padding-right")).toBe(true); // var from shorthand
 
     // Second element: same shorthand but padding-right has a raw inline override
@@ -201,7 +201,7 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
         "padding-left": "var(--spacing-4)",
       },
     );
-    const matches2 = resolveTokensForElement(el2, { paddingTop: "16px", paddingRight: "40px" });
+    const matches2 = resolveVariablesForElement(el2, { paddingTop: "16px", paddingRight: "40px" });
     expect(matches2.has("padding-top")).toBe(true);
     expect(matches2.has("padding-right")).toBe(false); // cleared by tryClear
     expect(matches2.has("padding-bottom")).toBe(true);
@@ -213,7 +213,7 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       color: "var(--color-brand)",
       "font-size": "var(--font-sm)",
     });
-    const matches = resolveTokensForElement(el, { color: "#2563eb", fontSize: "14px" });
+    const matches = resolveVariablesForElement(el, { color: "#2563eb", fontSize: "14px" });
     // Both should have var matches (tryClear skips var() values)
     expect(matches.has("color")).toBe(true);
     expect(matches.has("font-size")).toBe(true);
@@ -225,7 +225,7 @@ describe("resolveTokensForElement — detects var() in applied styles", () => {
       { "padding-top": "", "padding-right": "", "padding-bottom": "", "padding-left": "" },
       { shorthandValues: { padding: "var(--spacing-4)" } },
     );
-    const matches = resolveTokensForElement(el, { paddingTop: "16px" });
+    const matches = resolveVariablesForElement(el, { paddingTop: "16px" });
     // All should have var matches (empty strings don't trigger tryClear)
     expect(matches.has("padding-top")).toBe(true);
     expect(matches.has("padding-right")).toBe(true);

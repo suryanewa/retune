@@ -1,5 +1,5 @@
 /** A utility class token that maps to CSS properties */
-export interface UtilityToken {
+export interface DesignVariable {
   /** The class name (e.g., "py-4", "text-lg", "bg-red-500") */
   className: string;
   /** CSS properties and their resolved computed values */
@@ -9,7 +9,7 @@ export interface UtilityToken {
 }
 
 /** Token categories grouped by property type */
-export type TokenCategory =
+export type VariableCategory =
   | "spacing"
   | "sizing"
   | "colors"
@@ -22,19 +22,19 @@ export type TokenCategory =
 export type CssFramework = "tailwind" | "custom" | "unknown";
 
 /** The full registry of discovered tokens */
-export interface TokenRegistry {
+export interface VariableRegistry {
   /** Tokens grouped by category */
-  groups: Map<TokenCategory, UtilityToken[]>;
+  groups: Map<VariableCategory, DesignVariable[]>;
   /** Reverse lookup: "property:value" → matching tokens */
-  valueLookup: Map<string, UtilityToken[]>;
+  valueLookup: Map<string, DesignVariable[]>;
   /** Forward lookup: className → token */
-  classLookup: Map<string, UtilityToken>;
+  classLookup: Map<string, DesignVariable>;
   /** Detected CSS framework (tailwind, custom, unknown) */
   framework: CssFramework;
 }
 
 /** Which token currently provides a property's value on the selected element */
-export interface TokenMatch {
-  token: UtilityToken;
+export interface VariableMatch {
+  variable: DesignVariable;
   property: string;
 }

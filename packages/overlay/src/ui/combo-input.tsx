@@ -13,10 +13,10 @@ import { calcMenuPosition, type MenuPosition } from "./menu-position";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
 import { ChevronDown } from "./icons";
 import { useScrollLock } from "./use-scroll-lock";
-import type { TokenMatch, UtilityToken } from "../tokens/types";
+import type { VariableMatch, DesignVariable } from "../tokens/types";
 import { hasVariablesForProperty } from "../tokens/resolver";
 import { ChangeIndicator } from "./change-indicator";
-import { TokenDialog } from "./token-dialog";
+import { VariableDialog } from "./variable-dialog";
 import { claimDialog, releaseDialog } from "./dialog-singleton";
 import { Tooltip } from "./tooltip";
 
@@ -32,21 +32,21 @@ export interface ComboInputProps {
   options: ComboOption[];
   onChange: (prop: string, value: string) => void;
   /** Token match — shows a dot indicator when the value comes from a utility token */
-  tokenMatch?: TokenMatch;
+  variableMatch?: VariableMatch;
   /** CSS property name for token availability detection */
   property?: string;
   /** Callback when user picks a different token from the picker */
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken) => void;
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable) => void;
   /** Callback when user applies a token from scratch (no existing token) */
-  onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
-  onTokenUnlink?: () => void;
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */
   isChanged?: boolean;
   /** Reset this property to its original value */
   onReset?: () => void;
 }
 
-export function ComboInput({ label, prop, value, options, onChange, tokenMatch, property, onTokenSelect, onTokenApply, onTokenUnlink, isChanged, onReset }: ComboInputProps) {
+export function ComboInput({ label, prop, value, options, onChange, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: ComboInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
@@ -65,9 +65,9 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
   // "Add variable" option appended to dropdown when variables are available
   const ADD_VARIABLE_VALUE = "__add_variable__";
   const allOptions = useMemo(() => {
-    if (!hasAvailable || tokenMatch) return options;
+    if (!hasAvailable || variableMatch) return options;
     return [...options, { value: ADD_VARIABLE_VALUE, label: "Add variable", separatorBefore: true }];
-  }, [options, hasAvailable, tokenMatch]);
+  }, [options, hasAvailable, variableMatch]);
 
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue) {
@@ -267,13 +267,13 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
     setPickerOpen(false);
   }, []);
 
-  const handleTokenSelectInternal = useCallback((token: UtilityToken) => {
-    if (tokenMatch) {
-      onTokenSelect?.(tokenMatch.token, token);
+  const handleVariableSelectInternal = useCallback((variable: DesignVariable) => {
+    if (variableMatch) {
+      onVariableSelect?.(variableMatch.variable, token);
     } else {
-      onTokenApply?.(token, [property || prop]);
+      onVariableApply?.(token, [property || prop]);
     }
-  }, [tokenMatch, property, prop, onTokenSelect, onTokenApply]);
+  }, [variableMatch, property, prop, onVariableSelect, onVariableApply]);
 
   const handleOptionSelect = (option: DropdownMenuOption) => {
     if (option.value === ADD_VARIABLE_VALUE) {
@@ -287,8 +287,8 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
   };
 
   // Ref callback for unlink icon: native pointerdown for Shadow DOM compatibility
-  const onTokenUnlinkRef = useRef(onTokenUnlink);
-  onTokenUnlinkRef.current = onTokenUnlink;
+  const onVariableUnlinkRef = useRef(onVariableUnlink);
+  onVariableUnlinkRef.current = onVariableUnlink;
   const unlinkElRef = useRef<HTMLSpanElement | null>(null);
   const unlinkHandlerRef = useRef<((e: PointerEvent) => void) | null>(null);
   const unlinkRef = useCallback((el: HTMLSpanElement | null) => {
@@ -301,7 +301,7 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
       const handler = (e: PointerEvent) => {
         e.stopPropagation();
         e.preventDefault();
-        onTokenUnlinkRef.current?.();
+        onVariableUnlinkRef.current?.();
       };
       unlinkHandlerRef.current = handler;
       el.addEventListener("pointerdown", handler);
@@ -314,7 +314,7 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
     : null;
 
   // Variable-applied transformation: render as number-input-like display
-  if (tokenMatch) {
+  if (variableMatch) {
     return (
       <div className="retune-combo" ref={containerRef}>
         <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
@@ -342,11 +342,11 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
           </span>
         </Tooltip>
         {pickerOpen && pickerAnchor && portalTarget && createPortal(
-          <TokenDialog
+          <VariableDialog
             property={property || prop}
-            currentToken={tokenMatch.token}
-            onSelect={handleTokenSelectInternal}
-            onUnlink={onTokenUnlink ? () => { onTokenUnlink(); closeVariablePicker(); } : undefined}
+            currentVariable={variableMatch.variable}
+            onSelect={handleVariableSelectInternal}
+            onUnlink={onVariableUnlink ? () => { onVariableUnlink(); closeVariablePicker(); } : undefined}
             onClose={closeVariablePicker}
             anchorRect={pickerAnchor}
           />,
@@ -409,10 +409,10 @@ export function ComboInput({ label, prop, value, options, onChange, tokenMatch, 
         </div>
       )}
       {pickerOpen && pickerAnchor && portalTarget && createPortal(
-        <TokenDialog
+        <VariableDialog
           property={property || prop}
-          currentToken={tokenMatch?.token}
-          onSelect={handleTokenSelectInternal}
+          currentVariable={variableMatch?.variable}
+          onSelect={handleVariableSelectInternal}
           onClose={closeVariablePicker}
           anchorRect={pickerAnchor}
         />,

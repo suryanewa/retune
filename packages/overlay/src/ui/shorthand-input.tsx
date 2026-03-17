@@ -8,7 +8,7 @@
 
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
-import type { TokenMatch } from "../tokens/types";
+import type { VariableMatch } from "../tokens/types";
 import { ChangeIndicator } from "./change-indicator";
 import { VariableAction } from "./variable-action";
 
@@ -39,15 +39,15 @@ export interface ShorthandInputProps {
   /** Maximum numeric value */
   max?: number;
   /** Token match — shows a dot indicator when the value comes from a utility token */
-  tokenMatch?: TokenMatch;
+  variableMatch?: VariableMatch;
   /** CSS property name for token availability detection */
   property?: string;
   /** Callback when user picks a different token from the picker */
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, properties?: string[]) => void;
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
   /** Callback when user applies a token from scratch (no existing token) */
-  onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
   /** Callback when user unlinks a token */
-  onTokenUnlink?: () => void;
+  onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */
   isChanged?: boolean;
   /** Reset this property to its original value */
@@ -60,14 +60,14 @@ function computeDisplay(values: string[]): string {
   return rounded.join(", ");
 }
 
-export function ShorthandInput({ label, props, values, onChange, placeholder, min, max, tokenMatch, property, onTokenSelect, onTokenApply, onTokenUnlink, isChanged, onReset }: ShorthandInputProps) {
+export function ShorthandInput({ label, props, values, onChange, placeholder, min, max, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: ShorthandInputProps) {
   const [localValue, setLocalValue] = useState(() => computeDisplay(values));
   const [prevValues, setPrevValues] = useState(values);
   const varPickerRef = useRef<(() => void) | null>(null);
 
   const handleInputClick = useCallback(() => {
-    if (tokenMatch) varPickerRef.current?.();
-  }, [tokenMatch]);
+    if (variableMatch) varPickerRef.current?.();
+  }, [variableMatch]);
 
   // Sync from external changes
   if (values.join("\0") !== prevValues.join("\0")) {
@@ -185,15 +185,15 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div ref={wrapperRef} className={`retune-prop${tokenMatch ? " retune-prop-variable-applied" : ""}`}>
+    <div ref={wrapperRef} className={`retune-prop${variableMatch ? " retune-prop-variable-applied" : ""}`}>
       <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       {label && (
         <span
           className="retune-prop-label"
           onClick={handleInputClick}
-          onPointerDown={tokenMatch ? undefined : handleLabelPointerDown}
-          onPointerMove={tokenMatch ? undefined : handleLabelPointerMove}
-          onPointerUp={tokenMatch ? undefined : handleLabelPointerUp}
+          onPointerDown={variableMatch ? undefined : handleLabelPointerDown}
+          onPointerMove={variableMatch ? undefined : handleLabelPointerMove}
+          onPointerUp={variableMatch ? undefined : handleLabelPointerUp}
         >
           {label}
         </span>
@@ -202,24 +202,24 @@ export function ShorthandInput({ label, props, values, onChange, placeholder, mi
         className="retune-prop-input"
         value={localValue}
         placeholder={placeholder || "–"}
-        readOnly={!!tokenMatch}
+        readOnly={!!variableMatch}
         onClick={handleInputClick}
-        onPointerDown={!label && !tokenMatch ? handleInputPointerDown : undefined}
-        onPointerMove={!label && !tokenMatch ? handleInputPointerMove : undefined}
-        onPointerUp={!label && !tokenMatch ? handleInputPointerUp : undefined}
-        onFocus={tokenMatch ? undefined : (e) => e.target.select()}
-        onChange={tokenMatch ? undefined : (e) => setLocalValue(e.target.value)}
-        onBlur={tokenMatch ? undefined : () => { if (localValue !== computeDisplay(values)) commitValue(localValue); }}
-        onKeyDown={tokenMatch ? undefined : handleKeyDown}
+        onPointerDown={!label && !variableMatch ? handleInputPointerDown : undefined}
+        onPointerMove={!label && !variableMatch ? handleInputPointerMove : undefined}
+        onPointerUp={!label && !variableMatch ? handleInputPointerUp : undefined}
+        onFocus={variableMatch ? undefined : (e) => e.target.select()}
+        onChange={variableMatch ? undefined : (e) => setLocalValue(e.target.value)}
+        onBlur={variableMatch ? undefined : () => { if (localValue !== computeDisplay(values)) commitValue(localValue); }}
+        onKeyDown={variableMatch ? undefined : handleKeyDown}
         spellCheck={false}
       />
       <VariableAction
-        match={tokenMatch}
+        match={variableMatch}
         property={property || props[0]}
         relatedProperties={props}
-        onTokenSelect={onTokenSelect}
-        onTokenApply={onTokenApply}
-        onTokenUnlink={onTokenUnlink}
+        onVariableSelect={onVariableSelect}
+        onVariableApply={onVariableApply}
+        onVariableUnlink={onVariableUnlink}
         openPickerRef={varPickerRef}
       />
     </div>

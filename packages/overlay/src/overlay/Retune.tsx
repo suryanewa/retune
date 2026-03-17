@@ -639,7 +639,7 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   // Token swap: track class changes for AI output
-  const handleTokenSwap = useCallback((oldClassName: string, newClassName: string) => {
+  const handleVariableSwap = useCallback((oldClassName: string, newClassName: string) => {
     const el = selectedElementRef.current;
     const tracker = trackerRef.current;
     if (!el || !tracker) return;
@@ -660,7 +660,7 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   // Token associate: record value-only token apply in change tracker (persists across refresh)
-  const handleTokenAssociate = useCallback((properties: string[], token: { className: string; values: Record<string, string> }) => {
+  const handleVariableAssociate = useCallback((properties: string[], token: { className: string; values: Record<string, string> }) => {
     const tracker = trackerRef.current;
     const el = selectedElementRef.current;
     if (!tracker || !el) return;
@@ -672,7 +672,7 @@ function RetuneInner(props: RetuneConfig) {
     setChangeRevision((r) => r + 1);
   }, []);
 
-  const handleTokenUnlink = useCallback((properties: string[]) => {
+  const handleVariableUnlink = useCallback((properties: string[]) => {
     const tracker = trackerRef.current;
     const el = selectedElementRef.current;
     if (!tracker || !el) return;
@@ -1197,9 +1197,9 @@ function RetuneInner(props: RetuneConfig) {
                 onPropertyChange={handlePropertyChange}
                 onPropertyHover={setHoveredBoxModel}
                 onApplyToElement={handleApplyToElement}
-                onTokenSwap={handleTokenSwap}
-                onTokenAssociate={handleTokenAssociate}
-                onTokenUnlink={handleTokenUnlink}
+                onVariableSwap={handleVariableSwap}
+                onVariableAssociate={handleVariableAssociate}
+                onVariableUnlink={handleVariableUnlink}
                 variableAssociations={selectedVariableAssociations}
                 unlinkedVariables={selectedUnlinkedVariables}
                 changedProperties={selectedChangedProperties}

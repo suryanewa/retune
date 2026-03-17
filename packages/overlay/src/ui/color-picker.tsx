@@ -20,7 +20,7 @@ import {
 } from "./color-utils";
 import { FloatingDialog } from "./floating-dialog";
 import { Tooltip } from "./tooltip";
-import type { UtilityToken } from "../tokens/types";
+import type { DesignVariable } from "../tokens/types";
 import { getVariablesForProperty } from "../tokens/resolver";
 import { getCategoryForProperty } from "../tokens/categories";
 
@@ -41,10 +41,10 @@ export interface ColorPickerProps {
   anchorRect: { top: number; left: number; width: number; height: number };
   // Token integration
   property?: string;
-  currentToken?: UtilityToken;
-  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => void;
-  onTokenApply?: (token: UtilityToken, properties: string[]) => void;
-  onTokenUnlink?: () => void;
+  currentVariable?: DesignVariable;
+  onVariableSelect?: (oldToken: DesignVariable, newToken: DesignVariable, properties?: string[]) => void;
+  onVariableApply?: (variable: DesignVariable, properties: string[]) => void;
+  onVariableUnlink?: () => void;
   initialTab?: "custom" | "tokens";
 }
 
@@ -53,7 +53,7 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 /** Format a token value for display */
-function formatTokenValue(token: UtilityToken): string {
+function formatTokenValue(variable: DesignVariable): string {
   const vals = Object.values(token.values);
   if (vals.length === 0) return "";
   const val = vals[0];
@@ -61,7 +61,7 @@ function formatTokenValue(token: UtilityToken): string {
 }
 
 /** Get a swatch color from a token */
-function getSwatchColor(token: UtilityToken): string | null {
+function getSwatchColor(variable: DesignVariable): string | null {
   for (const [prop, val] of Object.entries(token.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
@@ -72,18 +72,18 @@ function getSwatchColor(token: UtilityToken): string | null {
 
 export function ColorPicker({
   value, alpha = 100, onChange, onAlphaChange, onClose, anchorRect,
-  property, currentToken, onTokenSelect, onTokenApply, onTokenUnlink, initialTab,
+  property, currentVariable, onVariableSelect, onVariableApply, onVariableUnlink, initialTab,
 }: ColorPickerProps) {
   const [hsva, setHsva] = useState<HSVA>(() => hexToHsva(value || "#000000"));
   const lastSentRef = useRef("");
   const dragCleanupRef = useRef<(() => void) | null>(null);
 
   // ── Token tab support ─────────────────────────────────────────────
-  const allTokens = useMemo(() => property ? getVariablesForProperty(property) : [], [property]);
+  const allVariables = useMemo(() => property ? getVariablesForProperty(property) : [], [property]);
   const category = property
     ? getCategoryForProperty(property.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`))
     : null;
-  const hasTokens = allTokens.length > 0;
+  const hasVariables = allVariables.length > 0;
 
   const [activeTab, setActiveTab] = useState(initialTab || "custom");
   const [tokenSearch, setTokenSearch] = useState("");
@@ -97,17 +97,17 @@ export function ColorPicker({
     if (initialTab) setActiveTab(initialTab);
   }
 
-  const filteredTokens = useMemo(() => {
-    if (!tokenSearch) return allTokens;
+  const filteredVariables = useMemo(() => {
+    if (!tokenSearch) return allVariables;
     const q = tokenSearch.toLowerCase();
-    return allTokens.filter(t =>
+    return allVariables.filter(t =>
       t.className.toLowerCase().includes(q) ||
       Object.values(t.values).some(v => v.toLowerCase().includes(q))
     );
-  }, [allTokens, tokenSearch]);
+  }, [allVariables, tokenSearch]);
 
   // Reset highlight when filtered list changes
-  useEffect(() => { setHighlightedIndex(-1); }, [filteredTokens]);
+  useEffect(() => { setHighlightedIndex(-1); }, [filteredVariables]);
 
   // Auto-scroll highlighted token into view
   useEffect(() => {
@@ -121,20 +121,20 @@ export function ColorPicker({
   // Refs for native token handlers
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const onTokenSelectRef = useRef(onTokenSelect);
-  onTokenSelectRef.current = onTokenSelect;
-  const onTokenApplyRef = useRef(onTokenApply);
-  onTokenApplyRef.current = onTokenApply;
-  const currentTokenRef = useRef(currentToken);
-  currentTokenRef.current = currentToken;
-  const filteredTokensRef = useRef(filteredTokens);
-  filteredTokensRef.current = filteredTokens;
+  const onVariableSelectRef = useRef(onVariableSelect);
+  onVariableSelectRef.current = onVariableSelect;
+  const onVariableApplyRef = useRef(onVariableApply);
+  onVariableApplyRef.current = onVariableApply;
+  const currentVariableRef = useRef(currentVariable);
+  currentVariableRef.current = currentVariable;
+  const filteredVariablesRef = useRef(filteredVariables);
+  filteredVariablesRef.current = filteredVariables;
   const propertyRef = useRef(property);
   propertyRef.current = property;
 
   // Keyboard nav for token search
   const handleTokenSearchKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    const count = filteredTokensRef.current.length;
+    const count = filteredVariablesRef.current.length;
     if (count === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -146,13 +146,13 @@ export function ColorPicker({
       e.preventDefault();
       setHighlightedIndex(curr => {
         if (curr >= 0 && curr < count) {
-          const token = filteredTokensRef.current[curr];
+          const token = filteredVariablesRef.current[curr];
           if (token) {
             const props = propertyRef.current ? [propertyRef.current] : [];
-            if (currentTokenRef.current) {
-              onTokenSelectRef.current?.(currentTokenRef.current, token, props);
+            if (currentVariableRef.current) {
+              onVariableSelectRef.current?.(currentVariableRef.current, token, props);
             } else {
-              onTokenApplyRef.current?.(token, props);
+              onVariableApplyRef.current?.(token, props);
             }
             onCloseRef.current();
           }
@@ -174,13 +174,13 @@ export function ColorPicker({
       e.preventDefault();
       e.stopPropagation();
       const idx = parseInt(item.dataset.tokenIndex!, 10);
-      const token = filteredTokensRef.current[idx];
+      const token = filteredVariablesRef.current[idx];
       if (token) {
         const props = propertyRef.current ? [propertyRef.current] : [];
-        if (currentTokenRef.current) {
-          onTokenSelectRef.current?.(currentTokenRef.current, token, props);
+        if (currentVariableRef.current) {
+          onVariableSelectRef.current?.(currentVariableRef.current, token, props);
         } else {
-          onTokenApplyRef.current?.(token, props);
+          onVariableApplyRef.current?.(token, props);
         }
         onCloseRef.current();
       }
@@ -405,15 +405,15 @@ export function ColorPicker({
 
   const handleHeaderAction = useCallback((action: string) => {
     if (action === "unlink") {
-      onTokenUnlink?.();
+      onVariableUnlink?.();
       onClose();
     }
-  }, [onTokenUnlink, onClose]);
+  }, [onVariableUnlink, onClose]);
 
-  const isUnlinkDisabled = !currentToken;
+  const isUnlinkDisabled = !currentVariable;
 
   const unlinkButton = (
-    <Tooltip content={currentToken ? "Unlink variable" : "No variable linked"} side="bottom" delay={300}>
+    <Tooltip content={currentVariable ? "Unlink variable" : "No variable linked"} side="bottom" delay={300}>
       <button
         type="button"
         className="retune-floating-dialog-close"
@@ -503,11 +503,11 @@ export function ColorPicker({
 
   const tokenContent = (
     <div ref={tokenListRef} className="retune-variable-dialog-list">
-      {filteredTokens.length === 0 && (
+      {filteredVariables.length === 0 && (
         <div className="retune-variable-dialog-empty">No variables found</div>
       )}
-      {filteredTokens.map((token, i) => {
-        const isActive = currentToken?.className === token.className;
+      {filteredVariables.map((token, i) => {
+        const isActive = currentVariable?.className === token.className;
         const isHighlighted = i === highlightedIndex;
         return (
           <div
@@ -526,7 +526,7 @@ export function ColorPicker({
     </div>
   );
 
-  if (hasTokens) {
+  if (hasVariables) {
     return (
       <FloatingDialog
         tabs={[

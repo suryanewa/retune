@@ -10,8 +10,8 @@
 import type { PropertyChange, PropertyCandidate, EnrichedPropertyChange } from "../types";
 import type { TokenMap } from "../inspector/tokens";
 import { findTokensForValue as findCssVarsForValue } from "../inspector/tokens";
-import { findTokenForValue, getAlternativeTokens, isRawUtility } from "../tokens/resolver";
-import { getTokenRegistry } from "../tokens/registry";
+import { findVariableForValue, getAlternativeVariables, isRawUtility } from "../tokens/resolver";
+import { getVariableRegistry } from "../tokens/registry";
 import { findStyleSources } from "../inspector/style-source";
 import { camelToKebab } from "../utils";
 
@@ -40,13 +40,13 @@ function resolvePropertyCandidates(
   element: Element | null,
 ): EnrichedPropertyChange {
   const kebab = camelToKebab(prop.property);
-  const registry = getTokenRegistry();
+  const registry = getVariableRegistry();
 
   // --- Recommended candidate (exact match) ---
   let recommended: PropertyCandidate | undefined;
 
   // 1. Check utility class tokens (exact + fuzzy match)
-  const utilToken = findTokenForValue(kebab, prop.to);
+  const utilToken = findVariableForValue(kebab, prop.to);
   if (utilToken) {
     const tokenVal = utilToken.values[kebab] || "";
     const normalizedToken = tokenVal.trim().toLowerCase();
@@ -78,7 +78,7 @@ function resolvePropertyCandidates(
 
   // --- Alternative tokens (semantic only, same category, max 3) ---
   const alternatives: PropertyCandidate[] = [];
-  const altTokens = getAlternativeTokens(kebab, utilToken || undefined);
+  const altTokens = getAlternativeVariables(kebab, utilToken || undefined);
   for (const alt of altTokens) {
     if (alternatives.length >= MAX_ALTERNATIVES) break;
     const altVal = alt.values[kebab];

@@ -7,7 +7,7 @@
  *
  * When no variables are available for the property, renders nothing.
  *
- * The variable picker (TokenDialog) is rendered via createPortal into the
+ * The variable picker (VariableDialog) is rendered via createPortal into the
  * shadow root container to escape the panel's overflow:hidden clipping.
  *
  * NOTE: Uses native pointerdown listeners for Shadow DOM compatibility.
@@ -15,9 +15,9 @@
 
 import { useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import type { TokenMatch, UtilityToken } from "../tokens/types";
+import type { VariableMatch, DesignVariable } from "../tokens/types";
 import { hasVariablesForProperty } from "../tokens/resolver";
-import { TokenDialog } from "./token-dialog";
+import { VariableDialog } from "./variable-dialog";
 import { claimDialog, releaseDialog } from "./dialog-singleton";
 import { Tooltip } from "./tooltip";
 
@@ -41,21 +41,21 @@ function UnlinkIcon() {
 }
 
 export interface VariableActionProps {
-  match?: TokenMatch;
+  match?: VariableMatch;
   property: string;
   /** For shorthand inputs: all properties in the group */
   relatedProperties?: string[];
-  onTokenSelect?: (oldToken: UtilityToken, newToken: UtilityToken, properties?: string[]) => void;
-  onTokenApply?: (token: UtilityToken, properties: string[]) => void;
-  onTokenUnlink?: () => void;
-  /** When provided, icon click calls this instead of opening the internal TokenDialog.
+  onVariableSelect?: (oldToken: DesignVariable, newToken: DesignVariable, properties?: string[]) => void;
+  onVariableApply?: (variable: DesignVariable, properties: string[]) => void;
+  onVariableUnlink?: () => void;
+  /** When provided, icon click calls this instead of opening the internal VariableDialog.
    *  Used by ColorInput to open the color picker to the variables tab. */
   onRequestOpen?: () => void;
   /** Ref that receives the openPicker function so parent can trigger it (e.g. on input click) */
   openPickerRef?: React.MutableRefObject<(() => void) | null>;
 }
 
-export function VariableAction({ match, property, relatedProperties, onTokenSelect, onTokenApply, onTokenUnlink, onRequestOpen, openPickerRef }: VariableActionProps) {
+export function VariableAction({ match, property, relatedProperties, onVariableSelect, onVariableApply, onVariableUnlink, onRequestOpen, openPickerRef }: VariableActionProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const pickerOpenRef = useRef(false);
@@ -71,8 +71,8 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
   // Refs for native handler access
   const onRequestOpenRef = useRef(onRequestOpen);
   onRequestOpenRef.current = onRequestOpen;
-  const onTokenUnlinkRef = useRef(onTokenUnlink);
-  onTokenUnlinkRef.current = onTokenUnlink;
+  const onVariableUnlinkRef = useRef(onVariableUnlink);
+  onVariableUnlinkRef.current = onVariableUnlink;
 
   // Open the variable picker dialog
   const openPicker = useCallback(() => {
@@ -107,7 +107,7 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
     // For unlink icon (applied state), detach the variable — check BEFORE onRequestOpen
     const target = e.target as HTMLElement;
     if (target.closest(".retune-variable-unlink")) {
-      onTokenUnlinkRef.current?.();
+      onVariableUnlinkRef.current?.();
       return;
     }
     // Delegate to parent if requested (e.g. ColorInput)
@@ -130,14 +130,14 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
     claimDialog(stableCloseRef.current);
   }
 
-  const handleSelect = useCallback((token: UtilityToken) => {
+  const handleSelect = useCallback((variable: DesignVariable) => {
     const props = relatedProperties || [property];
     if (match) {
-      onTokenSelect?.(match.token, token, props);
+      onVariableSelect?.(match.variable, token, props);
     } else {
-      onTokenApply?.(token, props);
+      onVariableApply?.(token, props);
     }
-  }, [match, property, relatedProperties, onTokenSelect, onTokenApply]);
+  }, [match, property, relatedProperties, onVariableSelect, onVariableApply]);
 
   const handleClose = useCallback(() => {
     releaseDialog(stableCloseRef.current);
@@ -173,11 +173,11 @@ export function VariableAction({ match, property, relatedProperties, onTokenSele
         </Tooltip>
       )}
       {pickerOpen && anchorRect && portalTarget && createPortal(
-        <TokenDialog
+        <VariableDialog
           property={property}
-          currentToken={match?.token}
+          currentVariable={match?.variable}
           onSelect={handleSelect}
-          onUnlink={onTokenUnlink ? () => { onTokenUnlink(); handleClose(); } : undefined}
+          onUnlink={onVariableUnlink ? () => { onVariableUnlink(); handleClose(); } : undefined}
           onClose={handleClose}
           anchorRect={anchorRect}
         />,

@@ -1,5 +1,5 @@
 /**
- * TokenDialog — floating panel for browsing and selecting variables.
+ * VariableDialog — floating panel for browsing and selecting variables.
  * Shows all available CSS custom properties for a CSS property with search
  * and category grouping.
  *
@@ -9,16 +9,16 @@
  */
 
 import { useEffect, useRef, useMemo, useState, useCallback } from "react";
-import type { UtilityToken } from "../tokens/types";
+import type { DesignVariable } from "../tokens/types";
 import { getVariablesForProperty } from "../tokens/resolver";
 import { getCategoryForProperty } from "../tokens/categories";
 import { FloatingDialog } from "./floating-dialog";
 import { Tooltip } from "./tooltip";
 
-export interface TokenDialogProps {
+export interface VariableDialogProps {
   property: string;
-  currentToken?: UtilityToken;
-  onSelect: (token: UtilityToken) => void;
+  currentVariable?: DesignVariable;
+  onSelect: (variable: DesignVariable) => void;
   onUnlink?: () => void;
   onClose: () => void;
   anchorRect: { top: number; left: number; width: number; height: number };
@@ -33,7 +33,7 @@ function formatName(className: string): string {
 }
 
 /** Format a variable value for display (first property value, simplified) */
-function formatValue(token: UtilityToken): string {
+function formatValue(variable: DesignVariable): string {
   const vals = Object.values(token.values);
   if (vals.length === 0) return "";
   const val = vals[0];
@@ -41,7 +41,7 @@ function formatValue(token: UtilityToken): string {
 }
 
 /** Get a swatch color if this is a color variable */
-function getSwatchColor(token: UtilityToken): string | null {
+function getSwatchColor(variable: DesignVariable): string | null {
   for (const [prop, val] of Object.entries(token.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
@@ -50,23 +50,23 @@ function getSwatchColor(token: UtilityToken): string | null {
   return null;
 }
 
-export function TokenDialog({ property, currentToken, onSelect, onUnlink, onClose, anchorRect }: TokenDialogProps) {
+export function VariableDialog({ property, currentVariable, onSelect, onUnlink, onClose, anchorRect }: VariableDialogProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
-  const allTokens = useMemo(() => getVariablesForProperty(property), [property]);
+  const allVariables = useMemo(() => getVariablesForProperty(property), [property]);
   const category = getCategoryForProperty(property.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`));
   const isColor = category === "colors";
 
   const filtered = useMemo(() => {
-    if (!search) return allTokens;
+    if (!search) return allVariables;
     const q = search.toLowerCase();
-    return allTokens.filter(t =>
+    return allVariables.filter(t =>
       t.className.toLowerCase().includes(q) ||
       Object.values(t.values).some(v => v.toLowerCase().includes(q))
     );
-  }, [allTokens, search]);
+  }, [allVariables, search]);
 
   // Reset highlight when the filtered list changes (e.g. new search query)
   useEffect(() => {
@@ -145,10 +145,10 @@ export function TokenDialog({ property, currentToken, onSelect, onUnlink, onClos
     }
   }, [onUnlink]);
 
-  const isUnlinkDisabled = !currentToken;
+  const isUnlinkDisabled = !currentVariable;
 
   const unlinkButton = (
-    <Tooltip content={currentToken ? "Unlink variable" : "No variable linked"} side="bottom" delay={300}>
+    <Tooltip content={currentVariable ? "Unlink variable" : "No variable linked"} side="bottom" delay={300}>
       <button
         type="button"
         className="retune-floating-dialog-close"
@@ -177,7 +177,7 @@ export function TokenDialog({ property, currentToken, onSelect, onUnlink, onClos
           <div className="retune-variable-dialog-empty">No variables found</div>
         )}
         {filtered.map((token, i) => {
-          const isActive = currentToken?.className === token.className;
+          const isActive = currentVariable?.className === token.className;
           const isHighlighted = i === highlightedIndex;
           return (
             <div

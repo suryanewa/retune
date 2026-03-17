@@ -12,7 +12,7 @@
 import type { ElementChange, EnrichedPropertyChange } from "../types";
 import { type TokenMap, scanDesignTokens, summarizeTokenSystem } from "../inspector/tokens";
 import { camelToKebab, truncate } from "../utils";
-import { getTokenRegistry } from "../tokens/registry";
+import { getVariableRegistry } from "../tokens/registry";
 import { enrichPropertyChanges } from "./candidates";
 
 export type Fidelity = "minimal" | "standard" | "full";
@@ -109,7 +109,7 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
   }
 
   // Framework detection guidance
-  const registry = getTokenRegistry();
+  const registry = getVariableRegistry();
   if (registry.framework === "tailwind") {
     lines.push("> **Framework:** Tailwind CSS detected. Apply all changes using Tailwind utility classes — do NOT use inline styles or raw CSS values. When a class swap is suggested, replace the old class with the new one in the JSX/HTML.");
     lines.push("");

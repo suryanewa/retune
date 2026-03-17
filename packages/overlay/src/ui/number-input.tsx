@@ -5,7 +5,7 @@
 
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
-import type { TokenMatch } from "../tokens/types";
+import type { VariableMatch } from "../tokens/types";
 import { ChangeIndicator } from "./change-indicator";
 import { VariableAction } from "./variable-action";
 
@@ -39,29 +39,29 @@ export interface NumberInputProps {
   /** Step size for arrow keys and scrub (default: 1, shift multiplies by 10) */
   step?: number;
   /** Token match — shows a dot indicator when the value comes from a utility token */
-  tokenMatch?: TokenMatch;
+  variableMatch?: VariableMatch;
   /** CSS property name for token availability detection */
   property?: string;
   /** Callback when user picks a different token from the picker */
-  onTokenSelect?: (oldToken: import("../tokens/types").UtilityToken, newToken: import("../tokens/types").UtilityToken, properties?: string[]) => void;
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
   /** Callback when user applies a token from scratch (no existing token) */
-  onTokenApply?: (token: import("../tokens/types").UtilityToken, properties: string[]) => void;
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
   /** Callback when user unlinks a token */
-  onTokenUnlink?: () => void;
+  onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */
   isChanged?: boolean;
   /** Reset this property to its original value */
   onReset?: () => void;
 }
 
-export function NumberInput({ label, prop, value, placeholder, onChange, min, max, step: stepProp, tokenMatch, property, onTokenSelect, onTokenApply, onTokenUnlink, isChanged, onReset }: NumberInputProps) {
+export function NumberInput({ label, prop, value, placeholder, onChange, min, max, step: stepProp, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: NumberInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const labelRef = useRef<HTMLSpanElement>(null);
   const varPickerRef = useRef<(() => void) | null>(null);
 
   const handleInputClick = useCallback(() => {
-    if (tokenMatch) varPickerRef.current?.();
-  }, [tokenMatch]);
+    if (variableMatch) varPickerRef.current?.();
+  }, [variableMatch]);
 
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue) {
@@ -183,16 +183,16 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
   };
 
   return (
-    <div className={`retune-prop${tokenMatch ? " retune-prop-variable-applied" : ""}`}>
+    <div className={`retune-prop${variableMatch ? " retune-prop-variable-applied" : ""}`}>
       <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       {label && (
         <span
           ref={labelRef}
           className="retune-prop-label"
           onClick={handleInputClick}
-          onPointerDown={tokenMatch ? undefined : handleLabelPointerDown}
-          onPointerMove={tokenMatch ? undefined : handleLabelPointerMove}
-          onPointerUp={tokenMatch ? undefined : handleLabelPointerUp}
+          onPointerDown={variableMatch ? undefined : handleLabelPointerDown}
+          onPointerMove={variableMatch ? undefined : handleLabelPointerMove}
+          onPointerUp={variableMatch ? undefined : handleLabelPointerUp}
         >
           {label}
         </span>
@@ -203,23 +203,23 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
         placeholder={placeholder || "–"}
-        readOnly={!!tokenMatch}
+        readOnly={!!variableMatch}
         onClick={handleInputClick}
-        onPointerDown={!label && !tokenMatch ? handleInputPointerDown : undefined}
-        onPointerMove={!label && !tokenMatch ? handleInputPointerMove : undefined}
-        onPointerUp={!label && !tokenMatch ? handleInputPointerUp : undefined}
-        onFocus={tokenMatch ? undefined : handleFocus}
-        onChange={tokenMatch ? undefined : handleChange}
-        onBlur={tokenMatch ? undefined : handleBlur}
-        onKeyDown={tokenMatch ? undefined : handleKeyDown}
+        onPointerDown={!label && !variableMatch ? handleInputPointerDown : undefined}
+        onPointerMove={!label && !variableMatch ? handleInputPointerMove : undefined}
+        onPointerUp={!label && !variableMatch ? handleInputPointerUp : undefined}
+        onFocus={variableMatch ? undefined : handleFocus}
+        onChange={variableMatch ? undefined : handleChange}
+        onBlur={variableMatch ? undefined : handleBlur}
+        onKeyDown={variableMatch ? undefined : handleKeyDown}
         spellCheck={false}
       />
       <VariableAction
-        match={tokenMatch}
+        match={variableMatch}
         property={property || prop}
-        onTokenSelect={onTokenSelect}
-        onTokenApply={onTokenApply}
-        onTokenUnlink={onTokenUnlink}
+        onVariableSelect={onVariableSelect}
+        onVariableApply={onVariableApply}
+        onVariableUnlink={onVariableUnlink}
         openPickerRef={varPickerRef}
       />
     </div>
