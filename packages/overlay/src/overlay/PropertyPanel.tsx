@@ -245,8 +245,9 @@ export function PropertyPanel({
     const el = element.element;
     if (!el) return;
     const isClassBased = el.classList.contains(oldToken.className);
-    if (isClassBased) {
-      // Class-based swap
+    const newIsVariable = newToken.className.startsWith("var(");
+    if (isClassBased && !newIsVariable) {
+      // Class-based swap (both old and new are class tokens)
       el.classList.remove(oldToken.className);
       el.classList.add(newToken.className);
       onVariableSwap?.(oldToken.className, newToken.className);
@@ -1597,21 +1598,7 @@ export function PropertyPanel({
           >
             {fillHasVariable ? (
               <Row>
-                <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1 }}>
-                  <ChangeIndicator isChanged={changeProps("backgroundColor").isChanged} onReset={changeProps("backgroundColor").onReset} />
-                  <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
-                    {fillVarMatch.variable.className.startsWith("var(--")
-                      ? fillVarMatch.variable.className.slice(6, -1)
-                      : fillVarMatch.variable.className}
-                  </span>
-                  <VariableAction
-                    match={fillVarMatch}
-                    property="backgroundColor"
-                    onVariableSelect={handleVariableSelect}
-                    onVariableApply={handleVariableApply}
-                    onVariableUnlink={() => onVariableUnlink?.(["backgroundColor"])}
-                  />
-                </div>
+                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
               </Row>
             ) : hasFill ? (
               <>
@@ -1755,25 +1742,29 @@ export function PropertyPanel({
               </div>
             }
           >
-            {shadowHasVariable ? (
-              <Row>
-                <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1 }}>
-                  <ChangeIndicator isChanged={changeProps("boxShadow").isChanged} onReset={changeProps("boxShadow").onReset} />
-                  <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
-                    {shadowVarMatch.variable.className.startsWith("var(--")
-                      ? shadowVarMatch.variable.className.slice(6, -1)
-                      : shadowVarMatch.variable.className}
-                  </span>
-                  <VariableAction
-                    match={shadowVarMatch}
-                    property="boxShadow"
-                    onVariableSelect={handleVariableSelect}
-                    onVariableApply={handleVariableApply}
-                    onVariableUnlink={() => onVariableUnlink?.(["boxShadow"])}
-                  />
-                </div>
-              </Row>
-            ) : hasShadow ? (() => {
+            {shadowHasVariable ? (() => {
+              const shadowPickerRef = { current: null as (() => void) | null };
+              return (
+                <Row>
+                  <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1, cursor: "pointer" }} onClick={() => shadowPickerRef.current?.()}>
+                    <ChangeIndicator isChanged={changeProps("boxShadow").isChanged} onReset={changeProps("boxShadow").onReset} />
+                    <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
+                      {shadowVarMatch.variable.className.startsWith("var(--")
+                        ? shadowVarMatch.variable.className.slice(6, -1)
+                        : shadowVarMatch.variable.className}
+                    </span>
+                    <VariableAction
+                      match={shadowVarMatch}
+                      property="boxShadow"
+                      onVariableSelect={handleVariableSelect}
+                      onVariableApply={handleVariableApply}
+                      onVariableUnlink={() => onVariableUnlink?.(["boxShadow"])}
+                      openPickerRef={shadowPickerRef}
+                    />
+                  </div>
+                </Row>
+              );
+            })() : hasShadow ? (() => {
               const shadow = parseBoxShadow(s.boxShadow);
               if (!shadow) return null;
               return (

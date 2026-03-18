@@ -43,7 +43,13 @@ function formatValue(variable: DesignVariable): string {
 /** Get a swatch color if this is a color variable */
 function getSwatchColor(variable: DesignVariable): string | null {
   for (const [prop, val] of Object.entries(variable.values)) {
+    // Check key name (works for standard color properties)
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
+      return val;
+    }
+    // Check value format (works for CSS variables with color values like "--spectrum-blue-5": "rgb(59, 130, 246)")
+    const v = val.trim().toLowerCase();
+    if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl") || v.startsWith("oklch") || v.startsWith("oklab")) {
       return val;
     }
   }

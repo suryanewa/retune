@@ -66,6 +66,10 @@ function getSwatchColor(variable: DesignVariable): string | null {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
       return val;
     }
+    const v = val.trim().toLowerCase();
+    if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl") || v.startsWith("oklch") || v.startsWith("oklab")) {
+      return val;
+    }
   }
   return null;
 }
