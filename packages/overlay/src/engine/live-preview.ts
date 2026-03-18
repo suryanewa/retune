@@ -90,11 +90,13 @@ export class LivePreviewEngine {
   migrateChanges(fromSelector: string, toSelector: string) {
     const toMigrate = this.rules.filter((r) => r.selector === fromSelector);
     if (toMigrate.length === 0) return;
-    // Remove old rules
-    this.removeAllChanges(fromSelector);
-    // Re-apply under new selector
+    // Apply new rules first so changes aren't lost if the new selector fails
     for (const rule of toMigrate) {
       this.applyChange(toSelector, rule.property, rule.value);
+    }
+    // Only then remove old rules
+    for (const rule of toMigrate) {
+      this.removeChange(fromSelector, rule.property);
     }
   }
 

@@ -8,6 +8,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { DropdownMenu, type DropdownMenuOption } from "./dropdown-menu";
 import { calcMenuPosition, type MenuPosition } from "./menu-position";
 import { ChevronDown } from "./icons";
+import { ChangeIndicator } from "./change-indicator";
+import { useScrollLock } from "./use-scroll-lock";
 
 export interface SelectInputProps {
   label?: string;
@@ -15,18 +17,21 @@ export interface SelectInputProps {
   value: string | undefined;
   options: string[];
   onChange: (prop: string, value: string) => void;
+  isChanged?: boolean;
+  onReset?: () => void;
 }
 
 function sentenceCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ");
 }
 
-export function SelectInput({ label, prop, value, options, onChange }: SelectInputProps) {
+export function SelectInput({ label, prop, value, options, onChange, isChanged, onReset }: SelectInputProps) {
   const [localValue, setLocalValue] = useState(value || "");
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  useScrollLock(open);
 
   // Sync from parent
   const [prevValue, setPrevValue] = useState(value);
@@ -106,6 +111,7 @@ export function SelectInput({ label, prop, value, options, onChange }: SelectInp
 
   return (
     <div className="retune-select" ref={containerRef}>
+      <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       <button
         type="button"
         className="retune-select-button"

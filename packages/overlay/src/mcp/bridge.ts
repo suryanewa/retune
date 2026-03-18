@@ -48,15 +48,45 @@ export class Bridge {
       });
 
       this.wss.on("connection", (ws: WebSocket, _req: IncomingMessage) => {
-        console.error("[Retune MCP] Browser overlay connected");
-        if (this.client && this.client !== ws) {
-          this.client.close();
-        }
-        this.client = ws;
+        // Require a handshake before accepting the connection.
+        // The browser overlay sends { method: "handshake", params: { client: "retune-overlay" } }
+        // as its first message. Connections that don't handshake within 5s are closed.
+        // This prevents non-overlay clients (e.g. ChatGPT desktop, other tools)
+        // from hijacking the WebSocket slot.
+        let verified = false;
+        const handshakeTimeout = setTimeout(() => {
+          if (!verified) {
+            console.error("[Retune MCP] Closing unverified connection (no handshake)");
+            ws.close();
+          }
+        }, 5000);
 
         ws.on("message", (data: Buffer) => {
           try {
             const msg = JSON.parse(data.toString());
+
+            // Handle handshake
+            if (!verified && msg.method === "handshake" && msg.params?.client === "retune-overlay") {
+              verified = true;
+              clearTimeout(handshakeTimeout);
+              console.error("[Retune MCP] Browser overlay connected (verified)");
+
+              // Replace existing client
+              if (this.client && this.client !== ws) {
+                this.client.close();
+              }
+              this.client = ws;
+
+              ws.send(JSON.stringify({ id: msg.id, result: { ok: true } }));
+              return;
+            }
+
+            // Reject messages from unverified connections
+            if (!verified) {
+              ws.close();
+              clearTimeout(handshakeTimeout);
+              return;
+            }
 
             // Response to our request
             if (msg.id && this.pendingRequests.has(msg.id)) {
@@ -83,8 +113,11 @@ export class Bridge {
         });
 
         ws.on("close", () => {
-          console.error("[Retune MCP] Browser overlay disconnected");
-          if (this.client === ws) this.client = null;
+          clearTimeout(handshakeTimeout);
+          if (verified) {
+            console.error("[Retune MCP] Browser overlay disconnected");
+            if (this.client === ws) this.client = null;
+          }
         });
       });
     });

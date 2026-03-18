@@ -220,6 +220,12 @@ export function createPicker(
 
   function handleMouseMove(e: MouseEvent) {
     if (!active) return;
+    // Skip if cursor is over overlay UI (toolbar, panel) inside the shadow root.
+    // elementFromPoint on a ShadowRoot falls through to page elements when no
+    // shadow element is at the point, so we verify the hit actually belongs to
+    // our shadow tree via getRootNode().
+    const hoverShadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
+    if (hoverShadowHit && hoverShadowHit.getRootNode() === shadowRoot) return;
     const raw = document.elementFromPoint(e.clientX, e.clientY);
     if (!raw || isOverlayElement(raw)) return;
     const el = resolveElement(raw);
@@ -262,10 +268,21 @@ export function createPicker(
   function handleClick(e: MouseEvent) {
     if (!active) return;
 
-    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns)
+    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns).
+    // Check 1: composedPath includes the shadow host (standard shadow DOM retargeting)
     const path = e.composedPath();
     const host = shadowRoot.host;
     if (path.includes(host)) return;
+    // Check 2: the click point lands on an overlay UI element inside the shadow root.
+    // This catches edge cases where composedPath may not include the host (e.g. the
+    // clicked element was re-rendered between pointerdown and click due to React state
+    // updates, causing the original target to detach from the DOM).  Elements owned by
+    // the picker (highlight / selection boxes) have pointer-events:none so they won't
+    // be returned here — only interactive UI (toolbar, panel) will match.
+    // Note: elementFromPoint on a ShadowRoot falls through to page elements when no
+    // shadow element is at the point, so we must verify via getRootNode().
+    const shadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
+    if (shadowHit && shadowHit.getRootNode() === shadowRoot) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -314,7 +331,7 @@ export function createPicker(
     if (!active) return;
     if (e.key === "Escape") {
       // If a nested overlay (e.g. color picker) is open, let it handle Escape
-      if (shadowRoot.querySelector(".retune-color-picker-panel")) return;
+      if (shadowRoot.querySelector(".retune-floating-dialog")) return;
       e.preventDefault();
       callbacks.onCancel();
     }

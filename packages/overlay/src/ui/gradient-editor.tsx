@@ -8,9 +8,11 @@
 
 import { useState, useCallback } from "react";
 import type { GradientFill } from "./gradient-utils";
+import type { DesignVariable, VariableMatch } from "../tokens/types";
 import { interpolateColor, gradientBarCss } from "./gradient-utils";
 import { GradientStopBar } from "./gradient-stop-bar";
 import { ColorInput } from "./color-input";
+import { ChangeIndicator } from "./change-indicator";
 import { hexToRgba, parseCssColor } from "./color-utils";
 import { FlipHorizontalSmall, Rotate, Plus, Minus } from "./icons";
 import { Tooltip } from "./tooltip";
@@ -18,12 +20,63 @@ import { Tooltip } from "./tooltip";
 export interface GradientEditorProps {
   gradient: GradientFill;
   onChange: (gradient: GradientFill) => void;
+  /** Original gradient state for change tracking (undefined if fill was originally solid) */
+  originalGradient?: GradientFill;
+  /** Whether this gradient was created by switching from solid fill */
+  isNewGradient?: boolean;
 }
 
-export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
+export function GradientEditor({ gradient, onChange, originalGradient, isNewGradient }: GradientEditorProps) {
   const [selectedStop, setSelectedStop] = useState(0);
   const [angleInput, setAngleInput] = useState(`${gradient.angle}°`);
   const [isEditingAngle, setIsEditingAngle] = useState(false);
+
+  // Per-stop variable associations (local state — not persisted to change tracker)
+  const [stopVariables, setStopVariables] = useState<Map<number, VariableMatch>>(new Map());
+
+  // ── Per-stop change tracking ──
+  // When isNewGradient, no stop-level change dots (the fill mode change dot covers it).
+  // Otherwise compare each stop against originalGradient.
+  const isStopColorChanged = useCallback((index: number): boolean => {
+    if (isNewGradient || !originalGradient) return false;
+    const origStop = originalGradient.stops[index];
+    if (!origStop) return true; // new stop
+    const curStop = gradient.stops[index];
+    if (!curStop) return false;
+    return curStop.color !== origStop.color || (curStop.opacity ?? 100) !== (origStop.opacity ?? 100);
+  }, [gradient.stops, originalGradient, isNewGradient]);
+
+  const isStopPositionChanged = useCallback((index: number): boolean => {
+    if (isNewGradient || !originalGradient) return false;
+    const origStop = originalGradient.stops[index];
+    if (!origStop) return true; // new stop
+    const curStop = gradient.stops[index];
+    if (!curStop) return false;
+    return curStop.position !== origStop.position;
+  }, [gradient.stops, originalGradient, isNewGradient]);
+
+  const resetStopColor = useCallback((index: number) => {
+    if (!originalGradient) return;
+    const origStop = originalGradient.stops[index];
+    if (!origStop) {
+      // New stop — remove it
+      const newStops = gradient.stops.filter((_, i) => i !== index);
+      onChange({ ...gradient, stops: newStops });
+    } else {
+      const newStops = [...gradient.stops];
+      newStops[index] = { ...newStops[index], color: origStop.color, opacity: origStop.opacity };
+      onChange({ ...gradient, stops: newStops });
+    }
+  }, [gradient, originalGradient, onChange]);
+
+  const resetStopPosition = useCallback((index: number) => {
+    if (!originalGradient) return;
+    const origStop = originalGradient.stops[index];
+    if (!origStop) return;
+    const newStops = [...gradient.stops];
+    newStops[index] = { ...newStops[index], position: origStop.position };
+    onChange({ ...gradient, stops: newStops });
+  }, [gradient, originalGradient, onChange]);
 
   // Sync angle display from parent when not editing
   const [prevAngle, setPrevAngle] = useState(gradient.angle);
@@ -156,31 +209,30 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
 
       {/* Controls row: angle + reverse + rotate */}
       <div className="retune-gradient-controls">
-        {showAngle && (
-          <input
-            className="retune-gradient-angle-input"
-            type="text"
-            value={isEditingAngle ? angleInput : `${gradient.angle}°`}
-            onFocus={(e) => {
-              setIsEditingAngle(true);
-              setAngleInput(String(gradient.angle));
-              // Select just the number on focus
-              requestAnimationFrame(() => e.target.select());
-            }}
-            onBlur={handleAngleBlur}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") e.currentTarget.blur();
-              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-                e.preventDefault();
-                const step = e.shiftKey ? 15 : 1;
-                const delta = e.key === "ArrowUp" ? step : -step;
-                const newAngle = ((gradient.angle + delta) % 360 + 360) % 360;
-                onChange({ ...gradient, angle: newAngle });
-              }
-            }}
-            onChange={handleAngleInputChange}
-          />
-        )}
+        <input
+          className="retune-gradient-angle-input"
+          type="text"
+          value={showAngle ? (isEditingAngle ? angleInput : `${gradient.angle}°`) : "–"}
+          readOnly={!showAngle}
+          disabled={!showAngle}
+          onFocus={showAngle ? (e) => {
+            setIsEditingAngle(true);
+            setAngleInput(String(gradient.angle));
+            requestAnimationFrame(() => e.target.select());
+          } : undefined}
+          onBlur={showAngle ? handleAngleBlur : undefined}
+          onKeyDown={showAngle ? (e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              const step = e.shiftKey ? 15 : 1;
+              const delta = e.key === "ArrowUp" ? step : -step;
+              const newAngle = ((gradient.angle + delta) % 360 + 360) % 360;
+              onChange({ ...gradient, angle: newAngle });
+            }
+          } : undefined}
+          onChange={showAngle ? handleAngleInputChange : undefined}
+        />
         <div className="retune-gradient-actions">
           <Tooltip content="Reverse gradient direction">
             <button
@@ -195,6 +247,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
             <button
               type="button"
               className="retune-gradient-action-btn"
+              disabled={!showAngle}
               onClick={handleRotate}
             >
               <Rotate />
@@ -223,6 +276,7 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
           <div key={index} className="retune-gradient-stop-row">
             {/* Position */}
             <div className="retune-gradient-stop-pos">
+              <ChangeIndicator isChanged={isStopPositionChanged(index)} onReset={() => resetStopPosition(index)} />
               <input
                 className="retune-gradient-stop-pos-input"
                 type="text"
@@ -240,7 +294,30 @@ export function GradientEditor({ gradient, onChange }: GradientEditorProps) {
               <ColorInput
                 prop={`stop-${index}`}
                 value={hexToRgba(stop.color, stop.opacity ?? 100)}
-                onChange={(_prop, val) => handleStopColorChange(index, _prop, val)}
+                onChange={(_prop, val) => {
+                  handleStopColorChange(index, _prop, val);
+                  // Clear variable state when user manually changes color
+                  if (stopVariables.has(index)) {
+                    setStopVariables(prev => { const next = new Map(prev); next.delete(index); return next; });
+                  }
+                }}
+                property="backgroundColor"
+                variableMatch={stopVariables.get(index)}
+                onVariableApply={(v) => {
+                  const val = Object.values(v.values)[0];
+                  if (val) handleStopColorChange(index, `stop-${index}`, val);
+                  setStopVariables(prev => new Map(prev).set(index, { variable: v, property: "background-color" }));
+                }}
+                onVariableSelect={(oldV, newV) => {
+                  const val = Object.values(newV.values)[0];
+                  if (val) handleStopColorChange(index, `stop-${index}`, val);
+                  setStopVariables(prev => new Map(prev).set(index, { variable: newV, property: "background-color" }));
+                }}
+                onVariableUnlink={() => {
+                  setStopVariables(prev => { const next = new Map(prev); next.delete(index); return next; });
+                }}
+                isChanged={isStopColorChanged(index)}
+                onReset={() => resetStopColor(index)}
               />
             </div>
 

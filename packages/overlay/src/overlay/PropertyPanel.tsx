@@ -3,13 +3,17 @@
  * editable properties for the selected element.
  */
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment } from "react";
 import type { InspectedElement } from "../types";
 import type { BoxModelProperty } from "../ui/box-model-overlay";
 import { Section, Row, RowGroup, Field } from "../ui/section";
 import { NumberInput } from "../ui/number-input";
+import type { VariableMatch } from "../tokens/types";
+import { resolveVariablesForElement, isRawUtility } from "../tokens/resolver";
 import { ComboInput, type ComboOption } from "../ui/combo-input";
 import { ColorInput } from "../ui/color-input";
+import { VariableAction } from "../ui/variable-action";
+import { ChangeIndicator } from "../ui/change-indicator";
 import { SelectInput } from "../ui/select-input";
 import { DropdownMenu, type DropdownMenuOption } from "../ui/dropdown-menu";
 import { SliderInput } from "../ui/slider-input";
@@ -34,7 +38,7 @@ import {
   AlSpacingHorizontal, AlSpacingVertical,
   RadiusTopLeft, RadiusTopRight, RadiusBottomLeft, RadiusBottomRight,
   RectangleSmall, AutolayoutAddHorizontal, AutolayoutAddVertical, GridView,
-  Plus, Minus, ChevronDown, AdjustSmall, ListView, NumberList, EyeSmall, HiddenSmall,
+  Plus, Minus, AdjustSmall, ListView, NumberList, EyeSmall, HiddenSmall,
 } from "../ui/icons";
 import { Tooltip } from "../ui/tooltip";
 import { ShorthandInput } from "../ui/shorthand-input";
@@ -53,6 +57,7 @@ function middleTruncate(str: string, maxLen: number): string {
   const end = Math.floor(keep * 0.6);
   return str.slice(0, start) + "\u2026" + str.slice(-end);
 }
+
 
 const TEXT_ALIGN_OPTIONS: SegmentedOption[] = [
   { value: "left", icon: <TextAlignLeft />, label: "Left" },
@@ -147,7 +152,8 @@ const LIST_STYLE_OPTIONS: SegmentedOption[] = [
 
 type ForcedState = ":hover" | ":focus" | ":active" | null;
 
-type SelectorCandidate = { selector: string; count: number };
+type SelectorCandidate = { selector: string; count: number; verdict: "semantic" | "utility" | "ambiguous" };
+type ScopeLevel = { label: string; selector: string | null; count: number };
 type StyleSource = { selector: string; value: string };
 
 export function PropertyPanel({
@@ -156,9 +162,19 @@ export function PropertyPanel({
   onPropertyChange,
   onPropertyHover,
   onApplyToElement,
+  onVariableSwap,
+  onVariableAssociate,
+  onVariableUnlink,
+  variableAssociations = {},
+  unlinkedVariables,
+  changedProperties,
+  onPropertyReset,
   selectorCandidates = [],
   activeSelector = null,
-  onSelectorChange,
+  scopeLevels = [] as ScopeLevel[],
+  activeLevelIndex = 0,
+  onScopeLevelChange,
+  ownedProperties,
   styleSources = {},
   forcedState = null,
   onForcedStateChange,
@@ -168,14 +184,159 @@ export function PropertyPanel({
   onPropertyChange: (property: string, value: string) => void;
   onPropertyHover?: (property: BoxModelProperty) => void;
   onApplyToElement?: (element: Element, property: string, value: string) => void;
+  onVariableSwap?: (oldClassName: string, newClassName: string) => void;
+  /** Record a value-only token association (persisted in change tracker) */
+  onVariableAssociate?: (properties: string[], token: { className: string; values: Record<string, string> }) => void;
+  /** Clear token association for properties */
+  onVariableUnlink?: (properties: string[]) => void;
+  /** Current value-only token associations from change tracker */
+  variableAssociations?: Record<string, { className: string; values: Record<string, string> }>;
+  /** Properties explicitly unlinked from their token */
+  unlinkedVariables?: Set<string>;
+  /** Properties that have been changed from their original value */
+  changedProperties?: Set<string>;
+  /** Reset a single property to its original value */
+  onPropertyReset?: (property: string) => void;
   selectorCandidates?: SelectorCandidate[];
   activeSelector?: string | null;
-  onSelectorChange?: (selector: string | null) => void;
+  scopeLevels?: ScopeLevel[];
+  activeLevelIndex?: number;
+  onScopeLevelChange?: (index: number) => void;
+  /** Properties owned by CSS rules matching the active scope. undefined = show all. */
+  ownedProperties?: Set<string>;
   styleSources?: Record<string, StyleSource>;
   forcedState?: ForcedState;
   onForcedStateChange?: (state: ForcedState) => void;
 }) {
-  const s = element.computedStyles;
+  const rawStyles = element.computedStyles;
+
+  // Scope-aware styles: getScopedStyles already returns scoped values for owned
+  // properties and computed values for the rest. No Proxy needed.
+  const s = rawStyles;
+
+  // ── Token resolution ──
+  const variableMatches = useMemo(() => {
+    if (!element.element) return new Map<string, VariableMatch>();
+    return resolveVariablesForElement(element.element, s, activeSelector ?? undefined);
+  }, [element.element, s, activeSelector]);
+
+  // Helper: get token match for a camelCase prop.
+  // User-set associations take priority over element-scanned matches, since the
+  // user explicitly chose a token (e.g., swapping var(--spacing-4) → var(--spacing-8)).
+  const getVariableMatch = useCallback((camelProp: string): VariableMatch | undefined => {
+    // Skip properties that the user explicitly unlinked
+    if (unlinkedVariables?.has(camelProp)) return undefined;
+    const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+    // Check persisted associations first (user's explicit choice takes priority)
+    const assoc = variableAssociations[camelProp];
+    if (assoc) return { variable: assoc, property: kebab };
+    // Then element-scanned matches (class-based + CSS variable detection)
+    const match = variableMatches.get(kebab);
+    if (match && !isRawUtility(match.variable)) return match;
+    return undefined;
+  }, [variableMatches, variableAssociations, unlinkedVariables]);
+
+  // Handle token swap: swap classes on the element.
+  // If the old token's class is on the element, do a class swap.
+  // If not (value-only apply), just update values without touching classes.
+  // `fallbackProperties` provides the affected CSS properties when the token was
+  // auto-detected from stylesheets (no entry in variableAssociations).
+  const handleVariableSelect = useCallback((oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, fallbackProperties?: string[]) => {
+    const el = element.element;
+    if (!el) return;
+    const isClassBased = el.classList.contains(oldToken.className);
+    if (isClassBased) {
+      // Class-based swap
+      el.classList.remove(oldToken.className);
+      el.classList.add(newToken.className);
+      onVariableSwap?.(oldToken.className, newToken.className);
+      for (const [prop, val] of Object.entries(newToken.values)) {
+        const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        onPropertyChange(camelProp, val);
+      }
+    } else {
+      // Value-only swap: find which properties had the old token applied
+      const affectedProps: string[] = [];
+      for (const [prop, ref] of Object.entries(variableAssociations)) {
+        if (ref.className === oldToken.className) {
+          affectedProps.push(prop);
+        }
+      }
+      // Fallback for element-scanned tokens (detected from stylesheets, no explicit association)
+      if (affectedProps.length === 0 && fallbackProperties) {
+        affectedProps.push(...fallbackProperties);
+      }
+      const value = Object.values(newToken.values)[0];
+      if (!value) return;
+      for (const prop of affectedProps) {
+        onPropertyChange(prop, value);
+      }
+      onVariableAssociate?.(affectedProps, { className: newToken.className, values: newToken.values });
+    }
+  }, [element.element, onVariableSwap, onPropertyChange, variableAssociations, onVariableAssociate]);
+
+  // Handle applying a token value from scratch (no existing token on element).
+  // This is a value pick — we set the token's representative value on the specific
+  // properties being edited, without adding the class. This lets the user apply
+  // different tokens to different sides (e.g. different H and V padding).
+  const handleVariableApply = useCallback((newToken: import("../tokens/types").DesignVariable, properties: string[]) => {
+    const el = element.element;
+    if (!el) return;
+    const value = Object.values(newToken.values)[0];
+    if (!value) return;
+    for (const prop of properties) {
+      onPropertyChange(prop, value);
+    }
+    onVariableAssociate?.(properties, { className: newToken.className, values: newToken.values });
+  }, [element.element, onPropertyChange, onVariableAssociate]);
+
+  // Handle unlinking a token from a property (clears association without changing value)
+  const handleVariableUnlink = useCallback((camelProp: string) => {
+    onVariableUnlink?.([camelProp]);
+  }, [onVariableUnlink]);
+
+  // Token props for a NumberInput
+  const variableProps = useCallback((camelProp: string) => {
+    const match = getVariableMatch(camelProp);
+    return {
+      ...(match ? { variableMatch: match, onVariableSelect: handleVariableSelect, onVariableUnlink: () => handleVariableUnlink(camelProp) } : {}),
+      property: camelProp,
+      onVariableApply: handleVariableApply,
+    };
+  }, [getVariableMatch, handleVariableSelect, handleVariableApply, handleVariableUnlink]);
+
+  // Token props for ShorthandInput — only shows variable indicator when ALL props share the same variable
+  const shorthandVariableProps = useCallback((camelProps: string[]) => {
+    const allMatches = camelProps.map(p => getVariableMatch(p));
+    const firstMatch = allMatches.find(m => m !== undefined);
+    if (!firstMatch) return { property: camelProps[0], onVariableApply: handleVariableApply };
+
+    // Only show as variable-applied when ALL properties share the same variable
+    const allSameVar = allMatches.every(
+      m => m !== undefined && m.variable.className === firstMatch.variable.className
+    );
+    if (allSameVar) {
+      return {
+        variableMatch: firstMatch, property: camelProps[0],
+        onVariableSelect: handleVariableSelect, onVariableApply: handleVariableApply,
+        onVariableUnlink: () => onVariableUnlink?.(camelProps),
+      };
+    }
+    return { property: camelProps[0], onVariableApply: handleVariableApply };
+  }, [getVariableMatch, handleVariableSelect, handleVariableApply, onVariableUnlink]);
+
+  // Change indicator props for a single property
+  const changeProps = useCallback((camelProp: string) => ({
+    isChanged: changedProperties?.has(camelProp) ?? false,
+    onReset: () => onPropertyReset?.(camelProp),
+  }), [changedProperties, onPropertyReset]);
+
+  // Change indicator props for shorthand groups: changed if ANY property in the group changed
+  const shorthandChangeProps = useCallback((camelProps: string[]) => ({
+    isChanged: camelProps.some(p => changedProperties?.has(p)) ?? false,
+    onReset: () => { for (const p of camelProps) onPropertyReset?.(p); },
+  }), [changedProperties, onPropertyReset]);
+
   const TEXT_TAGS = ["P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A", "BUTTON", "LABEL", "LI", "TD", "TH", "FIGCAPTION", "BLOCKQUOTE", "CITE", "EM", "STRONG", "SMALL"];
   const hasDirectText = element.element ? Array.from(element.element.childNodes).some(
     (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim()
@@ -288,6 +449,14 @@ export function PropertyPanel({
   // ── Fill mode (solid vs gradient) ──
   const detectedFillMode = detectFillMode(s.backgroundColor, s.backgroundImage);
   const [fillMode, setFillMode] = useState<FillMode>(detectedFillMode);
+  // Capture the ORIGINAL fill mode and gradient at mount time (for change tracking)
+  const [initialFillMode] = useState<FillMode>(detectedFillMode);
+  const [initialGradient] = useState<GradientFill | null>(() => {
+    if (s.backgroundImage && s.backgroundImage !== "none") {
+      return parseCssGradient(s.backgroundImage) ?? null;
+    }
+    return null;
+  });
   const [gradient, setGradient] = useState<GradientFill>(() => {
     if (s.backgroundImage && s.backgroundImage !== "none") {
       const parsed = parseCssGradient(s.backgroundImage);
@@ -512,41 +681,179 @@ export function PropertyPanel({
     <>
       {/* Element */}
       <Section label={element.tagName.toLowerCase()}>
+        {scopeLevels.length > 1 && onScopeLevelChange && (() => {
+          const prevLevelRef = useRef(activeLevelIndex);
+          const fieldRef = useRef<HTMLDivElement>(null);
+
+          const computeBridgesForLevel = (level: number) => {
+            if (scopeLevels[level]?.selector === null) return new Set<number>(); // "This element" — no bridges
+            const bridges = new Set<number>();
+            for (let i = 0; i < scopeLevels.length - 1; i++) {
+              const cur = scopeLevels[i];
+              const nxt = scopeLevels[i + 1];
+              if (cur.selector !== null && nxt && nxt.selector !== null && i < level && (i + 1) <= level) {
+                bridges.add(i);
+              }
+            }
+            return bridges;
+          };
+          const [bridgeVisible, setBridgeVisible] = useState<Set<number>>(() => computeBridgesForLevel(activeLevelIndex));
+
+          // Capture pill colors after paint for the NEXT transition
+          const pillColorsRef = useRef<Map<number, { bg: string; color: string }>>(new Map());
+          useEffect(() => {
+            const f = fieldRef.current;
+            if (!f) return;
+            const colors = new Map<number, { bg: string; color: string }>();
+            f.querySelectorAll<HTMLElement>('[data-level-index]').forEach(pill => {
+              const idx = parseInt(pill.dataset.levelIndex || '0', 10);
+              const style = getComputedStyle(pill);
+              colors.set(idx, { bg: style.backgroundColor, color: style.color });
+            });
+            pillColorsRef.current = colors;
+          });
+
+          // Animate on level change
+          useEffect(() => {
+            const prev = prevLevelRef.current;
+            prevLevelRef.current = activeLevelIndex;
+            if (prev === activeLevelIndex) return;
+
+            const oldBridges = computeBridgesForLevel(prev);
+            const newBridges = computeBridgesForLevel(activeLevelIndex);
+
+            const appearing: number[] = [];
+            const disappearing: number[] = [];
+            newBridges.forEach(b => { if (!oldBridges.has(b)) appearing.push(b); });
+            oldBridges.forEach(b => { if (!newBridges.has(b)) disappearing.push(b); });
+
+            if (appearing.length === 0 && disappearing.length === 0) {
+              setBridgeVisible(newBridges);
+              return;
+            }
+
+            const field = fieldRef.current;
+            if (!field) { setBridgeVisible(newBridges); return; }
+
+            const DURATION = 320;
+            const EASING = 'cubic-bezier(0.77, 0, 0.175, 1)';
+            const EXTEND = 6;
+            const getPill = (idx: number) => field.querySelector<HTMLElement>(`[data-level-index="${idx}"]`);
+
+            const allBridges = [...appearing, ...disappearing];
+            const pillSides = new Map<number, Set<'left' | 'right'>>();
+            for (const bridgeIdx of allBridges) {
+              if (!pillSides.has(bridgeIdx)) pillSides.set(bridgeIdx, new Set());
+              pillSides.get(bridgeIdx)!.add('right');
+              if (!pillSides.has(bridgeIdx + 1)) pillSides.set(bridgeIdx + 1, new Set());
+              pillSides.get(bridgeIdx + 1)!.add('left');
+            }
+
+            // Freeze pill colors to pre-change appearance
+            const snapshotColors = pillColorsRef.current;
+            const frozenPills: HTMLElement[] = [];
+            for (const [pillIdx] of pillSides) {
+              const pill = getPill(pillIdx);
+              if (!pill) continue;
+              const old = snapshotColors.get(pillIdx);
+              if (old) {
+                pill.style.backgroundColor = old.bg;
+                pill.style.color = old.color;
+                frozenPills.push(pill);
+              }
+            }
+
+            // Animate box-shadow + border-radius
+            for (const [pillIdx, sides] of pillSides) {
+              const pill = getPill(pillIdx);
+              if (!pill) continue;
+              const bg = snapshotColors.get(pillIdx)?.bg || '#f5f5f4';
+
+              const shadows: string[] = [];
+              if (sides.has('right')) shadows.push(`${EXTEND}px 0 0 0 ${bg}`);
+              if (sides.has('left')) shadows.push(`-${EXTEND}px 0 0 0 ${bg}`);
+              const peakShadow = shadows.join(', ');
+              const zeroShadows = shadows.map(() => `0px 0 0 0 ${bg}`).join(', ');
+
+              const R = '8px';
+              const Z = '0px';
+              const peakRadius = `${sides.has('left') ? Z : R} ${sides.has('right') ? Z : R} ${sides.has('right') ? Z : R} ${sides.has('left') ? Z : R}`;
+
+              pill.animate([
+                { boxShadow: zeroShadows, borderRadius: `${R} ${R} ${R} ${R}` },
+                { boxShadow: peakShadow, borderRadius: peakRadius },
+                { boxShadow: zeroShadows, borderRadius: `${R} ${R} ${R} ${R}` },
+              ], { duration: DURATION, easing: EASING });
+            }
+
+            // Midpoint: unfreeze colors + update bridges
+            const timer = setTimeout(() => {
+              for (const pill of frozenPills) {
+                pill.style.removeProperty('background-color');
+                pill.style.removeProperty('color');
+              }
+              setBridgeVisible(newBridges);
+            }, DURATION / 2);
+
+            // Cleanup: cancel stale timeout if level changes again before animation finishes
+            return () => clearTimeout(timer);
+          }, [activeLevelIndex, scopeLevels]);
+
+          return (
+            <RowGroup label="Target">
+              <div className="retune-selector-field" ref={fieldRef}>
+                {scopeLevels.map((level, index) => {
+                  const isActive = index === activeLevelIndex;
+                  const isElementLevel = level.selector === null;
+                  const activeIsElementLevel = scopeLevels[activeLevelIndex]?.selector === null;
+                  const isIncluded = index < activeLevelIndex && !activeIsElementLevel;
+                  const showBridge = bridgeVisible.has(index);
+                  return (
+                    <Fragment key={level.selector ?? "__element"}>
+                      {isElementLevel && scopeLevels.length > 1 && (
+                        <span className="retune-selector-divider" />
+                      )}
+                      <button
+                        className={`retune-selector-tag${isActive ? " active" : ""}${isIncluded ? " included" : ""}`}
+                        data-level-index={index}
+                        onClick={() => onScopeLevelChange(index)}
+                      >
+                        {level.label.length > 24 ? (
+                          <Tooltip content={level.label} side="bottom" delay={300}>
+                            <span className="retune-selector-tag-name">
+                              {middleTruncate(level.label, 24)}
+                            </span>
+                          </Tooltip>
+                        ) : (
+                          <span className="retune-selector-tag-name">
+                            {level.label}
+                          </span>
+                        )}
+                        {level.count > 1 && (
+                          <Tooltip content={`${level.count} elements match this selector`} side="bottom" delay={300}>
+                            <span className="retune-selector-tag-count">{level.count}</span>
+                          </Tooltip>
+                        )}
+                      </button>
+                      {showBridge && (
+                        <span className="retune-selector-bridge filled" />
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </div>
+            </RowGroup>
+          );
+        })()}
         {onForcedStateChange && (
           <RowGroup label="State">
             <div className="retune-row">
               <SelectInput
                 prop="__state"
-                value={forcedState ?? "default"}
-                options={["default", ":hover", ":focus", ":active"]}
-                onChange={(_, val) => onForcedStateChange(val === "default" ? null : val as ForcedState)}
+                value={forcedState ?? "none"}
+                options={["none", ":hover", ":focus", ":active"]}
+                onChange={(_, val) => onForcedStateChange(val === "none" ? null : val as ForcedState)}
               />
-            </div>
-          </RowGroup>
-        )}
-        {selectorCandidates.length > 0 && onSelectorChange && (
-          <RowGroup label="Selector">
-            <div className="retune-selector-field">
-              <button
-                className={`retune-selector-tag${activeSelector === null ? " active" : ""}`}
-                onClick={() => onSelectorChange(null)}
-              >
-                <span className="retune-selector-tag-name">This element</span>
-              </button>
-              {selectorCandidates.map((candidate) => (
-                <button
-                  key={candidate.selector}
-                  className={`retune-selector-tag${activeSelector === candidate.selector ? " active" : ""}`}
-                  onClick={() => onSelectorChange(candidate.selector)}
-                >
-                  <span className="retune-selector-tag-name" title={candidate.selector.replace(/^\./, "")}>
-                    {middleTruncate(candidate.selector.replace(/^\./, ""), 24)}
-                  </span>
-                  {candidate.count > 1 && (
-                    <span className="retune-selector-tag-count">{candidate.count}</span>
-                  )}
-                </button>
-              ))}
             </div>
           </RowGroup>
         )}
@@ -667,20 +974,20 @@ export function PropertyPanel({
         {positionType === "relative" && (
           <RowGroup label="Offsets">
             <div className="retune-row">
-              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
-              <NumberInput label="R" prop="right" value={s.right} onChange={onPropertyChange} />
+              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} {...changeProps("top")} />
+              <NumberInput label="R" prop="right" value={s.right} onChange={onPropertyChange} {...changeProps("right")} />
             </div>
             <div className="retune-row">
-              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
-              <NumberInput label="L" prop="left" value={s.left} onChange={onPropertyChange} />
+              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} {...changeProps("bottom")} />
+              <NumberInput label="L" prop="left" value={s.left} onChange={onPropertyChange} {...changeProps("left")} />
             </div>
           </RowGroup>
         )}
         {isSticky && (
           <RowGroup label="Sticky offset">
             <div className="retune-row">
-              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} />
-              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} />
+              <NumberInput label="T" prop="top" value={s.top} onChange={onPropertyChange} {...changeProps("top")} />
+              <NumberInput label="B" prop="bottom" value={s.bottom} onChange={onPropertyChange} {...changeProps("bottom")} />
             </div>
           </RowGroup>
         )}
@@ -733,6 +1040,7 @@ export function PropertyPanel({
                       value={s.gap}
                       onChange={onPropertyChange}
                       min={0}
+                      {...changeProps("gap")}
                     />
                   </Field>
                 </div>
@@ -770,8 +1078,8 @@ export function PropertyPanel({
             <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("gap")} onPointerLeave={() => onPropertyHover?.(null)}>
               <Field label="Gap">
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <NumberInput label={<Tooltip content="Horizontal gap between columns" side="top" sideOffset={14}><AlSpacingHorizontal /></Tooltip>} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} min={0} />
-                  <NumberInput label={<Tooltip content="Vertical gap between rows" side="top" sideOffset={14}><AlSpacingVertical /></Tooltip>} prop="rowGap" value={s.rowGap} onChange={onPropertyChange} min={0} />
+                  <NumberInput label={<Tooltip content="Horizontal gap between columns" side="top" sideOffset={14}><AlSpacingHorizontal /></Tooltip>} prop="columnGap" value={s.columnGap} onChange={onPropertyChange} min={0} {...variableProps("columnGap")} {...changeProps("columnGap")} />
+                  <NumberInput label={<Tooltip content="Vertical gap between rows" side="top" sideOffset={14}><AlSpacingVertical /></Tooltip>} prop="rowGap" value={s.rowGap} onChange={onPropertyChange} min={0} {...variableProps("rowGap")} {...changeProps("rowGap")} />
                 </div>
               </Field>
             </div>
@@ -782,10 +1090,10 @@ export function PropertyPanel({
             <>
               <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("paddingLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Padding left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} min={0} />
+                  <NumberInput label={<Tooltip content="Padding left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="paddingLeft" value={s.paddingLeft} onChange={onPropertyChange} min={0} {...variableProps("paddingLeft")} {...changeProps("paddingLeft")} />
                 </div>
                 <div onPointerEnter={() => onPropertyHover?.("paddingTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Padding top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} min={0} />
+                  <NumberInput label={<Tooltip content="Padding top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="paddingTop" value={s.paddingTop} onChange={onPropertyChange} min={0} {...variableProps("paddingTop")} {...changeProps("paddingTop")} />
                 </div>
                 <Tooltip content="Collapse to axes" side="top">
                   <button className="retune-split-btn active" onClick={() => setPaddingExpanded(false)}>
@@ -795,10 +1103,10 @@ export function PropertyPanel({
               </div>
               <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("paddingRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Padding right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} min={0} />
+                  <NumberInput label={<Tooltip content="Padding right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="paddingRight" value={s.paddingRight} onChange={onPropertyChange} min={0} {...variableProps("paddingRight")} {...changeProps("paddingRight")} />
                 </div>
                 <div onPointerEnter={() => onPropertyHover?.("paddingBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Padding bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} min={0} />
+                  <NumberInput label={<Tooltip content="Padding bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="paddingBottom" value={s.paddingBottom} onChange={onPropertyChange} min={0} {...variableProps("paddingBottom")} {...changeProps("paddingBottom")} />
                 </div>
                 <div style={{ width: 32 }} />
               </div>
@@ -812,6 +1120,8 @@ export function PropertyPanel({
                   values={[s.paddingLeft, s.paddingRight]}
                   onChange={onPropertyChange}
                   min={0}
+                  {...shorthandVariableProps(["paddingLeft", "paddingRight"])}
+                  {...shorthandChangeProps(["paddingLeft", "paddingRight"])}
                 />
               </div>
               <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("paddingBlock")} onPointerLeave={() => onPropertyHover?.(null)}>
@@ -821,6 +1131,8 @@ export function PropertyPanel({
                   values={[s.paddingTop, s.paddingBottom]}
                   onChange={onPropertyChange}
                   min={0}
+                  {...shorthandVariableProps(["paddingTop", "paddingBottom"])}
+                  {...shorthandChangeProps(["paddingTop", "paddingBottom"])}
                 />
               </div>
               <Tooltip content="Edit individual sides" side="top">
@@ -836,10 +1148,10 @@ export function PropertyPanel({
             <>
               <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("marginLeft")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Margin left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Margin left" side="top" sideOffset={14}><AlPaddingLeft /></Tooltip>} prop="marginLeft" value={s.marginLeft} onChange={onPropertyChange} {...variableProps("marginLeft")} {...changeProps("marginLeft")} />
                 </div>
                 <div onPointerEnter={() => onPropertyHover?.("marginTop")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Margin top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Margin top" side="top" sideOffset={14}><AlPaddingTop /></Tooltip>} prop="marginTop" value={s.marginTop} onChange={onPropertyChange} {...variableProps("marginTop")} {...changeProps("marginTop")} />
                 </div>
                 <Tooltip content="Collapse to axes" side="top">
                   <button className="retune-split-btn active" onClick={() => setMarginExpanded(false)}>
@@ -849,10 +1161,10 @@ export function PropertyPanel({
               </div>
               <div className="retune-row">
                 <div onPointerEnter={() => onPropertyHover?.("marginRight")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Margin right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Margin right" side="top" sideOffset={14}><AlPaddingRight /></Tooltip>} prop="marginRight" value={s.marginRight} onChange={onPropertyChange} {...variableProps("marginRight")} {...changeProps("marginRight")} />
                 </div>
                 <div onPointerEnter={() => onPropertyHover?.("marginBottom")} onPointerLeave={() => onPropertyHover?.(null)} style={{ flex: 1 }}>
-                  <NumberInput label={<Tooltip content="Margin bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} />
+                  <NumberInput label={<Tooltip content="Margin bottom" side="top" sideOffset={14}><AlPaddingBottom /></Tooltip>} prop="marginBottom" value={s.marginBottom} onChange={onPropertyChange} {...variableProps("marginBottom")} {...changeProps("marginBottom")} />
                 </div>
                 <div style={{ width: 32 }} />
               </div>
@@ -865,6 +1177,8 @@ export function PropertyPanel({
                   props={["marginLeft", "marginRight"]}
                   values={[s.marginLeft, s.marginRight]}
                   onChange={onPropertyChange}
+                  {...shorthandVariableProps(["marginLeft", "marginRight"])}
+                  {...shorthandChangeProps(["marginLeft", "marginRight"])}
                 />
               </div>
               <div style={{ flex: 1 }} onPointerEnter={() => onPropertyHover?.("marginBlock")} onPointerLeave={() => onPropertyHover?.(null)}>
@@ -873,6 +1187,8 @@ export function PropertyPanel({
                   props={["marginTop", "marginBottom"]}
                   values={[s.marginTop, s.marginBottom]}
                   onChange={onPropertyChange}
+                  {...shorthandVariableProps(["marginTop", "marginBottom"])}
+                  {...shorthandChangeProps(["marginTop", "marginBottom"])}
                 />
               </div>
               <Tooltip content="Edit individual sides" side="top">
@@ -966,6 +1282,7 @@ export function PropertyPanel({
                   onPropertyChange(prop, val);
                 }
               }}
+              {...changeProps("width")}
             />
           </Field>
           <Field label="Height">
@@ -981,6 +1298,7 @@ export function PropertyPanel({
                   onPropertyChange(prop, val);
                 }
               }}
+              {...changeProps("height")}
             />
           </Field>
         </Row>
@@ -991,13 +1309,13 @@ export function PropertyPanel({
                 <NumberInput prop="minWidth" value={s.minWidth === "0px" || s.minWidth === "auto" ? "" : s.minWidth} placeholder="–" onChange={(p, v) => {
                   if (!v) onPropertyChange(p, "0px");
                   else onPropertyChange(p, v);
-                }} />
+                }} {...changeProps("minWidth")} />
               </Field>
               <Field label="Min H">
                 <NumberInput prop="minHeight" value={s.minHeight === "0px" || s.minHeight === "auto" ? "" : s.minHeight} placeholder="–" onChange={(p, v) => {
                   if (!v) onPropertyChange(p, "0px");
                   else onPropertyChange(p, v);
-                }} />
+                }} {...changeProps("minHeight")} />
               </Field>
               <Tooltip content="Remove min size" side="top">
                 <button className="retune-split-btn" onClick={() => {
@@ -1018,13 +1336,13 @@ export function PropertyPanel({
                 <NumberInput prop="maxWidth" value={s.maxWidth === "none" ? "" : s.maxWidth} placeholder="–" onChange={(p, v) => {
                   if (!v) onPropertyChange(p, "none");
                   else onPropertyChange(p, v);
-                }} />
+                }} {...changeProps("maxWidth")} />
               </Field>
               <Field label="Max H">
                 <NumberInput prop="maxHeight" value={s.maxHeight === "none" ? "" : s.maxHeight} placeholder="–" onChange={(p, v) => {
                   if (!v) onPropertyChange(p, "none");
                   else onPropertyChange(p, v);
-                }} />
+                }} {...changeProps("maxHeight")} />
               </Field>
               <Tooltip content="Remove max size" side="top">
                 <button className="retune-split-btn" onClick={() => {
@@ -1045,28 +1363,28 @@ export function PropertyPanel({
         <Section label="Typography">
           <Row>
             <Field label="Font">
-              <FontInput prop="fontFamily" value={s.fontFamily} onChange={onPropertyChange} />
+              <FontInput prop="fontFamily" value={s.fontFamily} onChange={onPropertyChange} {...changeProps("fontFamily")} />
             </Field>
           </Row>
           <Row>
             <Field label="Size">
-              <NumberInput prop="fontSize" value={s.fontSize} onChange={onPropertyChange} min={1} />
+              <NumberInput prop="fontSize" value={s.fontSize} onChange={onPropertyChange} min={1} {...variableProps("fontSize")} {...changeProps("fontSize")} />
             </Field>
             <Field label="Weight">
-              <ComboInput prop="fontWeight" value={s.fontWeight} options={FONT_WEIGHT_OPTIONS} onChange={onPropertyChange} />
+              <ComboInput prop="fontWeight" value={s.fontWeight} options={FONT_WEIGHT_OPTIONS} onChange={onPropertyChange} {...variableProps("fontWeight")} {...changeProps("fontWeight")} />
             </Field>
           </Row>
           <Row>
             <Field label="Line height">
-              <ComboInput prop="lineHeight" value={s.lineHeight} options={LINE_HEIGHT_OPTIONS} onChange={onPropertyChange} />
+              <ComboInput prop="lineHeight" value={s.lineHeight} options={LINE_HEIGHT_OPTIONS} onChange={onPropertyChange} {...variableProps("lineHeight")} {...changeProps("lineHeight")} />
             </Field>
             <Field label="Letter spacing">
-              <ComboInput prop="letterSpacing" value={s.letterSpacing} options={LETTER_SPACING_OPTIONS} onChange={onPropertyChange} />
+              <ComboInput prop="letterSpacing" value={s.letterSpacing} options={LETTER_SPACING_OPTIONS} onChange={onPropertyChange} {...variableProps("letterSpacing")} {...changeProps("letterSpacing")} />
             </Field>
           </Row>
           <Row>
             <Field label="Color">
-              <ColorInput prop="color" value={s.color} onChange={onPropertyChange} />
+              <ColorInput prop="color" value={s.color} onChange={onPropertyChange} {...variableProps("color")} {...changeProps("color")} />
             </Field>
           </Row>
           <Row>
@@ -1166,6 +1484,7 @@ export function PropertyPanel({
                               );
                               applyChanges(changes);
                             }}
+                            {...changeProps("lineClamp")}
                           />
                         </Field>
                       )}
@@ -1196,18 +1515,18 @@ export function PropertyPanel({
       <Section label="Appearance">
         <Row>
           <Field label="Opacity">
-            <NumberInput prop="opacity" value={s.opacity} onChange={onPropertyChange} min={0} max={1} step={0.01} />
+            <NumberInput prop="opacity" value={s.opacity} onChange={onPropertyChange} min={0} max={1} step={0.01} {...variableProps("opacity")} {...changeProps("opacity")} />
           </Field>
           <Field label="Z index">
-            <NumberInput prop="zIndex" value={s.zIndex} onChange={onPropertyChange} />
+            <NumberInput prop="zIndex" value={s.zIndex} onChange={onPropertyChange} {...changeProps("zIndex")} />
           </Field>
         </Row>
         <RowGroup label="Corner radius">
           {radiusExpanded ? (
             <>
               <div className="retune-row">
-                <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} min={0} />
-                <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><RadiusTopRight /></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} min={0} />
+                <NumberInput label={<Tooltip content="Top left corner radius" side="top" sideOffset={14}><RadiusTopLeft /></Tooltip>} prop="borderTopLeftRadius" value={s.borderTopLeftRadius} onChange={onPropertyChange} min={0} {...variableProps("borderTopLeftRadius")} {...changeProps("borderTopLeftRadius")} />
+                <NumberInput label={<Tooltip content="Top right corner radius" side="top" sideOffset={14}><RadiusTopRight /></Tooltip>} prop="borderTopRightRadius" value={s.borderTopRightRadius} onChange={onPropertyChange} min={0} {...variableProps("borderTopRightRadius")} {...changeProps("borderTopRightRadius")} />
                 <Tooltip content="Collapse to single" side="top">
                   <button className="retune-split-btn active" onClick={() => setRadiusExpanded(false)}>
                     <AlPaddingSides />
@@ -1215,8 +1534,8 @@ export function PropertyPanel({
                 </Tooltip>
               </div>
               <div className="retune-row">
-                <NumberInput label={<Tooltip content="Bottom left corner radius" side="top" sideOffset={14}><RadiusBottomLeft /></Tooltip>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} min={0} />
-                <NumberInput label={<Tooltip content="Bottom right corner radius" side="top" sideOffset={14}><RadiusBottomRight /></Tooltip>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} min={0} />
+                <NumberInput label={<Tooltip content="Bottom left corner radius" side="top" sideOffset={14}><RadiusBottomLeft /></Tooltip>} prop="borderBottomLeftRadius" value={s.borderBottomLeftRadius} onChange={onPropertyChange} min={0} {...variableProps("borderBottomLeftRadius")} {...changeProps("borderBottomLeftRadius")} />
+                <NumberInput label={<Tooltip content="Bottom right corner radius" side="top" sideOffset={14}><RadiusBottomRight /></Tooltip>} prop="borderBottomRightRadius" value={s.borderBottomRightRadius} onChange={onPropertyChange} min={0} {...variableProps("borderBottomRightRadius")} {...changeProps("borderBottomRightRadius")} />
                 <div style={{ width: 32 }} />
               </div>
             </>
@@ -1228,6 +1547,8 @@ export function PropertyPanel({
                 values={[s.borderTopLeftRadius, s.borderTopRightRadius, s.borderBottomRightRadius, s.borderBottomLeftRadius]}
                 onChange={onPropertyChange}
                 min={0}
+                {...shorthandVariableProps(["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"])}
+                {...shorthandChangeProps(["borderTopLeftRadius", "borderTopRightRadius", "borderBottomRightRadius", "borderBottomLeftRadius"])}
               />
               <Tooltip content="Edit individual corners" side="top">
                 <button className="retune-split-btn" onClick={() => setRadiusExpanded(true)}>
@@ -1245,37 +1566,82 @@ export function PropertyPanel({
       </Section>
 
       {/* Fill */}
-      <Section
-        label="Fill"
-        gap={8}
-        action={
-          hasFill ? (
-            <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
-          ) : (
-            <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
-          )
-        }
-      >
-        {hasFill && (
-          <>
-            <Row>
-              <SelectInput
-                prop="fillMode"
-                value={fillMode === "solid" ? "solid" : gradient.type}
-                options={["solid", "linear", "radial", "conic"]}
-                onChange={handleFillModeChange}
-              />
-            </Row>
-            {fillMode === "solid" ? (
+      {(() => {
+        const fillVarMatch = getVariableMatch("backgroundColor");
+        const fillHasVariable = !!fillVarMatch;
+
+        return (
+          <Section
+            label="Fill"
+            gap={8}
+            action={
+              <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                {!fillHasVariable && (
+                  <VariableAction
+                    property="backgroundColor"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={(v, props) => {
+                      const val = Object.values(v.values)[0];
+                      if (val) onPropertyChange("backgroundColor", val);
+                      onVariableAssociate?.(props, { className: v.className, values: v.values });
+                    }}
+                  />
+                )}
+                {hasFill || fillHasVariable ? (
+                  <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={handleRemoveFill}><Minus /></button></Tooltip>
+                ) : (
+                  <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={handleAddFill}><Plus /></button></Tooltip>
+                )}
+              </div>
+            }
+          >
+            {fillHasVariable ? (
               <Row>
-                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} />
+                <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1 }}>
+                  <ChangeIndicator isChanged={changeProps("backgroundColor").isChanged} onReset={changeProps("backgroundColor").onReset} />
+                  <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
+                    {fillVarMatch.variable.className.startsWith("var(--")
+                      ? fillVarMatch.variable.className.slice(6, -1)
+                      : fillVarMatch.variable.className}
+                  </span>
+                  <VariableAction
+                    match={fillVarMatch}
+                    property="backgroundColor"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={handleVariableApply}
+                    onVariableUnlink={() => onVariableUnlink?.(["backgroundColor"])}
+                  />
+                </div>
               </Row>
-            ) : (
-              <GradientEditor gradient={gradient} onChange={handleGradientChange} />
-            )}
-          </>
-        )}
-      </Section>
+            ) : hasFill ? (
+              <>
+                <Row>
+                  <SelectInput
+                    prop="fillMode"
+                    value={fillMode === "solid" ? "solid" : gradient.type}
+                    options={["solid", "linear", "radial", "conic"]}
+                    onChange={handleFillModeChange}
+                    isChanged={changeProps("backgroundImage").isChanged}
+                    onReset={() => { onPropertyReset?.("backgroundImage"); onPropertyReset?.("backgroundColor"); }}
+                  />
+                </Row>
+                {fillMode === "solid" ? (
+                  <Row>
+                    <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
+                  </Row>
+                ) : (
+                  <GradientEditor
+                    gradient={gradient}
+                    onChange={handleGradientChange}
+                    originalGradient={initialGradient ?? undefined}
+                    isNewGradient={initialFillMode === "solid"}
+                  />
+                )}
+              </>
+            ) : null}
+          </Section>
+        );
+      })()}
 
       {/* Border */}
       <Section
@@ -1292,7 +1658,7 @@ export function PropertyPanel({
           <>
             <Row>
               <Field label="Color">
-                <ColorInput prop="borderColor" value={activeBorderColor} onChange={onPropertyChange} />
+                <ColorInput prop="borderColor" value={activeBorderColor} onChange={onPropertyChange} {...variableProps("borderColor")} {...changeProps("borderColor")} />
               </Field>
             </Row>
             <RowGroup label={borderExpanded ? undefined : "Width"}>
@@ -1303,13 +1669,13 @@ export function PropertyPanel({
                       <NumberInput prop="borderTopWidth" value={s.borderTopWidth} onChange={(p, v) => {
                         onPropertyChange(p, v);
                         if (parseFloat(v) > 0 && s.borderTopStyle === "none") onPropertyChange("borderTopStyle", "solid");
-                      }} min={0} />
+                      }} min={0} {...changeProps("borderTopWidth")} />
                     </Field>
                     <Field label="Right">
                       <NumberInput prop="borderRightWidth" value={s.borderRightWidth} onChange={(p, v) => {
                         onPropertyChange(p, v);
                         if (parseFloat(v) > 0 && s.borderRightStyle === "none") onPropertyChange("borderRightStyle", "solid");
-                      }} min={0} />
+                      }} min={0} {...changeProps("borderRightWidth")} />
                     </Field>
                     <Tooltip content="Collapse to shorthand" side="top">
                       <button className="retune-split-btn active" onClick={() => setBorderExpanded(false)}>
@@ -1322,13 +1688,13 @@ export function PropertyPanel({
                       <NumberInput prop="borderBottomWidth" value={s.borderBottomWidth} onChange={(p, v) => {
                         onPropertyChange(p, v);
                         if (parseFloat(v) > 0 && s.borderBottomStyle === "none") onPropertyChange("borderBottomStyle", "solid");
-                      }} min={0} />
+                      }} min={0} {...changeProps("borderBottomWidth")} />
                     </Field>
                     <Field label="Left">
                       <NumberInput prop="borderLeftWidth" value={s.borderLeftWidth} onChange={(p, v) => {
                         onPropertyChange(p, v);
                         if (parseFloat(v) > 0 && s.borderLeftStyle === "none") onPropertyChange("borderLeftStyle", "solid");
-                      }} min={0} />
+                      }} min={0} {...changeProps("borderLeftWidth")} />
                     </Field>
                     <div style={{ width: 32 }} />
                   </div>
@@ -1340,6 +1706,8 @@ export function PropertyPanel({
                     values={[s.borderTopWidth, s.borderRightWidth, s.borderBottomWidth, s.borderLeftWidth]}
                     onChange={onPropertyChange}
                     min={0}
+                    {...shorthandVariableProps(["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"])}
+                    {...shorthandChangeProps(["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"])}
                   />
                   <Tooltip content="Edit individual sides" side="top">
                     <button className="retune-split-btn" onClick={() => setBorderExpanded(true)}>
@@ -1359,77 +1727,120 @@ export function PropertyPanel({
       </Section>
 
       {/* Shadow */}
-      <Section
-        label="Shadow"
-        action={
-          hasShadow ? (
-            <Tooltip content="Remove shadow" side="top"><button className="retune-section-action" onClick={handleRemoveShadow}><Minus /></button></Tooltip>
-          ) : (
-            <Tooltip content="Add shadow" side="top"><button className="retune-section-action" onClick={handleAddShadow}><Plus /></button></Tooltip>
-          )
-        }
-      >
-        {hasShadow && (() => {
-          const shadow = parseBoxShadow(s.boxShadow);
-          if (!shadow) return null;
-          return (
-            <>
+      {(() => {
+        const shadowVarMatch = getVariableMatch("boxShadow");
+        const shadowHasVariable = !!shadowVarMatch;
+
+        return (
+          <Section
+            label="Shadow"
+            action={
+              <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                {!shadowHasVariable && (
+                  <VariableAction
+                    property="boxShadow"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={(v, props) => {
+                      const val = Object.values(v.values)[0];
+                      if (val) onPropertyChange("boxShadow", val);
+                      onVariableAssociate?.(props, { className: v.className, values: v.values });
+                    }}
+                  />
+                )}
+                {hasShadow || shadowHasVariable ? (
+                  <Tooltip content="Remove shadow" side="top"><button className="retune-section-action" onClick={handleRemoveShadow}><Minus /></button></Tooltip>
+                ) : (
+                  <Tooltip content="Add shadow" side="top"><button className="retune-section-action" onClick={handleAddShadow}><Plus /></button></Tooltip>
+                )}
+              </div>
+            }
+          >
+            {shadowHasVariable ? (
               <Row>
-                <Field label="Color">
-                  <ColorInput
-                    prop="shadowColor"
-                    value={shadow.color}
-                    onChange={(_p, val) => handleShadowFieldChange("color", val)}
+                <div className="retune-prop retune-prop-variable-applied" style={{ flex: 1 }}>
+                  <ChangeIndicator isChanged={changeProps("boxShadow").isChanged} onReset={changeProps("boxShadow").onReset} />
+                  <span className="retune-prop-input" style={{ display: "flex", alignItems: "center", paddingLeft: 12, color: "#1c1917" }}>
+                    {shadowVarMatch.variable.className.startsWith("var(--")
+                      ? shadowVarMatch.variable.className.slice(6, -1)
+                      : shadowVarMatch.variable.className}
+                  </span>
+                  <VariableAction
+                    match={shadowVarMatch}
+                    property="boxShadow"
+                    onVariableSelect={handleVariableSelect}
+                    onVariableApply={handleVariableApply}
+                    onVariableUnlink={() => onVariableUnlink?.(["boxShadow"])}
                   />
-                </Field>
+                </div>
               </Row>
-              <Row>
-                <Field label="X offset">
-                  <NumberInput
-                    prop="shadowOffsetX"
-                    value={`${shadow.offsetX}px`}
-                    onChange={(_p, val) => handleShadowFieldChange("offsetX", parseFloat(val) || 0)}
-                  />
-                </Field>
-                <Field label="Y offset">
-                  <NumberInput
-                    prop="shadowOffsetY"
-                    value={`${shadow.offsetY}px`}
-                    onChange={(_p, val) => handleShadowFieldChange("offsetY", parseFloat(val) || 0)}
-                  />
-                </Field>
-              </Row>
-              <Row>
-                <Field label="Blur">
-                  <NumberInput
-                    prop="shadowBlur"
-                    value={`${shadow.blur}px`}
-                    onChange={(_p, val) => handleShadowFieldChange("blur", Math.max(0, parseFloat(val) || 0))}
-                    min={0}
-                  />
-                </Field>
-                <Field label="Spread">
-                  <NumberInput
-                    prop="shadowSpread"
-                    value={`${shadow.spread}px`}
-                    onChange={(_p, val) => handleShadowFieldChange("spread", parseFloat(val) || 0)}
-                  />
-                </Field>
-              </Row>
-              <Row>
-                <Field label="Type">
-                  <SelectInput
-                    prop="shadowInset"
-                    value={shadow.inset ? "inside" : "outside"}
-                    options={["outside", "inside"]}
-                    onChange={(_p, val) => handleShadowFieldChange("inset", val === "inside")}
-                  />
-                </Field>
-              </Row>
-            </>
-          );
-        })()}
-      </Section>
+            ) : hasShadow ? (() => {
+              const shadow = parseBoxShadow(s.boxShadow);
+              if (!shadow) return null;
+              return (
+                <>
+                  <Row>
+                    <Field label="Color">
+                      <ColorInput
+                        prop="shadowColor"
+                        value={shadow.color}
+                        onChange={(_p, val) => handleShadowFieldChange("color", val)}
+                        {...changeProps("shadowColor")}
+                      />
+                    </Field>
+                  </Row>
+                  <Row>
+                    <Field label="X offset">
+                      <NumberInput
+                        prop="shadowOffsetX"
+                        value={`${shadow.offsetX}px`}
+                        onChange={(_p, val) => handleShadowFieldChange("offsetX", parseFloat(val) || 0)}
+                        {...changeProps("shadowOffsetX")}
+                      />
+                    </Field>
+                    <Field label="Y offset">
+                      <NumberInput
+                        prop="shadowOffsetY"
+                        value={`${shadow.offsetY}px`}
+                        onChange={(_p, val) => handleShadowFieldChange("offsetY", parseFloat(val) || 0)}
+                        {...changeProps("shadowOffsetY")}
+                      />
+                    </Field>
+                  </Row>
+                  <Row>
+                    <Field label="Blur">
+                      <NumberInput
+                        prop="shadowBlur"
+                        value={`${shadow.blur}px`}
+                        onChange={(_p, val) => handleShadowFieldChange("blur", Math.max(0, parseFloat(val) || 0))}
+                        min={0}
+                        {...changeProps("shadowBlur")}
+                      />
+                    </Field>
+                    <Field label="Spread">
+                      <NumberInput
+                        prop="shadowSpread"
+                        value={`${shadow.spread}px`}
+                        onChange={(_p, val) => handleShadowFieldChange("spread", parseFloat(val) || 0)}
+                        {...changeProps("shadowSpread")}
+                      />
+                    </Field>
+                  </Row>
+                  <Row>
+                    <Field label="Type">
+                      <SelectInput
+                        prop="shadowInset"
+                        value={shadow.inset ? "inside" : "outside"}
+                        options={["outside", "inside"]}
+                        onChange={(_p, val) => handleShadowFieldChange("inset", val === "inside")}
+                      />
+                    </Field>
+                  </Row>
+                </>
+              );
+            })() : null}
+          </Section>
+        );
+      })()}
 
       {/* Filters */}
       <Section

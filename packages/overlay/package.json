@@ -1,12 +1,12 @@
 {
   "name": "retune",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/khadgi-sujan/retune"
   },
-  "license": "MIT",
+  "license": "PolyForm-Shield-1.0.0",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -19,12 +19,14 @@
     "retune": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skill"
   ],
   "scripts": {
     "build:css": "node scripts/build-css.js",
     "build": "npm run build:css && tsup",
-    "dev": "npm run build:css && tsup --watch"
+    "dev": "npm run build:css && tsup --watch",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -44,6 +46,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tsup": "^8.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^4.1.0"
   }
 }

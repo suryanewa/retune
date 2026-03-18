@@ -7,22 +7,45 @@
 import { useState, useRef, useCallback } from "react";
 import { parseCssColor, hexToRgba } from "./color-utils";
 import { ColorPicker } from "./color-picker";
+import type { VariableMatch, DesignVariable } from "../tokens/types";
+import { ChangeIndicator } from "./change-indicator";
+import { VariableAction } from "./variable-action";
+import { claimDialog, releaseDialog } from "./dialog-singleton";
 
 export interface ColorInputProps {
   prop: string;
   value: string | undefined;
   onChange: (prop: string, value: string) => void;
+  variableMatch?: VariableMatch;
+  property?: string;
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  onVariableUnlink?: () => void;
+  /** Whether this property has been changed from its original value */
+  isChanged?: boolean;
+  /** Reset this property to its original value */
+  onReset?: () => void;
 }
 
-export function ColorInput({ prop, value, onChange }: ColorInputProps) {
+/** Format variable name for display: var(--color-brand) → "color-brand" */
+function formatVarName(className: string): string {
+  if (className.startsWith("var(--") && className.endsWith(")")) {
+    return className.slice(6, -1);
+  }
+  return className;
+}
+
+export function ColorInput({ prop, value, onChange, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: ColorInputProps) {
   const parsed = parseCssColor(value || "");
   const [hexLocal, setHexLocal] = useState(parsed.hex.replace("#", "").toUpperCase());
   const [opacityLocal, setOpacityLocal] = useState(String(parsed.opacity));
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [initialTab, setInitialTab] = useState<"custom" | "tokens">("custom");
   const [anchorRect, setAnchorRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
   const swatchRef = useRef<HTMLDivElement>(null);
   const hexFocusedRef = useRef(false);
   const opacityFocusedRef = useRef(false);
+  const stableCloseRef = useRef(() => setPickerOpen(false));
 
   // Track current hex and opacity as refs for building CSS output
   const currentHexRef = useRef(parsed.hex);
@@ -50,16 +73,21 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
     onChange(prop, hexToRgba(hex, opacity));
   }, [prop, onChange]);
 
-  // ── Swatch click → open picker ──
+  // ── Swatch click → open picker (Custom tab) ──
   const handleSwatchClick = useCallback(() => {
     if (pickerOpen) {
+      releaseDialog(stableCloseRef.current);
       setPickerOpen(false);
       return;
     }
+    openPicker("custom");
+  }, [pickerOpen]);
+
+  // Shared open logic — computes anchor rect and opens to the given tab
+  const openPicker = useCallback((tab: "custom" | "tokens") => {
     const el = swatchRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    // Match picker width to the row content area
     const row = el.closest(".retune-row");
     if (row) {
       const rowRect = row.getBoundingClientRect();
@@ -67,8 +95,20 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
     } else {
       setAnchorRect({ top: rect.top, left: rect.left, width: rect.width, height: rect.height });
     }
+    setInitialTab(tab);
     setPickerOpen(true);
-  }, [pickerOpen]);
+    claimDialog(stableCloseRef.current);
+  }, []);
+
+  // Token dot click → open picker to Variables tab
+  const handleTokenDotOpen = useCallback(() => {
+    if (pickerOpen) {
+      releaseDialog(stableCloseRef.current);
+      setPickerOpen(false);
+      return;
+    }
+    openPicker("tokens");
+  }, [pickerOpen, openPicker]);
 
   // ── Picker callbacks ──
   const handlePickerChange = useCallback((hex: string) => {
@@ -82,8 +122,22 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
   }, [emitColor]);
 
   const handlePickerClose = useCallback(() => {
+    releaseDialog(stableCloseRef.current);
     setPickerOpen(false);
   }, []);
+
+  // Token apply from within the color picker (tokens tab)
+  const handlePickerVariableApply = useCallback((variable: DesignVariable, properties: string[]) => {
+    onVariableApply?.(variable, properties);
+    releaseDialog(stableCloseRef.current);
+    setPickerOpen(false);
+  }, [onVariableApply]);
+
+  const handlePickerTokenSelect = useCallback((oldToken: DesignVariable, newToken: DesignVariable, properties?: string[]) => {
+    onVariableSelect?.(oldToken, newToken, properties);
+    releaseDialog(stableCloseRef.current);
+    setPickerOpen(false);
+  }, [onVariableSelect]);
 
   // ── Hex input ──
   const commitHex = useCallback(() => {
@@ -143,39 +197,52 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
 
   return (
     <div className="retune-color-row">
-      {/* Left half: swatch + hex */}
-      <div className="retune-color-hex-section">
+      <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
+      {/* Left half: swatch + hex (or variable name when token applied) */}
+      <div className={`retune-color-hex-section${variableMatch ? " retune-color-variable-applied" : ""}`}>
         <div
           ref={swatchRef}
           className="retune-color-swatch"
-          onClick={handleSwatchClick}
+          onClick={variableMatch ? handleTokenDotOpen : handleSwatchClick}
         >
           <div className="retune-color-swatch-inner" style={swatchStyle} />
         </div>
         <input
           className="retune-color-hex-input"
-          value={hexLocal}
-          onChange={(e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
-          onFocus={(e) => { hexFocusedRef.current = true; e.target.select(); }}
-          onBlur={commitHex}
-          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          value={variableMatch ? formatVarName(variableMatch.variable.className) : hexLocal}
+          readOnly={!!variableMatch}
+          onClick={variableMatch ? handleTokenDotOpen : undefined}
+          onChange={variableMatch ? undefined : (e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}
+          onFocus={variableMatch ? undefined : (e) => { hexFocusedRef.current = true; e.target.select(); }}
+          onBlur={variableMatch ? undefined : commitHex}
+          onKeyDown={variableMatch ? undefined : (e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
           spellCheck={false}
+        />
+        <VariableAction
+          match={variableMatch}
+          property={property || prop}
+          onVariableSelect={onVariableSelect}
+          onVariableApply={onVariableApply}
+          onVariableUnlink={onVariableUnlink}
+          onRequestOpen={handleTokenDotOpen}
         />
       </div>
 
-      {/* Right half: opacity */}
-      <div className="retune-color-opacity-section">
-        <input
-          className="retune-color-opacity-input"
-          inputMode="numeric"
-          value={opacityLocal}
-          onChange={(e) => setOpacityLocal(e.target.value)}
-          onFocus={(e) => { opacityFocusedRef.current = true; e.target.select(); }}
-          onBlur={commitOpacity}
-          onKeyDown={handleOpacityKeyDown}
-        />
-        <span className="retune-color-opacity-unit">%</span>
-      </div>
+      {/* Right half: opacity — hidden when variable is applied */}
+      {!variableMatch && (
+        <div className="retune-color-opacity-section">
+          <input
+            className="retune-color-opacity-input"
+            inputMode="numeric"
+            value={opacityLocal}
+            onChange={(e) => setOpacityLocal(e.target.value)}
+            onFocus={(e) => { opacityFocusedRef.current = true; e.target.select(); }}
+            onBlur={commitOpacity}
+            onKeyDown={handleOpacityKeyDown}
+          />
+          <span className="retune-color-opacity-unit">%</span>
+        </div>
+      )}
 
       {pickerOpen && anchorRect && (
         <ColorPicker
@@ -185,6 +252,12 @@ export function ColorInput({ prop, value, onChange }: ColorInputProps) {
           onAlphaChange={handlePickerAlphaChange}
           onClose={handlePickerClose}
           anchorRect={anchorRect}
+          property={property || prop}
+          currentVariable={variableMatch?.variable}
+          onVariableSelect={handlePickerTokenSelect}
+          onVariableApply={handlePickerVariableApply}
+          onVariableUnlink={onVariableUnlink}
+          initialTab={initialTab}
         />
       )}
     </div>

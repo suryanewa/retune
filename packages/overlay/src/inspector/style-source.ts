@@ -8,6 +8,17 @@
 
 import { camelToKebab } from "../utils";
 
+/** Map longhand CSS properties to their corresponding shorthand */
+const LONGHAND_TO_SHORTHAND: Record<string, string> = {
+  'padding-top': 'padding', 'padding-right': 'padding', 'padding-bottom': 'padding', 'padding-left': 'padding',
+  'margin-top': 'margin', 'margin-right': 'margin', 'margin-bottom': 'margin', 'margin-left': 'margin',
+  'border-top-width': 'border-width', 'border-right-width': 'border-width', 'border-bottom-width': 'border-width', 'border-left-width': 'border-width',
+  'border-top-color': 'border-color', 'border-right-color': 'border-color', 'border-bottom-color': 'border-color', 'border-left-color': 'border-color',
+  'border-top-style': 'border-style', 'border-right-style': 'border-style', 'border-bottom-style': 'border-style', 'border-left-style': 'border-style',
+  'border-top-left-radius': 'border-radius', 'border-top-right-radius': 'border-radius', 'border-bottom-left-radius': 'border-radius', 'border-bottom-right-radius': 'border-radius',
+  'gap': 'gap', 'row-gap': 'gap', 'column-gap': 'gap',
+};
+
 export interface StyleSource {
   /** The CSS property name (kebab-case) */
   property: string;
@@ -43,14 +54,22 @@ export function findStyleSources(
   if (inlineStyle) {
     for (const prop of properties) {
       const kebab = camelToKebab(prop);
-      const value = inlineStyle.getPropertyValue(kebab);
+      let value = inlineStyle.getPropertyValue(kebab);
+      let matchedProperty = kebab;
+      if (!value) {
+        const shorthand = LONGHAND_TO_SHORTHAND[kebab];
+        if (shorthand) {
+          value = inlineStyle.getPropertyValue(shorthand);
+          matchedProperty = shorthand;
+        }
+      }
       if (value) {
         result.get(prop)!.push({
-          property: kebab,
+          property: matchedProperty,
           value: value.trim(),
           selector: "[inline]",
           origin: "inline",
-          important: inlineStyle.getPropertyPriority(kebab) === "important",
+          important: inlineStyle.getPropertyPriority(matchedProperty) === "important",
         });
       }
     }
@@ -105,15 +124,24 @@ function walkRules(
       const style = rule.style;
       for (const prop of properties) {
         const kebab = camelToKebab(prop);
-        const value = style.getPropertyValue(kebab);
+        let value = style.getPropertyValue(kebab);
+        let matchedProperty = kebab;
+        // If the longhand isn't explicitly set, check if the shorthand is
+        if (!value) {
+          const shorthand = LONGHAND_TO_SHORTHAND[kebab];
+          if (shorthand) {
+            value = style.getPropertyValue(shorthand);
+            matchedProperty = shorthand;
+          }
+        }
         if (value) {
           const source: StyleSource = {
-            property: kebab,
+            property: matchedProperty,
             value: value.trim(),
             selector: rule.selectorText,
             origin: "stylesheet",
             stylesheet: sheetName,
-            important: style.getPropertyPriority(kebab) === "important",
+            important: style.getPropertyPriority(matchedProperty) === "important",
           };
           if (mediaQuery) {
             source.mediaQuery = mediaQuery;

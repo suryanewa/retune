@@ -9,7 +9,7 @@
  *   <Retune />
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { RetuneConfig, InspectedElement } from "../types";
 import { mountOverlay, unmountOverlay } from "./mount";
@@ -40,6 +40,22 @@ const DEFAULT_CONFIG: Required<RetuneConfig> = {
   position: "bottom-right",
   force: false,
 };
+
+// Singleton bridge stored on `window` so it survives both React StrictMode
+// double-mounts AND Next.js HMR module re-evaluations. Without this, each
+// HMR update creates a new BridgeClient while the old one's reconnect timer
+// keeps firing, causing an infinite connect/disconnect fight on the server
+// (which only accepts one client at a time).
+const BRIDGE_KEY = "__retune_bridge" as const;
+function getOrCreateBridge(port: number): BridgeClient {
+  const existing = (window as any)[BRIDGE_KEY] as BridgeClient | undefined;
+  if (existing) {
+    return existing;
+  }
+  const bridge = new BridgeClient(port);
+  (window as any)[BRIDGE_KEY] = bridge;
+  return bridge;
+}
 
 const PANEL_ANIMATION_MS = 150;
 
@@ -78,6 +94,34 @@ function AnimatedPanel({ visible, children }: { visible: boolean; children: Reac
 
 const MIN_VIEWPORT_WIDTH = 768;
 
+/** A pre-computed scope level in the target rail. */
+interface ScopeLevel {
+  label: string;           // Display name: class name or "This element"
+  selector: string | null; // Compound CSS selector, null = element-specific path
+  count: number;           // querySelectorAll match count
+}
+
+/** Build scope levels from candidates (sorted broadest-first).
+ *  Each level accumulates classes into a compound selector. */
+function buildScopeLevels(candidates: SelectorCandidate[]): ScopeLevel[] {
+  const meaningful = candidates.filter(c => c.verdict !== "utility");
+  if (meaningful.length === 0) {
+    return [{ label: "This element", selector: null, count: 1 }];
+  }
+  const levels: ScopeLevel[] = [];
+  const parts: string[] = [];
+  for (const candidate of meaningful) {
+    const className = candidate.selector.replace(/^\./, '');
+    parts.push(className);
+    const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
+    let count: number;
+    try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
+    levels.push({ label: className, selector: compound, count });
+  }
+  levels.push({ label: "This element", selector: null, count: 1 });
+  return levels;
+}
+
 export function Retune(props: RetuneConfig = {}) {
   const isDev = typeof process !== "undefined" && process.env?.NODE_ENV === "development";
   if (!isDev && !props.force) return null;
@@ -113,6 +157,8 @@ function RetuneInner(props: RetuneConfig) {
   const [copied, setCopied] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
+  // Properties owned by CSS rules matching the active scope selector (undefined = show all)
+  const [ownedProperties, setOwnedProperties] = useState<Set<string> | undefined>(undefined);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
@@ -123,8 +169,15 @@ function RetuneInner(props: RetuneConfig) {
 
   // Selector candidates for the selected element (class-based selectors with match counts)
   const [selectorCandidates, setSelectorCandidates] = useState<SelectorCandidate[]>([]);
-  // The active selector: null = element-specific, or a class-based selector string
-  const [activeSelector, setActiveSelector] = useState<string | null>(null);
+  // Scope rail: pre-computed levels from broadest to "This element"
+  const [scopeLevels, setScopeLevels] = useState<ScopeLevel[]>([]);
+  const [activeLevelIndex, setActiveLevelIndex] = useState(0);
+  const activeLevelIndexRef = useRef(0);
+  activeLevelIndexRef.current = activeLevelIndex;
+  const scopeLevelsRef = useRef<ScopeLevel[]>([]);
+  scopeLevelsRef.current = scopeLevels;
+  // Derived activeSelector — all existing code reading this still works unchanged
+  const activeSelector = scopeLevels[activeLevelIndex]?.selector ?? null;
   const activeSelectorRef = useRef<string | null>(null);
   activeSelectorRef.current = activeSelector;
 
@@ -158,7 +211,7 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = new ChangeTracker();
     trackerRef.current = tracker;
 
-    const bridge = new BridgeClient(config.port);
+    const bridge = getOrCreateBridge(config.port);
     bridgeRef.current = bridge;
 
     bridge.onRequest(async (method, params) => {
@@ -180,12 +233,39 @@ function RetuneInner(props: RetuneConfig) {
             ...c,
             changes: collapseShorthands(c.changes),
           }));
+        case "getEnrichedChanges": {
+          const { scanDesignTokens } = await import("../inspector/tokens");
+          const { enrichPropertyChanges } = await import("../engine/candidates");
+          const tokenMap = scanDesignTokens();
+          return tracker.getPendingChanges().map((c) => ({
+            ...c,
+            changes: enrichPropertyChanges(collapseShorthands(c.changes), tokenMap, c.selector),
+          }));
+        }
         case "getFormattedChanges":
           return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelityRef.current);
         case "clearChanges": {
+          // Clean up forced pseudo-state inline styles
+          if (forcedStateRef.current) {
+            const f = forcedStylesRef.current;
+            const domEl = selectedElementRef.current?.element as HTMLElement | undefined;
+            if (domEl?.style && f.props.length > 0) {
+              for (const p of f.props) {
+                const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+                domEl.style.removeProperty(k);
+              }
+              if (domEl.getAttribute('style')?.trim() === '') {
+                domEl.removeAttribute('style');
+              }
+            }
+            forcedStylesRef.current = { selector: "", props: [] };
+            setForcedState(null);
+            forcedStateRef.current = null;
+          }
           preview.clearAll();
           tracker.clear();
           syncTrackerStateRef.current();
+          setChangeRevision((r) => r + 1);
           const el = selectedElementRef.current;
           if (el) {
             tracker.track(
@@ -225,34 +305,38 @@ function RetuneInner(props: RetuneConfig) {
         const inspected = inspectElement(element);
         // Clear forced pseudo-state when selecting a new element
         if (forcedStateRef.current) {
-          const prev = forcedStylesRef.current;
-          if (prev.selector) {
-            for (const prop of prev.props) {
-              preview.removeChange(prev.selector, prop);
-            }
-            forcedStylesRef.current = { selector: "", props: [] };
-          }
-          setForcedState(null);
+          clearForcedInlineStyles();
         }
         // Compute style sources and selector candidates
         setStyleSources(getStyleSources(element));
         const candidates = getSelectorCandidates(element);
         setSelectorCandidates(candidates);
-        // Default to the first candidate (radio behavior — always one selected)
-        const defaultSelector = candidates.length > 0 ? candidates[0].selector : null;
-        activeSelectorRef.current = defaultSelector;
-        setActiveSelector(defaultSelector);
+        // Build scope levels and default to the narrowest class level
+        const levels = buildScopeLevels(candidates);
+        setScopeLevels(levels);
+        scopeLevelsRef.current = levels;
+        const defaultIndex = levels.length >= 2 ? levels.length - 2 : 0;
+        setActiveLevelIndex(defaultIndex);
+        activeLevelIndexRef.current = defaultIndex;
+        const newActiveSelector = levels[defaultIndex]?.selector ?? null;
+        activeSelectorRef.current = newActiveSelector;
 
         // Apply scoped styles if a class selector is the default
-        if (defaultSelector) {
-          inspected.computedStyles = getScopedStyles(element, defaultSelector);
+        if (newActiveSelector) {
+          const scoped = getScopedStyles(element, newActiveSelector);
+          inspected.computedStyles = scoped.styles;
+          setOwnedProperties(scoped.ownedProperties);
+        } else {
+          setOwnedProperties(undefined);
         }
 
         // Overlay preview changes so re-selecting a previously edited element
         // shows the current (edited) values, not the original stylesheet values.
+        // Skip pseudo-state changes — we're in default view on element selection.
         if (preview) {
           for (const change of preview.getChanges()) {
-            const baseSel = change.selector.replace(/:(hover|focus|active)$/g, "");
+            if (/:(hover|focus|active)$/.test(change.selector)) continue;
+            const baseSel = change.selector;
             try {
               if (element.matches(baseSel)) {
                 inspected.computedStyles[change.property] = change.value;
@@ -262,6 +346,9 @@ function RetuneInner(props: RetuneConfig) {
         }
 
         setSelectedElement(inspected);
+        // Eagerly update the ref so the MCP bridge handler sees the value
+        // immediately, without waiting for React to re-render.
+        selectedElementRef.current = inspected;
         tracker.track(
           inspected.selector,
           inspected.tagName,
@@ -281,26 +368,28 @@ function RetuneInner(props: RetuneConfig) {
           inspected.position,
         );
 
-        // Also track selector candidates so changes are recorded correctly
-        for (const candidate of candidates) {
-          tracker.track(
-            candidate.selector,
-            inspected.tagName,
-            inspected.textContent,
-            inspected.classes,
-            inspected.reactComponents,
-            inspected.computedStyles,
-            inspected.sourceFile,
-            inspected.stylingApproach,
-            inspected.inlineStyles,
-            inspected.elementId,
-            inspected.accessibleName,
-            inspected.parentContext,
-            inspected.childSummary,
-            inspected.domPath,
-            inspected.nearbySiblings,
-            inspected.position,
-          );
+        // Track all scope level selectors so migration works correctly
+        for (const level of levels) {
+          if (level.selector) {
+            tracker.track(
+              level.selector,
+              inspected.tagName,
+              inspected.textContent,
+              inspected.classes,
+              inspected.reactComponents,
+              inspected.computedStyles,
+              inspected.sourceFile,
+              inspected.stylingApproach,
+              inspected.inlineStyles,
+              inspected.elementId,
+              inspected.accessibleName,
+              inspected.parentContext,
+              inspected.childSummary,
+              inspected.domPath,
+              inspected.nearbySiblings,
+              inspected.position,
+            );
+          }
         }
       },
       onCancel: () => {
@@ -312,10 +401,34 @@ function RetuneInner(props: RetuneConfig) {
     return () => {
       picker.destroy();
       preview.destroy();
-      bridge.disconnect();
+      // Do NOT disconnect the singleton bridge here — React StrictMode
+      // will immediately re-mount and re-register the handler. The bridge
+      // must stay alive so the MCP server keeps its connection.
       unmountOverlay(mount.host);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Force pseudo-state: apply hover/focus/active CSS rules directly to the element
+  // so getComputedStyle reflects those styles for the panel to display
+  const forcedStylesRef = useRef<{ selector: string; props: string[] }>({ selector: "", props: [] });
+
+  /** Remove all forced inline styles from the DOM element and reset tracking. */
+  const clearForcedInlineStyles = useCallback(() => {
+    const el = selectedElementRef.current?.element as HTMLElement | undefined;
+    const prev = forcedStylesRef.current;
+    if (el?.style && prev.props.length > 0) {
+      for (const prop of prev.props) {
+        const kebab = prop.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        el.style.removeProperty(kebab);
+      }
+      if (el.getAttribute('style')?.trim() === '') {
+        el.removeAttribute('style');
+      }
+    }
+    forcedStylesRef.current = { selector: "", props: [] };
+    setForcedState(null);
+    forcedStateRef.current = null;
+  }, []);
 
   const activateOverlay = useCallback(() => {
     setActive(true);
@@ -324,15 +437,19 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   const deactivateOverlay = useCallback(() => {
+    if (forcedStateRef.current) clearForcedInlineStyles();
     setActive(false);
     setSelectedElement(null);
+    selectedElementRef.current = null;
     pickerRef.current?.deactivate();
-  }, []);
+  }, [clearForcedInlineStyles]);
 
   const toggleOverlay = useCallback(() => {
     setActive((prev) => {
       if (prev) {
+        if (forcedStateRef.current) clearForcedInlineStyles();
         setSelectedElement(null);
+        selectedElementRef.current = null;
         pickerRef.current?.deactivate();
       } else {
         pickerRef.current?.activate();
@@ -340,7 +457,7 @@ function RetuneInner(props: RetuneConfig) {
       }
       return !prev;
     });
-  }, []);
+  }, [clearForcedInlineStyles]);
 
   const syncTrackerState = useCallback(() => {
     const tracker = trackerRef.current;
@@ -352,20 +469,52 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
   syncTrackerStateRef.current = syncTrackerState;
 
+  // Flag to skip ownedProperties update in refreshSelectedElement when it was just set directly
+  const skipOwnedUpdateRef = useRef(false);
+
   const refreshSelectedElement = useCallback(() => {
+    // Compute scoped styles once, use for both ownedProperties and computedStyles
+    const el = selectedElementRef.current?.element;
+    const scope = activeSelectorRef.current;
+    const scopedResult = el && scope ? getScopedStyles(el, scope) : null;
+    if (!skipOwnedUpdateRef.current) {
+      setOwnedProperties(scopedResult?.ownedProperties);
+    }
+    skipOwnedUpdateRef.current = false;
+
     setSelectedElement((prev) => {
       if (!prev?.element) return prev;
       const inspected = inspectElement(prev.element);
-      const scope = activeSelectorRef.current;
-      if (scope) {
-        inspected.computedStyles = getScopedStyles(prev.element, scope);
+      if (scopedResult) {
+        inspected.computedStyles = scopedResult.styles;
       }
-      // Overlay preview changes so the panel reflects what the user changed
-      // (getScopedStyles reads original stylesheet values, not preview overrides)
+      // Overlay preview changes so the panel reflects what the user changed.
+      // State-aware: only merge changes relevant to the current view.
       const preview = previewRef.current;
       if (preview) {
+        const currentState = forcedStateRef.current;
+        const forced = forcedStylesRef.current;
+
+        // When a pseudo-state is forced, overlay the stylesheet pseudo values first
+        // (these are the "starting point" for the pseudo view)
+        if (currentState && prev.element) {
+          const pseudoStyles = getPseudoStateStyles(prev.element, currentState);
+          for (const [prop, value] of Object.entries(pseudoStyles)) {
+            const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+            inspected.computedStyles[camelProp] = value;
+          }
+        }
+
         for (const change of preview.getChanges()) {
+          const pseudoMatch = change.selector.match(/:(hover|focus|active)$/);
+          const changePseudo = pseudoMatch ? pseudoMatch[0] : null;
           const baseSel = change.selector.replace(/:(hover|focus|active)$/g, "");
+
+          // Default view: skip pseudo-state changes
+          if (!currentState && changePseudo) continue;
+          // Pseudo view: skip changes for a different pseudo-state
+          if (currentState && changePseudo && changePseudo !== currentState) continue;
+
           try {
             if (prev.element.matches(baseSel)) {
               inspected.computedStyles[change.property] = change.value;
@@ -373,6 +522,8 @@ function RetuneInner(props: RetuneConfig) {
           } catch { /* invalid selector */ }
         }
       }
+      // Eagerly sync the ref for the MCP bridge handler.
+      selectedElementRef.current = inspected;
       return inspected;
     });
   }, []);
@@ -388,6 +539,20 @@ function RetuneInner(props: RetuneConfig) {
       ? baseSelector + forcedStateRef.current
       : baseSelector;
     preview.applyChange(selector, property, value);
+    // When editing under a forced pseudo-state, also apply as inline style
+    // on the DOM element so it visually reflects the change immediately.
+    if (forcedStateRef.current) {
+      const domEl = el.element as HTMLElement | undefined;
+      if (domEl?.style) {
+        const kebab = property.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        domEl.style.setProperty(kebab, value, 'important');
+      }
+      // Track in forcedStylesRef so cleanup removes it when toggling back
+      const forced = forcedStylesRef.current;
+      if (forced.selector === baseSelector && !forced.props.includes(property)) {
+        forced.props.push(property);
+      }
+    }
     // Ensure element is tracked (may have been cleared by reset)
     tracker.track(
       selector, el.tagName, el.textContent, el.classes,
@@ -403,36 +568,59 @@ function RetuneInner(props: RetuneConfig) {
     setChangeRevision((r) => r + 1);
   }, []);
 
-  // Force pseudo-state: apply hover/focus/active CSS rules directly to the element
-  // so getComputedStyle reflects those styles for the panel to display
-  const forcedStylesRef = useRef<{ selector: string; props: string[] }>({ selector: "", props: [] });
-
   const handleForcedStateChange = useCallback((state: ForcedState) => {
     const preview = previewRef.current;
     const el = selectedElementRef.current;
     if (!preview || !el?.element) return;
 
-    const selector = el.selector;
+    const selector = activeSelectorRef.current ?? el.selector;
+    const domEl = el.element as HTMLElement;
 
-    // Remove previously forced styles
-    const prev = forcedStylesRef.current;
-    if (prev.selector) {
-      for (const prop of prev.props) {
-        preview.removeChange(prev.selector, prop);
-      }
-      forcedStylesRef.current = { selector: "", props: [] };
-    }
+    // Remove previously forced inline styles
+    clearForcedInlineStyles();
 
+    // Set the new state (after clearing, which resets to null)
     setForcedState(state);
+    forcedStateRef.current = state; // sync ref immediately so refreshSelectedElement reads the correct state
 
     if (state) {
-      // Find CSS rules for this pseudo-state and apply them directly
+      // Find CSS rules for this pseudo-state and apply them as inline styles.
+      // Inline styles with !important guarantee the element visually updates,
+      // regardless of stylesheet specificity or cascade issues.
       const pseudoStyles = getPseudoStateStyles(el.element, state);
       const appliedProps: string[] = [];
-      for (const [prop, value] of Object.entries(pseudoStyles)) {
-        preview.applyChange(selector, prop, value);
-        appliedProps.push(prop);
+
+      // Check for existing user edits on this pseudo selector — preserve them
+      const pseudoSelector = selector + state;
+      const userEdits = new Map<string, string>();
+      for (const change of preview.getChanges()) {
+        if (change.selector === pseudoSelector) {
+          userEdits.set(change.property, change.value);
+        }
       }
+
+      // Apply pseudo styles (prefer user edits over original stylesheet values)
+      const applied = new Set<string>();
+      for (const [prop, value] of Object.entries(pseudoStyles)) {
+        const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        const finalValue = userEdits.get(camelProp) ?? value;
+        if (domEl.style) {
+          domEl.style.setProperty(prop, finalValue, 'important');
+        }
+        appliedProps.push(camelProp);
+        applied.add(camelProp);
+      }
+
+      // Also apply user edits for properties not in the original pseudo styles
+      for (const [camelProp, value] of userEdits) {
+        if (applied.has(camelProp)) continue;
+        const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+        if (domEl.style) {
+          domEl.style.setProperty(kebab, value, 'important');
+        }
+        appliedProps.push(camelProp);
+      }
+
       forcedStylesRef.current = { selector, props: appliedProps };
     }
 
@@ -449,6 +637,79 @@ function RetuneInner(props: RetuneConfig) {
       preview.removeChange(selector, property);
     }
   }, []);
+
+  // Token swap: track class changes for AI output
+  const handleVariableSwap = useCallback((oldClassName: string, newClassName: string) => {
+    const el = selectedElementRef.current;
+    const tracker = trackerRef.current;
+    if (!el || !tracker) return;
+    const selector = activeSelectorRef.current ?? el.selector;
+    // Record as a special property change so the AI agent knows to swap classes
+    tracker.track(
+      selector, el.tagName, el.textContent, el.classes,
+      el.reactComponents, el.computedStyles, el.sourceFile,
+      el.stylingApproach, el.inlineStyles, el.elementId,
+      el.accessibleName, el.parentContext, el.childSummary,
+      el.domPath, el.nearbySiblings, el.position,
+    );
+    tracker.recordChange(selector, `class:${oldClassName}`, newClassName);
+    syncTrackerStateRef.current();
+    refreshSelectedElementRef.current();
+    pickerRef.current?.refreshSelection();
+    setChangeRevision((r) => r + 1);
+  }, []);
+
+  // Token associate: record value-only token apply in change tracker (persists across refresh)
+  const handleVariableAssociate = useCallback((properties: string[], token: { className: string; values: Record<string, string> }) => {
+    const tracker = trackerRef.current;
+    const el = selectedElementRef.current;
+    if (!tracker || !el) return;
+    const selector = activeSelectorRef.current ?? el.selector;
+    tracker.setVariableAssociation(selector, properties, token);
+    // Clear unlinked state — user is picking a new token
+    tracker.relinkVariable(selector, properties);
+    tracker.persist();
+    setChangeRevision((r) => r + 1);
+  }, []);
+
+  const handleVariableUnlink = useCallback((properties: string[]) => {
+    const tracker = trackerRef.current;
+    const el = selectedElementRef.current;
+    if (!tracker || !el) return;
+    const selector = activeSelectorRef.current ?? el.selector;
+    // Record unlink with undo support — keeps the value, breaks the token reference
+    tracker.recordUnlink(selector, properties);
+    syncTrackerStateRef.current();
+    setChangeRevision((r) => r + 1);
+  }, []);
+
+  // Get current variable associations for the selected element
+  const selectedVariableAssociations = useMemo(() => {
+    const tracker = trackerRef.current;
+    if (!tracker || !selectedElement) return {};
+    const selector = activeSelector ?? selectedElement.selector;
+    return { ...(tracker.getVariableAssociations(selector) ?? {}) };
+  // changeRevision ensures we re-read after new associations are recorded
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedElement, activeSelector, changeRevision]);
+
+  // Get unlinked token properties for the selected element
+  const selectedUnlinkedVariables = useMemo(() => {
+    const tracker = trackerRef.current;
+    if (!tracker || !selectedElement) return new Set<string>();
+    const selector = activeSelector ?? selectedElement.selector;
+    return new Set(tracker.getUnlinkedVariables(selector));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedElement, activeSelector, changeRevision]);
+
+  // Get changed properties for the selected element (for change indicator dots)
+  const selectedChangedProperties = useMemo(() => {
+    const tracker = trackerRef.current;
+    if (!tracker || !selectedElement) return new Set<string>();
+    const selector = activeSelector ?? selectedElement.selector;
+    return tracker.getChangedProperties(selector);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedElement, activeSelector, changeRevision]);
 
   // Tree: select element programmatically via picker
   const handleTreeSelect = useCallback((el: Element) => {
@@ -500,22 +761,89 @@ function RetuneInner(props: RetuneConfig) {
     setSide((s) => s === "right" ? "left" : "right");
   }, []);
 
+  /** After undo/redo, sync forced inline styles on the DOM element to match the current preview state. */
+  const syncForcedInlineStyles = useCallback(() => {
+    const state = forcedStateRef.current;
+    if (!state) return;
+    const el = selectedElementRef.current;
+    const preview = previewRef.current;
+    if (!el?.element || !preview) return;
+    const domEl = el.element as HTMLElement;
+    if (!domEl.style) return;
+
+    const selector = activeSelectorRef.current ?? el.selector;
+    const pseudoSelector = selector + state;
+
+    // Rebuild inline styles: start with pseudo stylesheet values, overlay user edits
+    const pseudoStyles = getPseudoStateStyles(el.element, state);
+    const userEdits = new Map<string, string>();
+    for (const change of preview.getChanges()) {
+      if (change.selector === pseudoSelector) {
+        userEdits.set(change.property, change.value);
+      }
+    }
+
+    // Remove old forced inline styles
+    const prev = forcedStylesRef.current;
+    for (const prop of prev.props) {
+      const kebab = prop.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+      domEl.style.removeProperty(kebab);
+    }
+
+    // Re-apply
+    const appliedProps: string[] = [];
+    const applied = new Set<string>();
+    for (const [prop, value] of Object.entries(pseudoStyles)) {
+      const camelProp = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      const finalValue = userEdits.get(camelProp) ?? value;
+      domEl.style.setProperty(prop, finalValue, 'important');
+      appliedProps.push(camelProp);
+      applied.add(camelProp);
+    }
+    for (const [camelProp, value] of userEdits) {
+      if (applied.has(camelProp)) continue;
+      const kebab = camelProp.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+      domEl.style.setProperty(kebab, value, 'important');
+      appliedProps.push(camelProp);
+    }
+    forcedStylesRef.current = { selector, props: appliedProps };
+  }, []);
+
   const handleUndo = useCallback(() => {
     const tracker = trackerRef.current;
     const preview = previewRef.current;
     if (!tracker || !preview) return;
     const entries = tracker.popUndo();
     if (entries) {
-      for (const entry of entries) {
+      // Apply preview changes only for value entries (skip metadata-only unlink entries)
+      const valueEntries = entries.filter(e => !e.action);
+      for (const entry of valueEntries) {
         if (entry.value) preview.applyChange(entry.selector, entry.property, entry.value);
         else preview.removeChange(entry.selector, entry.property);
       }
+      // Clean up preview rules for properties that reverted to their original values.
+      // After popUndo, some properties may have truthy entry.value (the original computed
+      // value, e.g. "20px") even though there's no net change — remove those stale rules.
+      const pending = tracker.getPendingChanges();
+      const activeProps = new Set<string>();
+      for (const el of pending) {
+        for (const c of el.changes) {
+          activeProps.add(`${el.selector}::${c.property}`);
+        }
+      }
+      for (const entry of valueEntries) {
+        const key = `${entry.selector}::${entry.property}`;
+        if (!activeProps.has(key)) {
+          preview.removeChange(entry.selector, entry.property);
+        }
+      }
+      syncForcedInlineStyles();
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
       setChangeRevision((r) => r + 1);
     }
-  }, []);
+  }, [syncForcedInlineStyles]);
 
   const handleRedo = useCallback(() => {
     const tracker = trackerRef.current;
@@ -523,15 +851,55 @@ function RetuneInner(props: RetuneConfig) {
     if (!tracker || !preview) return;
     const entries = tracker.popRedo();
     if (entries) {
+      // Apply preview changes only for value entries (skip metadata-only unlink entries)
       for (const entry of entries) {
-        preview.applyChange(entry.selector, entry.property, entry.value);
+        if (!entry.action) {
+          preview.applyChange(entry.selector, entry.property, entry.value);
+        }
       }
+      syncForcedInlineStyles();
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
       setChangeRevision((r) => r + 1);
     }
-  }, []);
+  }, [syncForcedInlineStyles]);
+
+  // Per-property reset: revert a single property to its original value
+  const handlePropertyReset = useCallback((property: string) => {
+    const tracker = trackerRef.current;
+    const preview = previewRef.current;
+    const el = selectedElementRef.current;
+    if (!tracker || !preview || !el) return;
+    const selector = activeSelectorRef.current ?? el.selector;
+
+    const result = tracker.resetProperty(selector, property);
+    if (!result) return;
+
+    // Update preview
+    if (result.to) {
+      preview.applyChange(selector, property, result.to);
+    } else {
+      preview.removeChange(selector, property);
+    }
+    // Clean up stale preview rule if property reverted to original
+    const pending = tracker.getPendingChanges();
+    const activeProps = new Set<string>();
+    for (const c of pending) {
+      for (const p of c.changes) {
+        activeProps.add(`${c.selector}::${p.property}`);
+      }
+    }
+    if (!activeProps.has(`${selector}::${property}`)) {
+      preview.removeChange(selector, property);
+    }
+
+    syncForcedInlineStyles();
+    syncTrackerStateRef.current();
+    refreshSelectedElementRef.current();
+    pickerRef.current?.refreshSelection();
+    setChangeRevision((r) => r + 1);
+  }, [syncForcedInlineStyles]);
 
   // Hotkey listener
   useEffect(() => {
@@ -557,9 +925,18 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = trackerRef.current;
     const preview = previewRef.current;
     if (!tracker || !preview) return;
+    // Clean up forced pseudo-state inline styles before clearing
+    if (forcedStateRef.current) clearForcedInlineStyles();
     preview.clearAll();
     tracker.clear();
+    // Reset compound selector state
+    // Reset to default scope level (narrowest class level)
+    const levels = scopeLevelsRef.current;
+    const defaultIdx = levels.length >= 2 ? levels.length - 2 : 0;
+    setActiveLevelIndex(defaultIdx);
+    activeLevelIndexRef.current = defaultIdx;
     syncTrackerState();
+    setChangeRevision((r) => r + 1);
     // Re-track the currently selected element so future changes are recorded
     const el = selectedElementRef.current;
     if (el) {
@@ -572,33 +949,79 @@ function RetuneInner(props: RetuneConfig) {
       );
     }
     refreshSelectedElement();
-  }, [syncTrackerState, refreshSelectedElement]);
+  }, [syncTrackerState, refreshSelectedElement, clearForcedInlineStyles]);
 
-  const handleSelectorChange = useCallback((newSelector: string | null) => {
+  /** Migrate preview + tracker changes between selectors, including pseudo-state variants. */
+  const migrateSelector = useCallback((fromSelector: string, toSelector: string) => {
     const preview = previewRef.current;
     const tracker = trackerRef.current;
+    if (!preview || !tracker || fromSelector === toSelector) return;
+
+    preview.migrateChanges(fromSelector, toSelector);
+    tracker.migrateChanges(fromSelector, toSelector);
+
+    const pseudoStates: ForcedState[] = [":hover", ":focus", ":active"];
+    for (const ps of pseudoStates) {
+      preview.migrateChanges(fromSelector + ps, toSelector + ps);
+      tracker.migrateChanges(fromSelector + ps, toSelector + ps);
+    }
+
+    if (forcedStylesRef.current.selector === fromSelector) {
+      forcedStylesRef.current.selector = toSelector;
+    }
+
+    syncTrackerState();
+    setChangeRevision((r) => r + 1);
+  }, [syncTrackerState]);
+
+  /** Select a scope level from the target rail. */
+  const handleScopeLevelChange = useCallback((index: number) => {
+    const tracker = trackerRef.current;
     const el = selectedElementRef.current;
-    if (!preview || !tracker || !el) {
-      activeSelectorRef.current = newSelector;
-      setActiveSelector(newSelector);
+    const levels = scopeLevelsRef.current;
+    if (!tracker || !el || index < 0 || index >= levels.length) return;
+
+    const oldIndex = activeLevelIndexRef.current;
+    // Clicking the active pill deselects it — move to the previous level
+    if (index === oldIndex && index > 0) {
+      index = index - 1;
+    } else if (index === oldIndex) {
       return;
     }
 
-    const fromSelector = activeSelectorRef.current ?? el.selector;
-    const toSelector = newSelector ?? el.selector;
+    const oldSelector = levels[oldIndex]?.selector ?? el.selector;
+    const newSelector = levels[index]?.selector ?? el.selector;
 
-    if (fromSelector !== toSelector) {
-      preview.migrateChanges(fromSelector, toSelector);
-      tracker.migrateChanges(fromSelector, toSelector);
-      syncTrackerState();
-      setChangeRevision((r) => r + 1);
+    // Track the new selector BEFORE migration
+    tracker.track(
+      newSelector, el.tagName, el.textContent, el.classes,
+      el.reactComponents, el.computedStyles, el.sourceFile,
+      el.stylingApproach, el.inlineStyles, el.elementId,
+      el.accessibleName, el.parentContext, el.childSummary,
+      el.domPath, el.nearbySiblings, el.position,
+    );
+
+    migrateSelector(oldSelector, newSelector);
+
+    activeLevelIndexRef.current = index;
+    setActiveLevelIndex(index);
+
+    // Eagerly update activeSelectorRef so refreshSelectedElement reads the new scope
+    activeSelectorRef.current = newSelector;
+
+    // Update ownedProperties immediately (can't wait for render since activeSelector is derived)
+    if (newSelector && el.element) {
+      const scoped = getScopedStyles(el.element, newSelector);
+      setOwnedProperties(scoped.ownedProperties);
+    } else {
+      setOwnedProperties(undefined);
     }
 
-    // Update ref before refresh so scoped styles use the new selector
-    activeSelectorRef.current = newSelector;
-    setActiveSelector(newSelector);
+    // Skip the ownedProperties update in refreshSelectedElement — we just set it with the correct scope
+    skipOwnedUpdateRef.current = true;
+    if (forcedStateRef.current) syncForcedInlineStyles();
     refreshSelectedElement();
-  }, [syncTrackerState, refreshSelectedElement]);
+  }, [migrateSelector, syncForcedInlineStyles, refreshSelectedElement]);
 
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
@@ -623,9 +1046,27 @@ function RetuneInner(props: RetuneConfig) {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
         if (!tracker || !preview) return;
+        // Clean up forced pseudo-state inline styles
+        if (forcedStateRef.current) {
+          const f = forcedStylesRef.current;
+          const domEl = selectedElementRef.current?.element as HTMLElement | undefined;
+          if (domEl?.style && f.props.length > 0) {
+            for (const p of f.props) {
+              const k = p.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+              domEl.style.removeProperty(k);
+            }
+            if (domEl.getAttribute('style')?.trim() === '') {
+              domEl.removeAttribute('style');
+            }
+          }
+          forcedStylesRef.current = { selector: "", props: [] };
+          setForcedState(null);
+          forcedStateRef.current = null;
+        }
         preview.clearAll();
         tracker.clear();
         syncTrackerStateRef.current();
+        setChangeRevision((r) => r + 1);
         const el = selectedElementRef.current;
         if (el) {
           tracker.track(
@@ -756,9 +1197,19 @@ function RetuneInner(props: RetuneConfig) {
                 onPropertyChange={handlePropertyChange}
                 onPropertyHover={setHoveredBoxModel}
                 onApplyToElement={handleApplyToElement}
+                onVariableSwap={handleVariableSwap}
+                onVariableAssociate={handleVariableAssociate}
+                onVariableUnlink={handleVariableUnlink}
+                variableAssociations={selectedVariableAssociations}
+                unlinkedVariables={selectedUnlinkedVariables}
+                changedProperties={selectedChangedProperties}
+                onPropertyReset={handlePropertyReset}
                 selectorCandidates={selectorCandidates}
                 activeSelector={activeSelector}
-                onSelectorChange={handleSelectorChange}
+                scopeLevels={scopeLevels}
+                activeLevelIndex={activeLevelIndex}
+                onScopeLevelChange={handleScopeLevelChange}
+                ownedProperties={ownedProperties}
                 styleSources={styleSources}
                 forcedState={forcedState}
                 onForcedStateChange={handleForcedStateChange}

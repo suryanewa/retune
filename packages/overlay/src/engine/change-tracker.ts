@@ -4,6 +4,12 @@
 
 import type { ElementChange, PropertyChange } from "../types";
 
+/** A lightweight variable reference stored alongside changes */
+export interface TrackedVariableRef {
+  className: string;
+  values: Record<string, string>;
+}
+
 interface TrackedElement {
   selector: string;
   tagName: string;
@@ -12,6 +18,10 @@ interface TrackedElement {
   reactComponents: string[];
   originalStyles: Record<string, string>;
   currentStyles: Record<string, string>;
+  /** Value-only variable associations: camelCase property → variable ref */
+  variableAssociations?: Record<string, TrackedVariableRef>;
+  /** Properties explicitly unlinked from their variable */
+  unlinkedVariables?: Set<string>;
   sourceFile?: { fileName: string; lineNumber: number; columnNumber?: number } | null;
   stylingApproach?: string;
   inlineStyles?: string | null;
@@ -29,6 +39,14 @@ interface UndoEntry {
   property: string;
   value: string;
   group: number;
+  /** When set, this entry is a metadata-only unlink (no style value change) */
+  action?: "unlink";
+  /** Saved variable association for restoring on undo of unlink */
+  variableRef?: TrackedVariableRef;
+  /** Previous variable association for this property (null = no association existed) */
+  prevVariableAssoc?: TrackedVariableRef | null;
+  /** Whether property was in unlinkedVariables before this change */
+  prevUnlinked?: boolean;
 }
 
 const COALESCE_MS = 300;
@@ -93,6 +111,11 @@ export class ChangeTracker {
 
     tracked.currentStyles[property] = newValue;
 
+    // Snapshot variable state so undo can restore it
+    const camelProp = property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const prevVariableAssoc = tracked.variableAssociations?.[camelProp] ?? null;
+    const prevUnlinked = tracked.unlinkedVariables?.has(camelProp) ?? false;
+
     const now = Date.now();
     const last = this.lastChange;
 
@@ -106,13 +129,13 @@ export class ChangeTracker {
         // Already tracked in this group — keep the original "from" value (coalesce)
       } else {
         // New property in this gesture — add to the same group
-        this.undoStack.push({ selector, property, value: oldValue, group: last.group });
+        this.undoStack.push({ selector, property, value: oldValue, group: last.group, prevVariableAssoc, prevUnlinked });
       }
       last.time = now;
     } else {
       // New gesture — new group
       this.groupCounter++;
-      this.undoStack.push({ selector, property, value: oldValue, group: this.groupCounter });
+      this.undoStack.push({ selector, property, value: oldValue, group: this.groupCounter, prevVariableAssoc, prevUnlinked });
       this.lastChange = { selector, time: now, group: this.groupCounter };
     }
 
@@ -134,7 +157,7 @@ export class ChangeTracker {
   }
 
   /** Pop an entire undo group and return all entries */
-  popUndo(): Array<{ selector: string; property: string; value: string }> | null {
+  popUndo(): Array<{ selector: string; property: string; value: string; action?: "unlink" }> | null {
     if (this.undoStack.length === 0) return null;
 
     const top = this.undoStack[this.undoStack.length - 1];
@@ -150,18 +173,53 @@ export class ChangeTracker {
     const redoGroup = ++this.groupCounter;
     for (const entry of entries) {
       const tracked = this.tracked.get(entry.selector);
-      if (tracked) {
+      if (!tracked) continue;
+
+      if (entry.action === "unlink") {
+        // Undo an unlink → relink the property
+        tracked.unlinkedVariables?.delete(entry.property);
+        // Restore saved variable association if any
+        if (entry.variableRef) {
+          if (!tracked.variableAssociations) tracked.variableAssociations = {};
+          tracked.variableAssociations[entry.property] = entry.variableRef;
+        }
+        this.redoStack.push({ selector: entry.selector, property: entry.property, value: "", group: redoGroup, action: "unlink", variableRef: entry.variableRef });
+      } else {
         const currentValue = tracked.currentStyles[entry.property] || "";
-        this.redoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: redoGroup });
+        const camelProp = entry.property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        // Save current variable state for redo
+        const currentAssoc = tracked.variableAssociations?.[camelProp] ?? null;
+        const currentUnlinked = tracked.unlinkedVariables?.has(camelProp) ?? false;
+        this.redoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: redoGroup, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
         tracked.currentStyles[entry.property] = entry.value;
+
+        // Restore previous variable association state
+        if (entry.prevVariableAssoc !== undefined) {
+          if (entry.prevVariableAssoc) {
+            if (!tracked.variableAssociations) tracked.variableAssociations = {};
+            tracked.variableAssociations[camelProp] = entry.prevVariableAssoc;
+          } else {
+            if (tracked.variableAssociations) delete tracked.variableAssociations[camelProp];
+          }
+        }
+        // Restore previous unlinked state
+        if (entry.prevUnlinked !== undefined) {
+          if (entry.prevUnlinked) {
+            if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
+            tracked.unlinkedVariables.add(camelProp);
+          } else {
+            tracked.unlinkedVariables?.delete(camelProp);
+          }
+        }
       }
     }
 
+    this.persist();
     return entries;
   }
 
   /** Pop an entire redo group and return all entries */
-  popRedo(): Array<{ selector: string; property: string; value: string }> | null {
+  popRedo(): Array<{ selector: string; property: string; value: string; action?: "unlink" }> | null {
     if (this.redoStack.length === 0) return null;
 
     const top = this.redoStack[this.redoStack.length - 1];
@@ -177,13 +235,48 @@ export class ChangeTracker {
     const undoGroup = ++this.groupCounter;
     for (const entry of entries) {
       const tracked = this.tracked.get(entry.selector);
-      if (tracked) {
+      if (!tracked) continue;
+
+      if (entry.action === "unlink") {
+        // Redo an unlink → unlink the property again
+        if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
+        tracked.unlinkedVariables.add(entry.property);
+        // Clear variable association again
+        if (tracked.variableAssociations) {
+          delete tracked.variableAssociations[entry.property];
+        }
+        this.undoStack.push({ selector: entry.selector, property: entry.property, value: "", group: undoGroup, action: "unlink", variableRef: entry.variableRef });
+      } else {
         const currentValue = tracked.currentStyles[entry.property] || "";
-        this.undoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: undoGroup });
+        const camelProp = entry.property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        // Save current variable state for undo
+        const currentAssoc = tracked.variableAssociations?.[camelProp] ?? null;
+        const currentUnlinked = tracked.unlinkedVariables?.has(camelProp) ?? false;
+        this.undoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: undoGroup, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
         tracked.currentStyles[entry.property] = entry.value;
+
+        // Restore variable association state from redo entry
+        if (entry.prevVariableAssoc !== undefined) {
+          if (entry.prevVariableAssoc) {
+            if (!tracked.variableAssociations) tracked.variableAssociations = {};
+            tracked.variableAssociations[camelProp] = entry.prevVariableAssoc;
+          } else {
+            if (tracked.variableAssociations) delete tracked.variableAssociations[camelProp];
+          }
+        }
+        // Restore unlinked state from redo entry
+        if (entry.prevUnlinked !== undefined) {
+          if (entry.prevUnlinked) {
+            if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
+            tracked.unlinkedVariables.add(camelProp);
+          } else {
+            tracked.unlinkedVariables?.delete(camelProp);
+          }
+        }
       }
     }
 
+    this.persist();
     return entries;
   }
 
@@ -205,8 +298,16 @@ export class ChangeTracker {
         }
       }
 
-      if (propertyChanges.length > 0) {
-        changes.push({
+      const unlinked = tracked.unlinkedVariables
+        ? Array.from(tracked.unlinkedVariables).map(prop => ({
+            property: prop,
+            value: tracked.currentStyles[prop] || "",
+          }))
+        : [];
+      const hasChanges = propertyChanges.length > 0 || unlinked.length > 0;
+
+      if (hasChanges) {
+        const change: ElementChange = {
           selector: tracked.selector,
           tagName: tracked.tagName,
           textContent: tracked.textContent,
@@ -224,7 +325,14 @@ export class ChangeTracker {
           domPath: tracked.domPath,
           nearbySiblings: tracked.nearbySiblings,
           position: tracked.position,
-        });
+        };
+        if (tracked.variableAssociations && Object.keys(tracked.variableAssociations).length > 0) {
+          change.variableAssociations = tracked.variableAssociations;
+        }
+        if (unlinked.length > 0) {
+          change.unlinkedProperties = unlinked;
+        }
+        changes.push(change);
       }
     }
 
@@ -257,11 +365,193 @@ export class ChangeTracker {
       }
     }
 
+    // Migrate variable associations for properties that were actually migrated
+    if (from.variableAssociations) {
+      if (!to.variableAssociations) to.variableAssociations = {};
+      for (const { property } of migrated) {
+        const camelProp = property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        if (from.variableAssociations[camelProp]) {
+          to.variableAssociations[camelProp] = from.variableAssociations[camelProp];
+          delete from.variableAssociations[camelProp];
+        }
+        // Also check kebab-case key
+        if (from.variableAssociations[property]) {
+          to.variableAssociations[property] = from.variableAssociations[property];
+          delete from.variableAssociations[property];
+        }
+      }
+    }
+
     // Clear undo/redo since migration invalidates the history
     this.undoStack = [];
     this.redoStack = [];
 
     return migrated;
+  }
+
+  /** Associate a value-only variable apply with specific properties */
+  setVariableAssociation(selector: string, properties: string[], token: TrackedVariableRef) {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return;
+    if (!tracked.variableAssociations) tracked.variableAssociations = {};
+    for (const prop of properties) {
+      tracked.variableAssociations[prop] = token;
+    }
+  }
+
+  /** Remove variable association for specific properties */
+  clearVariableAssociation(selector: string, properties: string[]) {
+    const tracked = this.tracked.get(selector);
+    if (!tracked?.variableAssociations) return;
+    for (const prop of properties) {
+      delete tracked.variableAssociations[prop];
+    }
+  }
+
+  /** Mark properties as explicitly unlinked from their variable */
+  unlinkVariable(selector: string, properties: string[]) {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return;
+    // Clear value-only associations
+    if (tracked.variableAssociations) {
+      for (const prop of properties) {
+        delete tracked.variableAssociations[prop];
+      }
+    }
+    // Track as unlinked (suppresses variable detection)
+    if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
+    for (const prop of properties) {
+      tracked.unlinkedVariables.add(prop);
+    }
+  }
+
+  /** Unlink properties and push to undo stack so the operation is undoable */
+  recordUnlink(selector: string, properties: string[]) {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return;
+
+    // Save current variable associations before clearing (for undo restore)
+    const savedRefs: Record<string, TrackedVariableRef | undefined> = {};
+    for (const prop of properties) {
+      savedRefs[prop] = tracked.variableAssociations?.[prop];
+    }
+
+    // Perform the unlink
+    this.unlinkVariable(selector, properties);
+
+    // Push to undo stack as a new group
+    this.groupCounter++;
+    for (const prop of properties) {
+      this.undoStack.push({
+        selector,
+        property: prop,
+        value: "",
+        group: this.groupCounter,
+        action: "unlink",
+        variableRef: savedRefs[prop],
+      });
+    }
+    this.lastChange = null;
+    this.redoStack = [];
+  }
+
+  /** Check if a property has been explicitly unlinked */
+  isVariableUnlinked(selector: string, property: string): boolean {
+    return this.tracked.get(selector)?.unlinkedVariables?.has(property) ?? false;
+  }
+
+  /** Get all unlinked variable properties for a selector */
+  getUnlinkedVariables(selector: string): Set<string> {
+    return this.tracked.get(selector)?.unlinkedVariables ?? new Set();
+  }
+
+  /** Re-link a property (clear the unlinked state, e.g. when user picks a new variable) */
+  relinkVariable(selector: string, properties: string[]) {
+    const tracked = this.tracked.get(selector);
+    if (!tracked?.unlinkedVariables) return;
+    for (const prop of properties) {
+      tracked.unlinkedVariables.delete(prop);
+    }
+  }
+
+  /** Get variable association for a property, if any */
+  getVariableAssociation(selector: string, property: string): TrackedVariableRef | undefined {
+    return this.tracked.get(selector)?.variableAssociations?.[property];
+  }
+
+  /** Get all variable associations for a selector */
+  getVariableAssociations(selector: string): Record<string, TrackedVariableRef> | undefined {
+    return this.tracked.get(selector)?.variableAssociations;
+  }
+
+  /** Check if a single property differs from its original value or has been unlinked */
+  isPropertyChanged(selector: string, property: string): boolean {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return false;
+    // Unlinked properties are considered changed (intentional detach)
+    if (tracked.unlinkedVariables?.has(property)) return true;
+    const original = tracked.originalStyles[property] || "";
+    const current = tracked.currentStyles[property] || "";
+    return original !== current;
+  }
+
+  /** Get all changed properties for an element (camelCase keys) */
+  getChangedProperties(selector: string): Set<string> {
+    const result = new Set<string>();
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return result;
+    for (const [prop, currentVal] of Object.entries(tracked.currentStyles)) {
+      const originalVal = tracked.originalStyles[prop] || "";
+      if (currentVal !== originalVal) {
+        result.add(prop);
+      }
+    }
+    // Also include unlinked properties (intentional detach counts as a change)
+    if (tracked.unlinkedVariables) {
+      for (const prop of tracked.unlinkedVariables) {
+        result.add(prop);
+      }
+    }
+    return result;
+  }
+
+  /** Reset a property to its original value. Pushes to undo stack so redo works. */
+  resetProperty(selector: string, property: string): { from: string; to: string } | null {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return null;
+
+    const currentValue = tracked.currentStyles[property] || "";
+    const originalValue = tracked.originalStyles[property] || "";
+    const isUnlinked = tracked.unlinkedVariables?.has(property) ?? false;
+    // Nothing to reset if value unchanged AND not unlinked
+    if (currentValue === originalValue && !isUnlinked) return null;
+
+    // Revert to original
+    tracked.currentStyles[property] = originalValue;
+
+    // Snapshot variable state before clearing (for undo restoration)
+    const camelProp = property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const prevVariableAssoc = tracked.variableAssociations?.[camelProp] ?? tracked.variableAssociations?.[property] ?? null;
+    const prevUnlinked = tracked.unlinkedVariables?.has(camelProp) || tracked.unlinkedVariables?.has(property) || false;
+
+    // Push to undo stack as a new group (discrete user action, no coalescing)
+    this.groupCounter++;
+    this.undoStack.push({ selector, property, value: currentValue, group: this.groupCounter, prevVariableAssoc, prevUnlinked });
+    this.lastChange = null; // Don't coalesce with subsequent changes
+    this.redoStack = []; // Standard: clear redo on new action
+
+    // Clear variable association and unlinked state for this property
+    if (tracked.variableAssociations) {
+      delete tracked.variableAssociations[camelProp];
+      delete tracked.variableAssociations[property];
+    }
+    if (tracked.unlinkedVariables) {
+      tracked.unlinkedVariables.delete(property);
+      tracked.unlinkedVariables.delete(camelProp);
+    }
+
+    this.persist();
+    return { from: currentValue, to: originalValue };
   }
 
   get canUndo(): boolean { return this.undoStack.length > 0; }
@@ -280,8 +570,13 @@ export class ChangeTracker {
   /** Save state to localStorage */
   persist() {
     try {
+      // Convert Sets to arrays for JSON serialization
+      const entries = Array.from(this.tracked.entries()).map(([k, v]) => [
+        k,
+        { ...v, unlinkedVariables: v.unlinkedVariables ? Array.from(v.unlinkedVariables) : undefined },
+      ]);
       const data = {
-        tracked: Array.from(this.tracked.entries()),
+        tracked: entries,
         undoStack: this.undoStack,
         redoStack: this.redoStack,
       };
@@ -298,6 +593,12 @@ export class ChangeTracker {
       if (!raw) return false;
       const data = JSON.parse(raw);
       this.tracked = new Map(data.tracked);
+      // Restore Sets from arrays
+      for (const tracked of this.tracked.values()) {
+        if (tracked.unlinkedVariables && Array.isArray(tracked.unlinkedVariables)) {
+          tracked.unlinkedVariables = new Set(tracked.unlinkedVariables as unknown as string[]);
+        }
+      }
       this.undoStack = data.undoStack || [];
       this.redoStack = data.redoStack || [];
       // Restore groupCounter from existing entries

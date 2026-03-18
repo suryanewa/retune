@@ -9,12 +9,67 @@
  * - Before/after values with token suggestions
  */
 
-import type { ElementChange } from "../types";
-import { type TokenMap, scanDesignTokens, findTokensForValue, summarizeTokenSystem } from "../inspector/tokens";
-import { type StyleSource, findStyleSources, formatStyleSource } from "../inspector/style-source";
+import type { ElementChange, EnrichedPropertyChange } from "../types";
+import { type TokenMap, scanDesignTokens, summarizeTokenSystem } from "../inspector/tokens";
 import { camelToKebab, truncate } from "../utils";
+import { getVariableRegistry } from "../tokens/registry";
+import { enrichPropertyChanges } from "./candidates";
 
 export type Fidelity = "minimal" | "standard" | "full";
+
+/** Known pseudo-state suffixes that we extract from selectors */
+const PSEUDO_STATES = [":hover", ":focus", ":active", ":focus-visible", ":focus-within"] as const;
+
+interface ParsedSelector {
+  /** The base selector without pseudo-state (e.g. ".btn") */
+  base: string;
+  /** The pseudo-state if present (e.g. "hover") */
+  pseudoState: string | null;
+}
+
+/** Extract pseudo-state suffix from a selector, e.g. ".btn:hover" -> { base: ".btn", pseudoState: "hover" } */
+export function parsePseudoState(selector: string): ParsedSelector {
+  for (const pseudo of PSEUDO_STATES) {
+    if (selector.endsWith(pseudo)) {
+      return {
+        base: selector.slice(0, -pseudo.length),
+        pseudoState: pseudo.slice(1), // remove the leading ":"
+      };
+    }
+  }
+  return { base: selector, pseudoState: null };
+}
+
+/** Describe the scope of a selector for AI agent context */
+export function describeSelectorScope(selector: string): string | null {
+  // Strip pseudo-state first for scope analysis
+  const { base } = parsePseudoState(selector);
+
+  // Class-based selectors: start with "." (may include combinators like ".card .title")
+  if (base.startsWith(".")) {
+    try {
+      const count = document.querySelectorAll(base).length;
+      if (count > 0) {
+        return `class-scoped, ${count} element${count > 1 ? "s" : ""}`;
+      }
+    } catch {
+      // Invalid selector for querySelectorAll — fall through
+    }
+    return "class-scoped";
+  }
+
+  // ID-based selectors
+  if (base.startsWith("#")) {
+    return "id-scoped, unique";
+  }
+
+  // Path selectors (contain ">") or other complex selectors are element-specific
+  if (base.includes(">")) {
+    return "element-specific";
+  }
+
+  return null;
+}
 
 let cachedTokenMap: TokenMap | null = null;
 
@@ -31,7 +86,8 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
   const tokenMap = getTokenMap();
   const lines: string[] = [];
 
-  // Header
+  // Header — preamble gives the AI model clear intent + identification
+  lines.push("Apply these Retune visual changes to the source code:\n");
   lines.push(`# Visual Changes (${changes.length} element${changes.length > 1 ? "s" : ""})`);
   lines.push("");
 
@@ -50,6 +106,13 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
       lines.push(`> **Design tokens detected:** ${tokenSummary}`);
       lines.push("");
     }
+  }
+
+  // Framework detection guidance
+  const registry = getVariableRegistry();
+  if (registry.framework === "tailwind") {
+    lines.push("> **Framework:** Tailwind CSS detected. Apply all changes using Tailwind utility classes — do NOT use inline styles or raw CSS values. When a class swap is suggested, replace the old class with the new one in the JSX/HTML.");
+    lines.push("");
   }
 
   // Each element change
@@ -83,20 +146,46 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   }
 
   // DOM path (full traversal for precise identification)
-  if (change.domPath) {
+  if (fidelity !== "minimal" && change.domPath) {
     lines.push(`**DOM Path:** \`${change.domPath}\``);
   }
 
-  // Selector
-  lines.push(`**Selector:** \`${change.selector}\``);
+  // Selector — extract pseudo-state and add scope context
+  const { base: baseSelector, pseudoState } = parsePseudoState(change.selector);
+  const selectorAnnotations: string[] = [];
+  if (pseudoState) {
+    selectorAnnotations.push(`${pseudoState} state`);
+  }
+  const scope = describeSelectorScope(change.selector);
+  if (scope) {
+    selectorAnnotations.push(scope);
+  }
+  const selectorSuffix = selectorAnnotations.length > 0
+    ? ` (${selectorAnnotations.join(", ")})`
+    : "";
+  lines.push(`**Selector:** \`${baseSelector}\`${selectorSuffix}`);
+
+  // For compound selectors (.btn.btn-ghost), break down the class chain
+  // so the AI knows which classes to look for in the source code
+  const compoundClasses = baseSelector.match(/\.[a-zA-Z0-9_-]+/g);
+  if (compoundClasses && compoundClasses.length > 1) {
+    const classBreakdown = compoundClasses.map(c => {
+      const cls = c.slice(1); // strip leading dot
+      try {
+        const count = document.querySelectorAll(c).length;
+        return `\`.${cls}\` (${count})`;
+      } catch { return `\`.${cls}\``; }
+    });
+    lines.push(`**Target classes:** ${classBreakdown.join(" → ")} — apply changes where all these classes are present`);
+  }
 
   // Element ID
-  if (change.elementId) {
+  if (fidelity === "full" && change.elementId) {
     lines.push(`**ID:** \`${change.elementId}\``);
   }
 
   // Accessible name (aria-label, alt, title, etc.)
-  if (change.accessibleName) {
+  if (fidelity === "full" && change.accessibleName) {
     lines.push(`**Accessible name:** "${change.accessibleName}"`);
   }
 
@@ -106,76 +195,95 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   }
 
   // Position and dimensions
-  if (change.position) {
+  if (fidelity === "full" && change.position) {
     lines.push(`**Position:** x:${change.position.x}, y:${change.position.y} (${change.position.width}×${change.position.height}px)`);
   }
 
   // Nearby siblings for context
-  if (change.nearbySiblings) {
+  if (fidelity === "full" && change.nearbySiblings) {
     lines.push(`**Nearby elements:** ${change.nearbySiblings}`);
   }
 
   // Parent context for disambiguation
-  if (change.parentContext) {
+  if (fidelity === "full" && change.parentContext) {
     lines.push(`**Parent:** \`${change.parentContext}\``);
   }
 
   // Child summary to help identify container elements
-  if (change.childSummary) {
+  if (fidelity === "full" && change.childSummary) {
     lines.push(`**Children:** ${change.childSummary}`);
   }
 
   // Inline styles (if any authored inline styles exist)
-  if (change.inlineStyles) {
+  if (fidelity === "full" && change.inlineStyles) {
     lines.push(`**Inline styles:** \`${change.inlineStyles}\``);
   }
 
   // Collapse longhand groups into shorthands where possible
   const collapsed = collapseShorthands(change.changes);
 
-  // Resolve style sources from the live DOM
-  const sourceMap = resolveStyleSources(change.selector, collapsed.map(c => c.property));
+  // Enrich each property with candidate tokens/classes/variables and source info
+  const enriched = enrichPropertyChanges(collapsed, tokenMap, change.selector);
 
-  // Changes table
-  lines.push("");
-  lines.push("### Changes");
-  lines.push("");
-  lines.push("| Property | Before | After | Source | Token |");
-  lines.push("|----------|--------|-------|--------|-------|");
-
-  for (const prop of collapsed) {
-    const kebab = camelToKebab(prop.property);
-    const tokenHint = getTokenHint(prop.to, tokenMap);
-    const source = sourceMap.get(prop.property);
-    const sourceStr = source ? formatStyleSource(source) : "—";
-    lines.push(`| \`${kebab}\` | \`${prop.from}\` | \`${prop.to}\` | ${sourceStr} | ${tokenHint} |`);
+  // Override recommended with user's explicit token choice (from token picker)
+  if (change.variableAssociations) {
+    for (const prop of enriched) {
+      const camelProp = prop.property.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+      const assoc = change.variableAssociations[camelProp];
+      if (assoc) {
+        const isVar = assoc.className.startsWith("var(");
+        prop.recommended = {
+          type: isVar ? "css-variable" : "semantic-token",
+          name: assoc.className,
+          value: Object.values(assoc.values)[0] || prop.to,
+          exact: true,
+        };
+      }
+    }
   }
 
-  // Implementation hint based on styling approach
+  // Changes table — only render if there are value changes
+  if (enriched.length > 0) {
+    lines.push("");
+    lines.push("### Changes");
+    lines.push("");
+    lines.push("| Property | Before | After | Token |");
+    lines.push("|----------|--------|-------|-------|");
+
+    for (const prop of enriched) {
+      // Class swap properties use "class:oldName" format — don't camelToKebab those
+      const kebab = prop.property.startsWith("class:") ? prop.property : camelToKebab(prop.property);
+      const tokenStr = formatRecommended(prop);
+      lines.push(`| \`${kebab}\` | \`${prop.from}\` | \`${prop.to}\` | ${tokenStr} |`);
+    }
+  }
+
+  // Detached variables — properties where the user explicitly removed a token/variable binding
+  if (change.unlinkedProperties && change.unlinkedProperties.length > 0) {
+    lines.push("");
+    lines.push("### Detached Variables");
+    lines.push("");
+    lines.push("The following properties had their design token/variable binding removed. Hardcode the current values — do not use the token class or CSS variable:");
+    lines.push("");
+    lines.push("| Property | Current Value |");
+    lines.push("|----------|---------------|");
+    for (const { property, value } of change.unlinkedProperties) {
+      const kebab = camelToKebab(property);
+      lines.push(`| \`${kebab}\` | \`${value}\` |`);
+    }
+  }
+
+  // Resolution context (detail blocks) — standard + full fidelity only
   if (fidelity !== "minimal") {
-    const hint = getImplementationHint(change);
-    if (hint) {
+    const detailLines = formatResolutionContext(enriched);
+    if (detailLines) {
       lines.push("");
-      lines.push(`> **Implementation hint:** ${hint}`);
+      lines.push(detailLines);
     }
   }
 
   lines.push("");
   return lines.join("\n");
-}
-
-/** Resolve style sources for each property from the live DOM */
-function resolveStyleSources(
-  selector: string,
-  properties: string[]
-): Map<string, StyleSource[]> {
-  try {
-    const element = document.querySelector(selector);
-    if (!element) return new Map();
-    return findStyleSources(element, properties);
-  } catch {
-    return new Map();
-  }
 }
 
 function formatStylingApproach(approach: string): string {
@@ -189,89 +297,74 @@ function formatStylingApproach(approach: string): string {
   }
 }
 
-function getTokenHint(value: string, tokenMap: TokenMap): string {
-  const tokens = findTokensForValue(value, tokenMap);
-  if (tokens.length === 0) return "—";
-  // Show up to 2 matching tokens
-  const display = tokens.slice(0, 2).map(t => `\`var(${t})\``).join(", ");
-  return tokens.length > 2 ? `${display} +${tokens.length - 2} more` : display;
+/** Format the recommended candidate for the Token column */
+function formatRecommended(prop: EnrichedPropertyChange): string {
+  if (!prop.recommended) return "—";
+  const r = prop.recommended;
+  const name = r.type === "css-variable" ? `\`${r.name}\`` : `\`.${r.name}\``;
+  if (!r.exact && r.distance) {
+    return `${name} (${r.distance})`;
+  }
+  return name;
 }
 
-function getImplementationHint(change: ElementChange): string | null {
-  const approach = change.stylingApproach;
-
-  if (approach === "tailwind") {
-    const hints: string[] = [];
-    for (const prop of change.changes) {
-      const tw = suggestTailwindClass(prop.property, prop.to);
-      if (tw) hints.push(tw);
-    }
-    if (hints.length > 0) {
-      return `Suggested Tailwind classes: \`${hints.join(" ")}\``;
-    }
-  }
-
-  if (approach === "css-modules" && change.sourceFile) {
-    return `Look for a \`.module.css\` file near \`${change.sourceFile.fileName}\``;
-  }
-
-  return null;
+/** Format the source column from enriched data */
+function formatEnrichedSource(prop: EnrichedPropertyChange): string {
+  if (!prop.source) return "—";
+  const s = prop.source;
+  if (s.origin === "inline") return "inline style";
+  let result = `\`${s.selector}\``;
+  if (s.stylesheet) result += ` in \`${s.stylesheet}\``;
+  if (s.mediaQuery) result += ` @media(${s.mediaQuery})`;
+  if (s.important) result += " !important";
+  return result;
 }
 
-/** Basic Tailwind class suggestions for common properties */
-function suggestTailwindClass(property: string, value: string): string | null {
-  const num = parseFloat(value);
-  const pxToTw: Record<number, string> = {
-    0: "0", 1: "px", 2: "0.5", 4: "1", 6: "1.5", 8: "2", 10: "2.5",
-    12: "3", 14: "3.5", 16: "4", 20: "5", 24: "6", 28: "7", 32: "8",
-    36: "9", 40: "10", 44: "11", 48: "12", 56: "14", 64: "16",
-    80: "20", 96: "24", 112: "28", 128: "32", 144: "36",
-    160: "40", 176: "44", 192: "48", 208: "52", 224: "56",
-    240: "60", 256: "64", 288: "72", 320: "80", 384: "96",
-  };
+/** Build the resolution context detail block for properties that have meaningful context */
+function formatResolutionContext(enriched: EnrichedPropertyChange[]): string | null {
+  const entries: string[] = [];
 
-  const twSize = pxToTw[num];
+  for (const prop of enriched) {
+    const hasAlternatives = prop.alternatives.length > 0;
+    const hasCssVars = prop.cssVariables.length > 0;
+    const hasConflicts = prop.conflicts && prop.conflicts.length > 0;
+    // Only include if there's something beyond what the table shows
+    if (!hasAlternatives && !hasCssVars && !hasConflicts) continue;
 
-  switch (property) {
-    case "paddingTop": return twSize ? `pt-${twSize}` : null;
-    case "paddingRight": return twSize ? `pr-${twSize}` : null;
-    case "paddingBottom": return twSize ? `pb-${twSize}` : null;
-    case "paddingLeft": return twSize ? `pl-${twSize}` : null;
-    case "marginTop": return twSize ? `mt-${twSize}` : null;
-    case "marginRight": return twSize ? `mr-${twSize}` : null;
-    case "marginBottom": return twSize ? `mb-${twSize}` : null;
-    case "marginLeft": return twSize ? `ml-${twSize}` : null;
-    case "gap": return twSize ? `gap-${twSize}` : null;
-    case "borderRadius":
-    case "borderTopLeftRadius":
-    case "borderTopRightRadius":
-    case "borderBottomLeftRadius":
-    case "borderBottomRightRadius": {
-      const radiusMap: Record<number, string> = {
-        0: "rounded-none", 2: "rounded-sm", 4: "rounded", 6: "rounded-md",
-        8: "rounded-lg", 12: "rounded-xl", 16: "rounded-2xl", 24: "rounded-3xl",
-      };
-      return radiusMap[num] || (value === "9999px" ? "rounded-full" : null);
+    const kebab = camelToKebab(prop.property);
+    const lines: string[] = [];
+    lines.push(`**\`${kebab}\`** \`${prop.from}\` → \`${prop.to}\``);
+
+    if (prop.recommended) {
+      const r = prop.recommended;
+      const label = r.exact ? "exact" : r.distance || "fuzzy";
+      const nameStr = r.type === "css-variable" ? `\`${r.name}\`` : `\`.${r.name}\``;
+      lines.push(`- Recommended: ${nameStr} (${label}, \`${r.value}\`)`);
     }
-    case "fontSize": {
-      const fontMap: Record<number, string> = {
-        12: "text-xs", 14: "text-sm", 16: "text-base", 18: "text-lg",
-        20: "text-xl", 24: "text-2xl", 30: "text-3xl", 36: "text-4xl",
-        48: "text-5xl", 60: "text-6xl", 72: "text-7xl", 96: "text-8xl", 128: "text-9xl",
-      };
-      return fontMap[num] || null;
+
+    if (hasAlternatives) {
+      const altStr = prop.alternatives.map(a => `\`.${a.name}\` (\`${a.value}\`)`).join(", ");
+      lines.push(`- Alternatives: ${altStr}`);
     }
-    case "fontWeight": {
-      const weightMap: Record<string, string> = {
-        "100": "font-thin", "200": "font-extralight", "300": "font-light",
-        "400": "font-normal", "500": "font-medium", "600": "font-semibold",
-        "700": "font-bold", "800": "font-extrabold", "900": "font-black",
-      };
-      return weightMap[value] || null;
+
+    if (hasCssVars) {
+      const varStr = prop.cssVariables.map(v => `\`var(${v})\``).join(", ");
+      lines.push(`- CSS vars: ${varStr}`);
     }
-    default:
-      return null;
+
+    if (hasConflicts) {
+      for (const c of prop.conflicts!) {
+        const imp = c.important ? ", !important" : "";
+        lines.push(`- Competing rule: \`${c.selector}\` (\`${c.value}\`${imp})`);
+      }
+    }
+
+    entries.push(lines.join("\n"));
   }
+
+  if (entries.length === 0) return null;
+
+  return `<details>\n<summary>Resolution context</summary>\n\n${entries.join("\n\n")}\n\n</details>`;
 }
 
 /** Shorthand groups: when all longhands share the same "to" value, collapse into one shorthand */

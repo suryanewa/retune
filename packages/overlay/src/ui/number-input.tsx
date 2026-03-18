@@ -3,8 +3,12 @@
  * Equivalent to the portfolio editor's NumberInput component.
  */
 
-import { useState, useRef, type ReactNode } from "react";
+import { useState, useRef, useCallback, type ReactNode } from "react";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
+import type { VariableMatch } from "../tokens/types";
+import { ChangeIndicator } from "./change-indicator";
+import { VariableAction } from "./variable-action";
+
 
 function clampNum(val: number, min?: number, max?: number): number {
   if (min !== undefined && val < min) return min;
@@ -34,11 +38,30 @@ export interface NumberInputProps {
   max?: number;
   /** Step size for arrow keys and scrub (default: 1, shift multiplies by 10) */
   step?: number;
+  /** Token match — shows a dot indicator when the value comes from a utility token */
+  variableMatch?: VariableMatch;
+  /** CSS property name for token availability detection */
+  property?: string;
+  /** Callback when user picks a different token from the picker */
+  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
+  /** Callback when user applies a token from scratch (no existing token) */
+  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  /** Callback when user unlinks a token */
+  onVariableUnlink?: () => void;
+  /** Whether this property has been changed from its original value */
+  isChanged?: boolean;
+  /** Reset this property to its original value */
+  onReset?: () => void;
 }
 
-export function NumberInput({ label, prop, value, placeholder, onChange, min, max, step: stepProp }: NumberInputProps) {
+export function NumberInput({ label, prop, value, placeholder, onChange, min, max, step: stepProp, variableMatch, property, onVariableSelect, onVariableApply, onVariableUnlink, isChanged, onReset }: NumberInputProps) {
   const [localValue, setLocalValue] = useState(roundCssValue(value || ""));
   const labelRef = useRef<HTMLSpanElement>(null);
+  const varPickerRef = useRef<(() => void) | null>(null);
+
+  const handleInputClick = useCallback(() => {
+    if (variableMatch) varPickerRef.current?.();
+  }, [variableMatch]);
 
   const [prevValue, setPrevValue] = useState(value);
   if (value !== prevValue) {
@@ -129,7 +152,10 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
   };
 
   const handleBlur = () => {
-    commitValue(localValue);
+    const resolved = clampCssValue(inferCssUnit(localValue, value || "", prop), min, max);
+    if (resolved !== value) {
+      commitValue(localValue);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -140,16 +166,16 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       const num = parseFloat(localValue);
-      const base = isNaN(num) ? 0 : num;
+      // If the current value is a non-numeric keyword (e.g. "normal"), ignore arrow keys
+      if (isNaN(num)) return;
       const baseStep = stepProp ?? 1;
       const step = e.shiftKey ? baseStep * 10 : baseStep;
       const delta = e.key === "ArrowUp" ? step : -step;
-      const raw = base + delta;
+      const raw = num + delta;
       const precision = baseStep < 1 ? Math.ceil(-Math.log10(baseStep)) : 0;
       const rounded = precision > 0 ? parseFloat(raw.toFixed(precision)) : raw;
       const clamped = clampNum(rounded, min, max);
-      // When starting from a keyword like "normal", default to px
-      const unit = isNaN(num) ? "px" : (localValue.match(/[a-z%]+$/i)?.[0] || "");
+      const unit = localValue.match(/[a-z%]+$/i)?.[0] || "";
       const newVal = `${clamped}${unit}`;
       setLocalValue(newVal);
       onChange(prop, newVal);
@@ -157,14 +183,16 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
   };
 
   return (
-    <div className="retune-prop">
+    <div className={`retune-prop${variableMatch ? " retune-prop-variable-applied" : ""}`}>
+      <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
       {label && (
         <span
           ref={labelRef}
           className="retune-prop-label"
-          onPointerDown={handleLabelPointerDown}
-          onPointerMove={handleLabelPointerMove}
-          onPointerUp={handleLabelPointerUp}
+          onClick={handleInputClick}
+          onPointerDown={variableMatch ? undefined : handleLabelPointerDown}
+          onPointerMove={variableMatch ? undefined : handleLabelPointerMove}
+          onPointerUp={variableMatch ? undefined : handleLabelPointerUp}
         >
           {label}
         </span>
@@ -174,15 +202,25 @@ export function NumberInput({ label, prop, value, placeholder, onChange, min, ma
         className="retune-prop-input"
         style={label ? undefined : { paddingLeft: 8 }}
         value={localValue}
-        placeholder={placeholder}
-        onPointerDown={!label ? handleInputPointerDown : undefined}
-        onPointerMove={!label ? handleInputPointerMove : undefined}
-        onPointerUp={!label ? handleInputPointerUp : undefined}
-        onFocus={handleFocus}
-        onChange={handleChange}
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
+        placeholder={placeholder || "–"}
+        readOnly={!!variableMatch}
+        onClick={handleInputClick}
+        onPointerDown={!label && !variableMatch ? handleInputPointerDown : undefined}
+        onPointerMove={!label && !variableMatch ? handleInputPointerMove : undefined}
+        onPointerUp={!label && !variableMatch ? handleInputPointerUp : undefined}
+        onFocus={variableMatch ? undefined : handleFocus}
+        onChange={variableMatch ? undefined : handleChange}
+        onBlur={variableMatch ? undefined : handleBlur}
+        onKeyDown={variableMatch ? undefined : handleKeyDown}
         spellCheck={false}
+      />
+      <VariableAction
+        match={variableMatch}
+        property={property || prop}
+        onVariableSelect={onVariableSelect}
+        onVariableApply={onVariableApply}
+        onVariableUnlink={onVariableUnlink}
+        openPickerRef={varPickerRef}
       />
     </div>
   );

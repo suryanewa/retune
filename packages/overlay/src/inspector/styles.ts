@@ -80,23 +80,25 @@ export function getPseudoStateStyles(
   state: ":hover" | ":focus" | ":active",
 ): Record<string, string> {
   const styles: Record<string, string> = {};
+  const stateRegex = new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g");
 
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      continue; // cross-origin sheet
-    }
-
+  function walkRules(rules: CSSRuleList) {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
+
+      // Recurse into @layer, @media, @supports, etc.
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
+
       if (!(rule instanceof CSSStyleRule)) continue;
       const sel = rule.selectorText;
       if (!sel.includes(state)) continue;
 
       // Strip the pseudo-state to get the base selector, then check if element matches
-      const baseSel = sel.replace(new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), "").replace(/\s+/g, " ").trim();
+      const baseSel = sel.replace(stateRegex, "").replace(/\s+/g, " ").trim();
       if (!baseSel) continue;
 
       try {
@@ -113,7 +115,139 @@ export function getPseudoStateStyles(
     }
   }
 
-  return styles;
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue; // cross-origin sheet
+    }
+    walkRules(rules);
+  }
+
+  return expandShorthands(styles);
+}
+
+/**
+ * Expand CSS shorthand properties to their longhand equivalents.
+ * When stylesheet rules use shorthands like `padding: 10px 20px`, the CSSOM
+ * enumerates only the shorthand — the individual longhands (padding-left, etc.)
+ * are missing. This function detects known shorthands and expands them so
+ * downstream consumers always see individual longhand values.
+ */
+function expandShorthands(styles: Record<string, string>): Record<string, string> {
+  const result = { ...styles };
+
+  // Helper: parse 1–4 value shorthand (padding, margin, border-width, etc.)
+  function expandBoxValues(
+    shorthand: string,
+    sides: [string, string, string, string],
+  ) {
+    if (!(shorthand in result)) return;
+    const raw = result[shorthand].trim();
+    const parts = raw.split(/\s+/);
+    let top: string, right: string, bottom: string, left: string;
+    switch (parts.length) {
+      case 1:
+        top = right = bottom = left = parts[0];
+        break;
+      case 2:
+        top = bottom = parts[0];
+        right = left = parts[1];
+        break;
+      case 3:
+        top = parts[0];
+        right = left = parts[1];
+        bottom = parts[2];
+        break;
+      default: // 4+
+        top = parts[0];
+        right = parts[1];
+        bottom = parts[2];
+        left = parts[3];
+        break;
+    }
+    // Only set longhands that aren't already explicitly declared
+    if (!(sides[0] in result)) result[sides[0]] = top;
+    if (!(sides[1] in result)) result[sides[1]] = right;
+    if (!(sides[2] in result)) result[sides[2]] = bottom;
+    if (!(sides[3] in result)) result[sides[3]] = left;
+    delete result[shorthand];
+  }
+
+  // Helper: expand border-radius (uses a slightly different 1–4 pattern for corners)
+  function expandBorderRadius() {
+    if (!("border-radius" in result)) return;
+    const raw = result["border-radius"].trim();
+    // Handle slash syntax (horizontal / vertical) — take horizontal only for simplicity
+    const horizontal = raw.split("/")[0].trim();
+    const parts = horizontal.split(/\s+/);
+    const corners = [
+      "border-top-left-radius",
+      "border-top-right-radius",
+      "border-bottom-right-radius",
+      "border-bottom-left-radius",
+    ];
+    let tl: string, tr: string, br: string, bl: string;
+    switch (parts.length) {
+      case 1:
+        tl = tr = br = bl = parts[0];
+        break;
+      case 2:
+        tl = br = parts[0];
+        tr = bl = parts[1];
+        break;
+      case 3:
+        tl = parts[0];
+        tr = bl = parts[1];
+        br = parts[2];
+        break;
+      default:
+        tl = parts[0];
+        tr = parts[1];
+        br = parts[2];
+        bl = parts[3];
+        break;
+    }
+    if (!(corners[0] in result)) result[corners[0]] = tl;
+    if (!(corners[1] in result)) result[corners[1]] = tr;
+    if (!(corners[2] in result)) result[corners[2]] = br;
+    if (!(corners[3] in result)) result[corners[3]] = bl;
+    delete result["border-radius"];
+  }
+
+  // Helper: expand gap → row-gap + column-gap
+  function expandGap() {
+    if (!("gap" in result)) return;
+    const raw = result["gap"].trim();
+    const parts = raw.split(/\s+/);
+    const rowGap = parts[0];
+    const colGap = parts.length > 1 ? parts[1] : parts[0];
+    if (!("row-gap" in result)) result["row-gap"] = rowGap;
+    if (!("column-gap" in result)) result["column-gap"] = colGap;
+    delete result["gap"];
+  }
+
+  // Expand known shorthands
+  expandBoxValues("padding", [
+    "padding-top", "padding-right", "padding-bottom", "padding-left",
+  ]);
+  expandBoxValues("margin", [
+    "margin-top", "margin-right", "margin-bottom", "margin-left",
+  ]);
+  expandBoxValues("border-width", [
+    "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+  ]);
+  expandBoxValues("border-color", [
+    "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+  ]);
+  expandBoxValues("border-style", [
+    "border-top-style", "border-right-style", "border-bottom-style", "border-left-style",
+  ]);
+  expandBorderRadius();
+  expandGap();
+
+  return result;
 }
 
 export type StyleSource = {
@@ -131,28 +265,30 @@ export type StyleSource = {
 export function getStyleSources(element: Element): Record<string, StyleSource> {
   const sources: Record<string, StyleSource> = {};
 
+  function walkRules(rules: CSSRuleList) {
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
+      if (!(rule instanceof CSSStyleRule)) continue;
+      const sel = rule.selectorText;
+      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
+      try { if (!element.matches(sel)) continue; } catch { continue; }
+      for (let j = 0; j < rule.style.length; j++) {
+        const prop = rule.style[j];
+        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+        sources[camel] = { selector: sel, value: rule.style.getPropertyValue(prop) };
+      }
+    }
+  }
+
   for (const sheet of document.styleSheets) {
     let rules: CSSRuleList;
     try { rules = sheet.cssRules; } catch { continue; }
-
-    for (let i = 0; i < rules.length; i++) {
-      const rule = rules[i];
-      if (!(rule instanceof CSSStyleRule)) continue;
-      const sel = rule.selectorText;
-      // Skip pseudo-state rules
-      if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
-
-      try { if (!element.matches(sel)) continue; } catch { continue; }
-
-      for (let j = 0; j < rule.style.length; j++) {
-        const prop = rule.style[j]; // kebab-case
-        const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        sources[camel] = {
-          selector: sel,
-          value: rule.style.getPropertyValue(prop),
-        };
-      }
-    }
+    walkRules(rules);
   }
 
   return sources;
@@ -166,71 +302,107 @@ export function getStyleSources(element: Element): Record<string, StyleSource> {
  *
  * For properties not set by any matching rule, falls back to computed style.
  */
+export interface ScopedStyleResult {
+  styles: Record<string, string>;
+  /** camelCase properties that are set by CSS rules matching the scope selector */
+  ownedProperties: Set<string>;
+}
+
 export function getScopedStyles(
   element: Element,
   scopeSelector: string,
-): Record<string, string> {
-  // Collect values from rules that belong to this scope
+): ScopedStyleResult {
+  // Collect owned properties AND their resolved values from scope-matching rules.
+  // A probe element resolves var() references to actual values.
+  const ownedProperties = new Set<string>();
   const scopedValues: Record<string, string> = {};
 
-  // Extract the class names from the scope selector (e.g. ".toc-link" → ["toc-link"])
   const scopeClasses = scopeSelector.match(/\.[a-zA-Z0-9_-]+/g) || [];
 
-  for (const sheet of document.styleSheets) {
-    let rules: CSSRuleList;
-    try { rules = sheet.cssRules; } catch { continue; }
+  // Probe element for resolving var() values
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:-9999px;left:-9999px;visibility:hidden;pointer-events:none;";
+  document.body.appendChild(probe);
 
+  function walkScopedRules(rules: CSSRuleList) {
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
+      if (rule instanceof CSSGroupingRule ||
+          (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        walkScopedRules((rule as CSSGroupingRule).cssRules);
+        continue;
+      }
       if (!(rule instanceof CSSStyleRule)) continue;
       const sel = rule.selectorText;
-      // Skip pseudo-state rules
       if (sel.includes(":hover") || sel.includes(":focus") || sel.includes(":active")) continue;
-
       try { if (!element.matches(sel)) continue; } catch { continue; }
 
-      // Check if this rule's selector belongs to the scope.
-      // A rule belongs if its selector contains exactly the scope's classes
-      // but no additional classes beyond the scope (regardless of whether the element has them).
       const ruleClasses = sel.match(/\.[a-zA-Z0-9_-]+/g) || [];
-      const hasScopeClass = scopeClasses.every((sc) => ruleClasses.includes(sc));
-      // Reject rules that require classes beyond the scope
-      // (e.g. ".toc-link.active" has ".active" which isn't in ".toc-link" scope)
-      const extraClasses = ruleClasses.filter((rc) => !scopeClasses.includes(rc));
-
-      if (!hasScopeClass || extraClasses.length > 0) continue;
+      // Skip rules with no classes (universal selectors like *, ::before, tag selectors)
+      if (ruleClasses.length === 0) continue;
+      const ruleWithinScope = ruleClasses.every((rc) => scopeClasses.includes(rc));
+      if (!ruleWithinScope) continue;
 
       for (let j = 0; j < rule.style.length; j++) {
         const prop = rule.style[j];
         const camel = prop.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        let value = rule.style.getPropertyValue(prop);
-        if (value === "normal" && NORMAL_TO_ZERO.has(camel)) {
-          value = "0px";
+        ownedProperties.add(camel);
+
+        // Resolve the value (handles var() references via probe)
+        let val = rule.style.getPropertyValue(prop).trim();
+
+        // If longhand value is empty, check if it came from a shorthand
+        if (!val) {
+          for (const sh of ["padding", "margin", "border-radius", "gap", "border-width", "border-color", "border-style"]) {
+            const shVal = rule.style.getPropertyValue(sh).trim();
+            if (shVal && prop.startsWith(sh.split("-")[0])) {
+              // Apply shorthand to probe and read the resolved longhand
+              probe.style.setProperty(sh, shVal);
+              val = getComputedStyle(probe).getPropertyValue(prop).trim();
+              probe.style.removeProperty(sh);
+              break;
+            }
+          }
+        } else if (val.includes("var(")) {
+          probe.style.setProperty(prop, val);
+          val = getComputedStyle(probe).getPropertyValue(prop).trim();
+          probe.style.removeProperty(prop);
         }
-        scopedValues[camel] = value;
+        if (val) scopedValues[camel] = val;
       }
     }
   }
 
-  // For properties not in any scoped rule, fall back to computed
+  for (const sheet of document.styleSheets) {
+    let rules: CSSRuleList;
+    try { rules = sheet.cssRules; } catch { continue; }
+    walkScopedRules(rules);
+  }
+
+  probe.remove();
+
+  // Use scoped values for owned properties, computed values for everything else.
+  // This ensures .alert's padding shows its own value (16px), not the cascade
+  // result after .alert-dismissible overrides padding-right to 40px.
   const computed = window.getComputedStyle(element);
   const styles: Record<string, string> = {};
 
   for (const prop of ALL_PROPS) {
-    if (scopedValues[prop] !== undefined) {
+    // Prefer scoped value if this property is owned by a matching rule
+    if (scopedValues[prop]) {
       styles[prop] = scopedValues[prop];
-    } else {
-      let value = computed.getPropertyValue(camelToKebab(prop));
-      if (value) {
-        if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {
-          value = "0px";
-        }
-        styles[prop] = value;
+      continue;
+    }
+    let value = computed.getPropertyValue(camelToKebab(prop));
+    if (value) {
+      if (value === "normal" && NORMAL_TO_ZERO.has(prop)) {
+        value = "0px";
       }
+      styles[prop] = value;
     }
   }
 
-  return styles;
+  return { styles, ownedProperties };
 }
 
 // Properties where "normal" should be resolved to "0px" for usability
