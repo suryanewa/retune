@@ -20,9 +20,9 @@ import {
 } from "./color-utils";
 import { FloatingDialog } from "./floating-dialog";
 import { Tooltip } from "./tooltip";
-import type { DesignVariable } from "../tokens/types";
-import { getVariablesForProperty } from "../tokens/resolver";
-import { getCategoryForProperty } from "../tokens/categories";
+import type { DesignVariable } from "../variables/types";
+import { getVariablesForProperty } from "../variables/resolver";
+import { getCategoryForProperty } from "../variables/categories";
 
 /** Format variable name for display: strip var(-- ) → "color-brand" */
 function formatVarName(className: string): string {

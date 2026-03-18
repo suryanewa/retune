@@ -12,7 +12,7 @@
 import type { ElementChange, EnrichedPropertyChange } from "../types";
 import { type TokenMap, scanDesignTokens, summarizeTokenSystem } from "../inspector/tokens";
 import { camelToKebab, truncate } from "../utils";
-import { getVariableRegistry } from "../tokens/registry";
+import { getVariableRegistry } from "../variables/registry";
 import { enrichPropertyChanges } from "./candidates";
 
 export type Fidelity = "minimal" | "standard" | "full";

@@ -265,6 +265,21 @@ export default function MailApp() {
         <span className="alert__text">Your storage is almost full. Upgrade your plan to get more space.</span>
         <button className="alert__close">✕</button>
       </div>
+
+      {/* ── Test: Mixed utility + semantic classes (for scope filtering) ── */}
+      <div className="spectrum-bg-blue p-4 rounded-lg" style={{ position: "fixed", bottom: 80, right: 16, maxWidth: 320 }}>
+        <div className="heading-font font-bold text-lg" style={{ color: "rgb(var(--background-primary))", marginBottom: 8 }}>
+          Spectrum Card
+        </div>
+        <p className="body-font text-sm" style={{ color: "rgb(var(--background-primary))", opacity: "var(--opacity-subtle)" }}>
+          This card uses space-separated RGB colors, font variables, mixed utility + semantic classes, and opacity variables. Select it to test all the fixes.
+        </p>
+        <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
+          <button className="btn btn-ghost border-thin" style={{ color: "rgb(var(--background-primary))", borderColor: "rgb(var(--background-primary))" }}>
+            Dismiss
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

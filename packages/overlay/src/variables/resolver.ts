@@ -11,6 +11,21 @@ import { getVariableRegistry } from "./registry";
 import { getCategoryForProperty } from "./categories";
 import { scanDesignTokens, type DesignToken } from "../inspector/tokens";
 
+const SPACE_RGB_RE = /^\s*(\d{1,3})\s+(\d{1,3})\s+(\d{1,3})\s*$/;
+
+export function isSpaceSeparatedRgb(value: string): boolean {
+  const m = SPACE_RGB_RE.exec(value.trim());
+  if (!m) return false;
+  return [m[1], m[2], m[3]].every(n => { const v = parseInt(n, 10); return v >= 0 && v <= 255; });
+}
+
+function normalizeColorValue(value: string): string {
+  if (isSpaceSeparatedRgb(value)) return `rgb(${value.trim().replace(/\s+/g, ', ')})`;
+  return value;
+}
+
+const FRAMEWORK_INTERNAL_PREFIXES = ["--tw-", "--chakra-", "--mantine-", "--radix-", "--nextui-"];
+
 /**
  * Resolve which tokens are active on a given element.
  * Returns a map of CSS property → VariableMatch (the token providing that value).
@@ -55,7 +70,7 @@ export function resolveVariablesForElement(
 
   // ── 2. CSS variable detection ──
   // Check inline styles and matched stylesheet rules for var(--*) references
-  resolveVarTokens(element, matches, scopeSelector);
+  resolveVarReferences(element, matches, scopeSelector);
 
   return matches;
 }
@@ -83,11 +98,11 @@ const SHORTHAND_LONGHANDS: Record<string, string[]> = {
  * Scan an element's applied styles for var(--*) references and add matching
  * CSS variable tokens to the matches map. Class-based matches take priority.
  */
-function resolveVarTokens(element: Element, matches: Map<string, VariableMatch>, scopeSelector?: string): void {
+function resolveVarReferences(element: Element, matches: Map<string, VariableMatch>, scopeSelector?: string): void {
   const htmlEl = element as HTMLElement;
 
   // Build a lookup of known CSS variable tokens: "--name" → DesignVariable
-  const { tokens: varTokens } = getCssVarTokens();
+  const { tokens: varTokens } = getCssVariables();
   if (varTokens.length === 0) return;
   const varLookup = new Map<string, DesignVariable>();
   for (const t of varTokens) {
@@ -301,12 +316,12 @@ function kebabToCamel(str: string): string {
  * Fallback: regex for projects without @layer (Tailwind v1/v2, whose utility sets
  * are frozen and fully enumerable).
  */
-export function isRawUtility(token: DesignVariable): boolean {
-  // Definitive: token lives in @layer utilities
-  if (token.layerName === "utilities") return true;
+export function isRawUtility(variable: DesignVariable): boolean {
+  // Definitive: variable lives in @layer utilities
+  if (variable.layerName === "utilities") return true;
   // No layer info — fall back to regex for legacy Tailwind (v1/v2)
-  if (!token.layerName) return TW_PREFIX_LEGACY.test(token.className);
-  // Token is in a named layer that isn't "utilities" (e.g., "components", "base") — semantic
+  if (!variable.layerName) return TW_PREFIX_LEGACY.test(variable.className);
+  // Variable is in a named layer that isn't "utilities" (e.g., "components", "base") — semantic
   return false;
 }
 
@@ -321,12 +336,12 @@ export function isTailwindUtility(className: string): boolean {
 // ── CSS custom property categorization ──
 
 /** Cached CSS variable tokens (invalidated when stylesheet count changes) */
-let cssVarTokensCache: { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } | null = null;
+let cssVarCache: { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } | null = null;
 let cssVarSheetCount = -1;
 
 /** Force CSS variable token cache to rebuild on next call */
-export function invalidateCssVarTokens(): void {
-  cssVarTokensCache = null;
+export function invalidateCssVariables(): void {
+  cssVarCache = null;
   cssVarSheetCount = -1;
 }
 
@@ -341,8 +356,10 @@ const VAR_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: VariableCategory
   { pattern: /^--(tracking|letter-spacing|letter)/i, category: "letter-spacing" },
   { pattern: /^--(font-family|font-(?:sans|serif|mono|display|body|heading))/i, category: "font-family" },
   { pattern: /^--(font|text)/i, category: "font-size" },
-  { pattern: /^--(radius|border-width|border-radius|rounded)/i, category: "borders" },
-  { pattern: /^--(shadow|opacity)/i, category: "effects" },
+  { pattern: /^--(radius|border-radius|rounded)/i, category: "border-radius" },
+  { pattern: /^--(border-width|border-w|stroke-width)/i, category: "border-width" },
+  { pattern: /^--(shadow)/i, category: "box-shadow" },
+  { pattern: /^--(opacity|alpha)/i, category: "opacity" },
 ];
 
 /** Detect category from a CSS variable value */
@@ -365,6 +382,8 @@ function categoryFromValue(value: string): VariableCategory | null {
   if (!isNaN(num) && (v.endsWith("px") || v.endsWith("rem") || v.endsWith("em"))) {
     return "spacing"; // Could be spacing or sizing, default to spacing
   }
+  // Space-separated RGB channels (Tailwind v4, UDS pattern: "255 229 202")
+  if (isSpaceSeparatedRgb(v)) return "colors";
   return null;
 }
 
@@ -464,9 +483,9 @@ function categorizeFromUsage(
 }
 
 /** Get CSS custom properties as DesignVariable format, grouped by category */
-function getCssVarTokens(): { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } {
+function getCssVariables(): { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } {
   const sheetCount = typeof document !== "undefined" ? document.styleSheets.length : 0;
-  if (cssVarTokensCache && cssVarSheetCount === sheetCount) return cssVarTokensCache;
+  if (cssVarCache && cssVarSheetCount === sheetCount) return cssVarCache;
 
   const tokenMap = scanDesignTokens();
   const usageMap = buildVariableUsageMap();
@@ -479,23 +498,26 @@ function getCssVarTokens(): { tokens: DesignVariable[]; byCategory: Map<Variable
     if (seen.has(dt.name)) continue;
     seen.add(dt.name);
 
+    // Filter framework internals
+    if (FRAMEWORK_INTERNAL_PREFIXES.some(p => dt.name.startsWith(p))) continue;
+
     // Usage-based first (definitive), name/value pattern fallback second
     const category = categorizeFromUsage(dt.name, usageMap) ?? categorizeVariable(dt);
     if (!category) continue;
 
     const ut: DesignVariable = {
       className: `var(${dt.name})`,
-      values: { [dt.name]: dt.value },
+      values: { [dt.name]: normalizeColorValue(dt.value) },
     };
     tokens.push(ut);
     if (!byCategory.has(category)) byCategory.set(category, []);
     byCategory.get(category)!.push(ut);
   }
 
-  cssVarTokensCache = { tokens, byCategory };
+  cssVarCache = { tokens, byCategory };
   cssVarSheetCount = sheetCount;
 
-  return cssVarTokensCache;
+  return cssVarCache;
 }
 
 /**
@@ -508,7 +530,7 @@ export function getVariablesForProperty(property: string): DesignVariable[] {
   const category = getCategoryForProperty(kebab);
   if (!category) return [];
 
-  const { byCategory } = getCssVarTokens();
+  const { byCategory } = getCssVariables();
   return byCategory.get(category) || [];
 }
 
@@ -520,7 +542,7 @@ export function hasVariablesForProperty(property: string): boolean {
   const kebab = camelToKebab(property);
   const category = getCategoryForProperty(kebab);
   if (!category) return false;
-  const { byCategory } = getCssVarTokens();
+  const { byCategory } = getCssVariables();
   return (byCategory.get(category)?.length ?? 0) > 0;
 }
 

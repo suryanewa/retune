@@ -5,7 +5,7 @@
 
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { roundCssValue, inferCssUnit } from "./round-css-value";
-import type { VariableMatch } from "../tokens/types";
+import type { VariableMatch } from "../variables/types";
 import { ChangeIndicator } from "./change-indicator";
 import { VariableAction } from "./variable-action";
 

@@ -7,7 +7,7 @@
 import { useState, useRef, useCallback } from "react";
 import { parseCssColor, hexToRgba } from "./color-utils";
 import { ColorPicker } from "./color-picker";
-import type { VariableMatch, DesignVariable } from "../tokens/types";
+import type { VariableMatch, DesignVariable } from "../variables/types";
 import { ChangeIndicator } from "./change-indicator";
 import { VariableAction } from "./variable-action";
 import { claimDialog, releaseDialog } from "./dialog-singleton";

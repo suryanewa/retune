@@ -104,7 +104,7 @@ interface ScopeLevel {
 /** Build scope levels from candidates (sorted broadest-first).
  *  Each level accumulates classes into a compound selector. */
 function buildScopeLevels(candidates: SelectorCandidate[]): ScopeLevel[] {
-  const meaningful = candidates.filter(c => c.verdict !== "utility");
+  const meaningful = candidates.filter(c => c.verdict === "semantic");
   if (meaningful.length === 0) {
     return [{ label: "This element", selector: null, count: 1 }];
   }
