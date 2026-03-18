@@ -15,8 +15,8 @@
 
 import { useState, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import type { VariableMatch, DesignVariable } from "../tokens/types";
-import { hasVariablesForProperty } from "../tokens/resolver";
+import type { VariableMatch, DesignVariable } from "../variables/types";
+import { hasVariablesForProperty } from "../variables/resolver";
 import { VariableDialog } from "./variable-dialog";
 import { claimDialog, releaseDialog } from "./dialog-singleton";
 import { Tooltip } from "./tooltip";

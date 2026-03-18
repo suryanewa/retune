@@ -20,9 +20,9 @@ import {
 } from "./color-utils";
 import { FloatingDialog } from "./floating-dialog";
 import { Tooltip } from "./tooltip";
-import type { DesignVariable } from "../tokens/types";
-import { getVariablesForProperty } from "../tokens/resolver";
-import { getCategoryForProperty } from "../tokens/categories";
+import type { DesignVariable } from "../variables/types";
+import { getVariablesForProperty } from "../variables/resolver";
+import { getCategoryForProperty } from "../variables/categories";
 
 /** Format variable name for display: strip var(-- ) → "color-brand" */
 function formatVarName(className: string): string {
@@ -64,6 +64,10 @@ function formatTokenValue(variable: DesignVariable): string {
 function getSwatchColor(variable: DesignVariable): string | null {
   for (const [prop, val] of Object.entries(variable.values)) {
     if (prop.includes("color") || prop === "background-color" || prop === "fill" || prop === "stroke") {
+      return val;
+    }
+    const v = val.trim().toLowerCase();
+    if (v.startsWith("#") || v.startsWith("rgb") || v.startsWith("hsl") || v.startsWith("oklch") || v.startsWith("oklab")) {
       return val;
     }
   }

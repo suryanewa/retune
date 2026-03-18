@@ -18,6 +18,12 @@ vi.mock("../inspector/tokens", () => ({
       { name: "--heading-size", value: "2rem", source: ":root" },
       { name: "--brand", value: "#3b82f6", source: ":root" },
       { name: "--lh-tight", value: "1.25", source: ":root" },
+      // Space-separated RGB (Tailwind v4 pattern)
+      { name: "--color-peach", value: "255 229 202", source: ":root" },
+      // Framework internals (should be filtered)
+      { name: "--tw-ring-offset-color", value: "#fff", source: ":root" },
+      { name: "--tw-shadow", value: "0 0 #0000", source: ":root" },
+      { name: "--chakra-ring-color", value: "rgba(66,153,225,0.6)", source: ":root" },
     ],
     valueToTokens: new Map(),
   })),
@@ -33,7 +39,7 @@ vi.mock("./registry", () => ({
   })),
 }));
 
-import { getVariablesForProperty, hasVariablesForProperty, resolveVariablesForElement, invalidateCssVarTokens } from "./resolver";
+import { getVariablesForProperty, hasVariablesForProperty, resolveVariablesForElement, invalidateCssVariables, isSpaceSeparatedRgb } from "./resolver";
 
 describe("Variable picker — getVariablesForProperty", () => {
   it("returns only CSS variables for spacing (no class tokens)", () => {
@@ -49,7 +55,7 @@ describe("Variable picker — getVariablesForProperty", () => {
     expect(tokens.map(t => t.className)).toContain("var(--color-text)");
   });
 
-  it("returns CSS variables for borders (radius)", () => {
+  it("returns CSS variables for border-radius", () => {
     const tokens = getVariablesForProperty("borderRadius");
     expect(tokens.map(t => t.className)).toContain("var(--radius-md)");
     expect(tokens.map(t => t.className)).toContain("var(--radius-lg)");
@@ -60,7 +66,7 @@ describe("Variable picker — getVariablesForProperty", () => {
     expect(tokens.map(t => t.className)).toContain("var(--font-sm)");
   });
 
-  it("returns CSS variables for effects", () => {
+  it("returns CSS variables for box-shadow", () => {
     const tokens = getVariablesForProperty("boxShadow");
     expect(tokens.map(t => t.className)).toContain("var(--shadow-md)");
   });
@@ -275,7 +281,7 @@ if (typeof globalThis.CSSStyleRule === "undefined") {
 
 describe("Usage-based variable categorization", () => {
   beforeEach(() => {
-    invalidateCssVarTokens();
+    invalidateCssVariables();
   });
 
   it("categorizes --heading-size as font-size when used in font-size property", () => {
@@ -340,5 +346,66 @@ describe("Usage-based variable categorization", () => {
     ]);
     const vars = getVariablesForProperty("padding");
     expect(vars.map(v => v.className)).toContain("var(--spacing-4)");
+  });
+});
+
+describe("isSpaceSeparatedRgb — detects space-separated RGB channels", () => {
+  it("detects valid space-separated RGB", () => {
+    expect(isSpaceSeparatedRgb("255 229 202")).toBe(true);
+    expect(isSpaceSeparatedRgb("0 0 0")).toBe(true);
+    expect(isSpaceSeparatedRgb("128 64 32")).toBe(true);
+    expect(isSpaceSeparatedRgb("  255  229  202  ")).toBe(true);
+  });
+
+  it("rejects non-RGB values", () => {
+    expect(isSpaceSeparatedRgb("#ff0000")).toBe(false);
+    expect(isSpaceSeparatedRgb("rgb(255, 0, 0)")).toBe(false);
+    expect(isSpaceSeparatedRgb("16px")).toBe(false);
+    expect(isSpaceSeparatedRgb("hello world foo")).toBe(false);
+    expect(isSpaceSeparatedRgb("256 0 0")).toBe(false);
+    expect(isSpaceSeparatedRgb("255 0")).toBe(false);
+    expect(isSpaceSeparatedRgb("")).toBe(false);
+  });
+
+  it("normalizes space-separated RGB into colors category", () => {
+    mockStyleSheets([]);
+    invalidateCssVariables();
+    const vars = getVariablesForProperty("color");
+    expect(vars.map(v => v.className)).toContain("var(--color-peach)");
+    // Verify the value was normalized to rgb() format
+    const peach = vars.find(v => v.className === "var(--color-peach)");
+    expect(peach).toBeDefined();
+    expect(peach!.values["--color-peach"]).toBe("rgb(255, 229, 202)");
+  });
+});
+
+describe("Framework internal filtering", () => {
+  beforeEach(() => {
+    invalidateCssVariables();
+    mockStyleSheets([]);
+  });
+
+  it("filters out --tw-* variables", () => {
+    const allVars = [
+      ...getVariablesForProperty("color"),
+      ...getVariablesForProperty("boxShadow"),
+      ...getVariablesForProperty("padding"),
+    ];
+    const classNames = allVars.map(v => v.className);
+    expect(classNames).not.toContain("var(--tw-ring-offset-color)");
+    expect(classNames).not.toContain("var(--tw-shadow)");
+  });
+
+  it("filters out --chakra-* variables", () => {
+    const allVars = getVariablesForProperty("color");
+    const classNames = allVars.map(v => v.className);
+    expect(classNames).not.toContain("var(--chakra-ring-color)");
+  });
+
+  it("does not filter user-defined variables", () => {
+    const vars = getVariablesForProperty("color");
+    const classNames = vars.map(v => v.className);
+    expect(classNames).toContain("var(--color-brand)");
+    expect(classNames).toContain("var(--color-text)");
   });
 });

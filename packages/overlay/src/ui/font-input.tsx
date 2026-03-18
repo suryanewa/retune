@@ -29,9 +29,10 @@ function detectProjectFonts(): string[] {
         for (const rule of sheet.cssRules) {
           if (!(rule instanceof CSSStyleRule)) continue;
           const ff = rule.style.getPropertyValue("font-family");
-          if (!ff) continue;
+          if (!ff || ff.trim().startsWith("var(")) continue;
           for (const part of ff.split(",")) {
             const name = part.trim().replace(/^["']|["']$/g, "");
+            if (name.startsWith("var(")) continue;
             if (name && !FALLBACK_FONTS.includes(name)) {
               fonts.add(name);
             }

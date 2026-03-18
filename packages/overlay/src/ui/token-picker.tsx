@@ -8,9 +8,9 @@
  */
 
 import { useEffect, useRef, useCallback } from "react";
-import type { DesignVariable, VariableMatch } from "../tokens/types";
-import { getAlternativeVariables } from "../tokens/resolver";
-import { getCategoryForProperty } from "../tokens/categories";
+import type { DesignVariable, VariableMatch } from "../variables/types";
+import { getAlternativeVariables } from "../variables/resolver";
+import { getCategoryForProperty } from "../variables/categories";
 
 export interface TokenPickerProps {
   match: VariableMatch;

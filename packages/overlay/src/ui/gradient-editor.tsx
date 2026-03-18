@@ -8,7 +8,7 @@
 
 import { useState, useCallback } from "react";
 import type { GradientFill } from "./gradient-utils";
-import type { DesignVariable, VariableMatch } from "../tokens/types";
+import type { DesignVariable, VariableMatch } from "../variables/types";
 import { interpolateColor, gradientBarCss } from "./gradient-utils";
 import { GradientStopBar } from "./gradient-stop-bar";
 import { ColorInput } from "./color-input";

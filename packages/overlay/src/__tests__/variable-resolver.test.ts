@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import type { DesignVariable, VariableRegistry, VariableCategory } from "../tokens/types";
+import type { DesignVariable, VariableRegistry, VariableCategory } from "../variables/types";
 
 // ---------------------------------------------------------------------------
 // Mock the token registry at module scope (hoisted by vitest)
@@ -26,12 +26,12 @@ const mockRegistry: VariableRegistry = {
   framework: "tailwind",
 };
 
-vi.mock("../tokens/registry", () => ({
+vi.mock("../variables/registry", () => ({
   getVariableRegistry: () => mockRegistry,
 }));
 
 // Import after mock declaration so vitest can wire it up
-import { isRawUtility, isTailwindUtility, getAlternativeVariables } from "../tokens/resolver";
+import { isRawUtility, isTailwindUtility, getAlternativeVariables } from "../variables/resolver";
 
 // ---------------------------------------------------------------------------
 // Helper to create a DesignVariable

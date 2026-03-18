@@ -18,8 +18,10 @@ export type VariableCategory =
   | "line-height"
   | "letter-spacing"
   | "font-family"
-  | "borders"
-  | "effects"
+  | "border-radius"
+  | "border-width"
+  | "box-shadow"
+  | "opacity"
   | "layout";
 
 /** Detected CSS framework */

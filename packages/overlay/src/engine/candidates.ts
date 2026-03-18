@@ -10,8 +10,8 @@
 import type { PropertyChange, PropertyCandidate, EnrichedPropertyChange } from "../types";
 import type { TokenMap } from "../inspector/tokens";
 import { findTokensForValue as findCssVarsForValue } from "../inspector/tokens";
-import { findVariableForValue, getAlternativeVariables, isRawUtility } from "../tokens/resolver";
-import { getVariableRegistry } from "../tokens/registry";
+import { findVariableForValue, getAlternativeVariables, isRawUtility } from "../variables/resolver";
+import { getVariableRegistry } from "../variables/registry";
 import { findStyleSources } from "../inspector/style-source";
 import { camelToKebab } from "../utils";
 
