@@ -1,6 +1,6 @@
 ---
 name: retune-visual-changes
-description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", a Before/After changes table, or property diffs with Token columns. Triggers on: retune, "Visual Changes", "apply these changes", style diff, design tokens, property before/after table, visual tweaks, overlay changes.
+description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", a Before/After changes table, or property diffs with Token/Variable columns. Triggers on: retune, "Visual Changes", "apply these changes", style diff, design tokens, design variables, property before/after table, visual tweaks, overlay changes.
 ---
 
 # Applying Retune Visual Changes
@@ -80,7 +80,7 @@ When the Token column shows a utility class like `.p-4`, that's the class to use
 
 ### CSS Modules
 
-Edit the `.module.css` file. The Source column tells you which stylesheet.
+Edit the `.module.css` file. Use the Selector and DOM Path to find the right stylesheet.
 
 ```diff
 /* Button.module.css */
@@ -105,7 +105,7 @@ Edit the style object or template literal in the component file.
 
 ### Plain CSS
 
-Edit the stylesheet. Use the Source and Selector fields to find the right rule.
+Edit the stylesheet. Use the Selector and DOM Path to find the right rule.
 
 ### Inline Styles
 
@@ -121,10 +121,12 @@ Edit the `style` prop on the JSX element.
 When competing rules appear in the resolution context:
 
 - If the competing rule has `!important`, your change may be overridden. Either modify the competing rule, or add `!important` to your change (last resort).
-- If multiple selectors set the same property, apply the change to the highest-specificity rule that the Source column identifies.
+- If multiple selectors set the same property, apply the change to the highest-specificity matching rule.
 - If the source is `inline style` but the project uses classes/stylesheets, prefer moving the value to the appropriate stylesheet rather than keeping it inline.
 
 ## Scope Awareness
+
+When the output includes a **Target classes** line (e.g., `.btn` (8) → `.btn-ghost` (2)), the user scoped their changes to a compound selector. Apply the change to the CSS rule matching that compound selector, not just the base class.
 
 The selector annotation tells you the blast radius:
 
@@ -132,9 +134,9 @@ The selector annotation tells you the blast radius:
 - **id-scoped, unique** — Safe to modify, affects one element.
 - **element-specific** — Path-based selector, affects one element.
 
-## Token Associations
+## Variable Associations
 
-When the output includes `tokenAssociations`, the user explicitly picked a design token in Retune's token picker. Always honor this association — use the token's class name, not the raw value.
+When the output includes `variableAssociations`, the user explicitly picked a design variable in Retune's variable picker. Always honor this association — use the variable's class name or CSS custom property, not the raw value.
 
 ## Workflow
 
