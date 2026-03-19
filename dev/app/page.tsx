@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // ── Data ──
 
@@ -80,11 +80,81 @@ function Tag({ children, color }: { children: React.ReactNode; color: string }) 
 
 // ── Main App ──
 
+/** Drawer with document-level "close on outside click" — common real-world pattern */
+/** Test drawer with multiple close-on-outside-click patterns.
+ *  Uses high z-index + backdrop + both click and pointerdown listeners
+ *  to simulate real-world drawer libraries (Radix, Headless UI, Shadcn). */
+function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Pattern 1: document click listener (React/vanilla pattern)
+    const handleClick = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    // Pattern 2: document pointerdown listener (Radix/Headless UI pattern)
+    const handlePointerDown = (e: PointerEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("click", handleClick);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("click", handleClick);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <>
+      {/* Backdrop (Radix/Shadcn pattern) */}
+      <div style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.3)",
+        zIndex: 2147483646,
+      }} onClick={onClose} />
+      {/* Drawer panel — same max z-index as Retune */}
+      <div ref={drawerRef} style={{
+        position: "fixed", top: 0, right: 0, width: 360, height: "100vh",
+        background: "var(--color-bg)", borderLeft: "1px solid var(--color-border)",
+        boxShadow: "var(--shadow-lg)", zIndex: 2147483647, padding: "var(--spacing-6)",
+        display: "flex", flexDirection: "column", gap: "var(--spacing-4)",
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ fontSize: "var(--font-lg)", fontWeight: "var(--font-weight-semibold)" }}>Settings</h3>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+        </div>
+        <p style={{ fontSize: "var(--font-sm)", color: "var(--color-text-muted)" }}>
+          This drawer uses max z-index + backdrop + both click and pointerdown listeners. Tests all common real-world patterns.
+        </p>
+        <div className="form-field">
+          <label className="form-field__label">Display Name</label>
+          <input className="input" defaultValue="Sarah Chen" />
+        </div>
+        <div className="form-field">
+          <label className="form-field__label">Email Signature</label>
+          <textarea className="input input--textarea" rows={3} defaultValue="Best regards," />
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function MailApp() {
   const [activeFolder, setActiveFolder] = useState("Inbox");
   const [selectedMessage, setSelectedMessage] = useState<number | null>(1);
   const [composeOpen, setComposeOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const selected = MESSAGES.find(m => m.id === selectedMessage);
 
@@ -208,6 +278,7 @@ export default function MailApp() {
               <div className="message-detail__actions">
                 <button className="btn btn-ghost btn-sm">Reply</button>
                 <button className="btn btn-ghost btn-sm">Forward</button>
+                <button className="btn btn-ghost btn-sm btn-icon" onClick={(e) => { e.stopPropagation(); setSettingsOpen(true); }}>⚙</button>
                 <button className="btn btn-ghost btn-sm btn-icon">⋯</button>
               </div>
             </div>
@@ -280,6 +351,9 @@ export default function MailApp() {
           </button>
         </div>
       </div>
+
+      {/* ── Settings Drawer (tests event propagation fix) ── */}
+      <SettingsDrawer open={settingsOpen} onClose={useCallback(() => setSettingsOpen(false), [])} />
     </div>
   );
 }
