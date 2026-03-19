@@ -102,6 +102,50 @@ interface ScopeLevel {
 }
 
 
+/** Abbreviation lookup for common CSS class name stems */
+const CLASS_ABBREVIATIONS: Record<string, string> = {
+  btn: "Button", nav: "Navigation", col: "Column", img: "Image",
+  sm: "Small", md: "Medium", lg: "Large", xs: "Extra Small", xl: "Extra Large",
+  hdr: "Header", ftr: "Footer", cta: "Call to Action", desc: "Description",
+  msg: "Message", info: "Information", bg: "Background", txt: "Text",
+  pg: "Page", sec: "Section", el: "Element", opt: "Option",
+  val: "Value", err: "Error", warn: "Warning", num: "Number",
+  prev: "Previous", curr: "Current", temp: "Temporary",
+};
+
+/** Humanize a single class name segment: split on hyphens, title-case, expand abbreviations */
+function humanizeSegment(segment: string): string {
+  return segment
+    .split("-")
+    .map(word => CLASS_ABBREVIATIONS[word] || (word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
+
+/** Humanize a scope level label.
+ *  BEM modifiers (--): strip block prefix, show modifier only.
+ *  BEM elements (__): strip block prefix, show element only.
+ *  Contextual: strip previous level's class prefix if it matches.
+ *  Default: humanize full class name. */
+function humanizeScopeLabel(className: string, previousClassName?: string): string {
+  // BEM modifier: "message-row--unread" → "Unread"
+  if (className.includes("--")) {
+    const modifier = className.split("--").pop()!;
+    return humanizeSegment(modifier);
+  }
+  // BEM element: "sidebar__item" → "Sidebar Item"
+  if (className.includes("__")) {
+    const element = className.split("__").pop()!;
+    return humanizeSegment(element);
+  }
+  // Contextual prefix stripping: "btn-primary" after "btn" → "Primary"
+  if (previousClassName && className.startsWith(previousClassName + "-")) {
+    const suffix = className.slice(previousClassName.length + 1);
+    return humanizeSegment(suffix);
+  }
+  // Default: humanize full name
+  return humanizeSegment(className);
+}
+
 /** Strategy 1: Build a compound selector from ALL non-hashed classes on the element.
  *  If it matches > 1, these are "all instances" of this element type. */
 function buildCompoundFingerprint(element: Element): ScopeLevel | null {
@@ -169,11 +213,12 @@ function buildScopeLevels(candidates: SelectorCandidate[], element: Element): Sc
   const parts: string[] = [];
   for (const candidate of meaningful) {
     const className = candidate.selector.replace(/^\./, '');
+    const prevClassName = parts.length > 0 ? parts[parts.length - 1] : undefined;
     parts.push(className);
     const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
     let count: number;
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
-    levels.push({ label: className, selector: compound, count });
+    levels.push({ label: humanizeScopeLabel(className, prevClassName), selector: compound, count });
   }
   levels.push({ label: "This element", selector: null, count: 1 });
   return levels;
