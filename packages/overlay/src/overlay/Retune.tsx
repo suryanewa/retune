@@ -96,7 +96,7 @@ const MIN_VIEWPORT_WIDTH = 768;
 
 /** A pre-computed scope level in the target rail. */
 interface ScopeLevel {
-  label: string;           // Display name: class name or "This element"
+  label: string;           // Display name: class name or "This instance"
   selector: string | null; // Compound CSS selector, null = element-specific path
   count: number;           // querySelectorAll match count
 }
@@ -161,7 +161,7 @@ function buildCompoundFingerprint(element: Element): ScopeLevel | null {
   const selector = classes.sort().map(c => `.${CSS.escape(c)}`).join('');
   let count: number;
   try { count = document.querySelectorAll(selector).length; } catch { count = 0; }
-  if (count <= 1) return null; // same as "This element", skip
+  if (count <= 1) return null; // same as "This instance", skip
 
   return { label: `All instances`, selector, count };
 }
@@ -200,14 +200,14 @@ function buildScopeLevels(candidates: SelectorCandidate[], element: Element): Sc
     // Strategy 1: compound class fingerprint (utility-class elements)
     const fingerprint = buildCompoundFingerprint(element);
     if (fingerprint) {
-      return [fingerprint, { label: "This element", selector: null, count: 1 }];
+      return [fingerprint, { label: "This instance", selector: null, count: 1 }];
     }
     // Strategy 2: parent-scoped tag selector (classless elements)
     const parentLevel = buildParentScopeLevel(element);
     if (parentLevel) {
-      return [parentLevel, { label: "This element", selector: null, count: 1 }];
+      return [parentLevel, { label: "This instance", selector: null, count: 1 }];
     }
-    return [{ label: "This element", selector: null, count: 1 }];
+    return [{ label: "This instance", selector: null, count: 1 }];
   }
   const levels: ScopeLevel[] = [];
   const parts: string[] = [];
@@ -220,7 +220,7 @@ function buildScopeLevels(candidates: SelectorCandidate[], element: Element): Sc
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
     levels.push({ label: humanizeScopeLabel(className, prevClassName), selector: compound, count });
   }
-  levels.push({ label: "This element", selector: null, count: 1 });
+  levels.push({ label: "This instance", selector: null, count: 1 });
   return levels;
 }
 
@@ -271,7 +271,7 @@ function RetuneInner(props: RetuneConfig) {
 
   // Selector candidates for the selected element (class-based selectors with match counts)
   const [selectorCandidates, setSelectorCandidates] = useState<SelectorCandidate[]>([]);
-  // Scope rail: pre-computed levels from broadest to "This element"
+  // Scope rail: pre-computed levels from broadest to "This instance"
   const [scopeLevels, setScopeLevels] = useState<ScopeLevel[]>([]);
   const [activeLevelIndex, setActiveLevelIndex] = useState(0);
   const activeLevelIndexRef = useRef(0);
