@@ -1343,8 +1343,12 @@
   aspect-ratio: 1;
   cursor: crosshair;
   touch-action: none;
-  overflow: hidden;
   border-radius: 8px;
+}
+
+.retune-cp-sv-white,
+.retune-cp-sv-black {
+  border-radius: inherit;
 }
 
 .retune-cp-sv-white {
