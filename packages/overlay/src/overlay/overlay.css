@@ -327,6 +327,7 @@
   align-items: center;
   gap: 8px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
   padding: 0 16px;
 }
@@ -1343,8 +1344,12 @@
   aspect-ratio: 1;
   cursor: crosshair;
   touch-action: none;
-  overflow: hidden;
   border-radius: 8px;
+}
+
+.retune-cp-sv-white,
+.retune-cp-sv-black {
+  border-radius: inherit;
 }
 
 .retune-cp-sv-white {
@@ -1383,14 +1388,24 @@
   padding: 10px 12px;
 }
 
-.retune-cp-preview-wrap {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+.retune-cp-eyedropper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   flex-shrink: 0;
-  overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.retune-cp-eyedropper:hover {
+  color: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .retune-cp-preview-checker {
@@ -2630,6 +2645,16 @@
   font-size: 12px;
   color: #a8a29e;
   text-align: center;
+}
+
+.retune-variable-dialog-group-title {
+  font-size: 11px;
+  font-weight: 450;
+  line-height: 16px;
+  letter-spacing: -0.005em;
+  color: #79716B;
+  padding: 8px 16px 8px;
+  text-transform: capitalize;
 }
 
 @media (prefers-reduced-motion: reduce) {

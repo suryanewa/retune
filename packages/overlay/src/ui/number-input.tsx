@@ -43,9 +43,9 @@ export interface NumberInputProps {
   /** CSS property name for token availability detection */
   property?: string;
   /** Callback when user picks a different token from the picker */
-  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
+  onVariableSelect?: (oldToken: import("../variables/types").DesignVariable, newToken: import("../variables/types").DesignVariable, properties?: string[]) => void;
   /** Callback when user applies a token from scratch (no existing token) */
-  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  onVariableApply?: (token: import("../variables/types").DesignVariable, properties: string[]) => void;
   /** Callback when user unlinks a token */
   onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */

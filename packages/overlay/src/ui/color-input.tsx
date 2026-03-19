@@ -18,8 +18,8 @@ export interface ColorInputProps {
   onChange: (prop: string, value: string) => void;
   variableMatch?: VariableMatch;
   property?: string;
-  onVariableSelect?: (oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, properties?: string[]) => void;
-  onVariableApply?: (token: import("../tokens/types").DesignVariable, properties: string[]) => void;
+  onVariableSelect?: (oldToken: import("../variables/types").DesignVariable, newToken: import("../variables/types").DesignVariable, properties?: string[]) => void;
+  onVariableApply?: (token: import("../variables/types").DesignVariable, properties: string[]) => void;
   onVariableUnlink?: () => void;
   /** Whether this property has been changed from its original value */
   isChanged?: boolean;

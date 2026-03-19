@@ -241,7 +241,7 @@ export function PropertyPanel({
   // If not (value-only apply), just update values without touching classes.
   // `fallbackProperties` provides the affected CSS properties when the token was
   // auto-detected from stylesheets (no entry in variableAssociations).
-  const handleVariableSelect = useCallback((oldToken: import("../tokens/types").DesignVariable, newToken: import("../tokens/types").DesignVariable, fallbackProperties?: string[]) => {
+  const handleVariableSelect = useCallback((oldToken: import("../variables/types").DesignVariable, newToken: import("../variables/types").DesignVariable, fallbackProperties?: string[]) => {
     const el = element.element;
     if (!el) return;
     const isClassBased = el.classList.contains(oldToken.className);
@@ -280,7 +280,7 @@ export function PropertyPanel({
   // This is a value pick — we set the token's representative value on the specific
   // properties being edited, without adding the class. This lets the user apply
   // different tokens to different sides (e.g. different H and V padding).
-  const handleVariableApply = useCallback((newToken: import("../tokens/types").DesignVariable, properties: string[]) => {
+  const handleVariableApply = useCallback((newToken: import("../variables/types").DesignVariable, properties: string[]) => {
     const el = element.element;
     if (!el) return;
     const value = Object.values(newToken.values)[0];
@@ -1596,11 +1596,7 @@ export function PropertyPanel({
               </div>
             }
           >
-            {fillHasVariable ? (
-              <Row>
-                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
-              </Row>
-            ) : hasFill ? (
+            {(hasFill || fillHasVariable) ? (
               <>
                 <Row>
                   <SelectInput

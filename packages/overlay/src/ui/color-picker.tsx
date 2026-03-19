@@ -32,6 +32,40 @@ function formatVarName(className: string): string {
   return className;
 }
 
+/** Strip CSS property prefix from class name: "bg-blue-500" → "blue-500" */
+const PROPERTY_PREFIXES = ["bg-", "text-", "border-", "fill-", "stroke-", "outline-", "ring-"];
+function stripPropertyPrefix(className: string): string {
+  for (const prefix of PROPERTY_PREFIXES) {
+    if (className.startsWith(prefix)) return className.slice(prefix.length);
+  }
+  return className;
+}
+
+/** Get display name for a variable/class token */
+function getDisplayName(className: string): string {
+  if (className.startsWith("var(--") && className.endsWith(")")) return className.slice(6, -1);
+  return stripPropertyPrefix(className);
+}
+
+/** Extract ramp group + shade: "blue-500" → { group: "blue", shade: "500" } */
+function extractColorGroup(name: string): { group: string; shade: string } {
+  const m = name.match(/^(.+)-(\d+)$/);
+  if (m) return { group: m[1], shade: m[2] };
+  return { group: name, shade: "" };
+}
+
+/** Group variables by color ramp */
+function groupByRamp(items: DesignVariable[]): Map<string, DesignVariable[]> {
+  const groups = new Map<string, DesignVariable[]>();
+  for (const t of items) {
+    const displayName = getDisplayName(t.className);
+    const { group } = extractColorGroup(displayName);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group)!.push(t);
+  }
+  return groups;
+}
+
 export interface ColorPickerProps {
   value: string; // hex color
   alpha?: number; // 0-100
@@ -121,6 +155,17 @@ export function ColorPicker({
     const item = list.querySelector(`[data-token-index="${highlightedIndex}"]`);
     if (item) item.scrollIntoView({ block: "nearest" });
   }, [highlightedIndex]);
+
+  // Scroll to the active variable when the variables tab opens
+  useEffect(() => {
+    if (activeTab !== "tokens") return;
+    const list = tokenListRef.current;
+    if (!list) return;
+    requestAnimationFrame(() => {
+      const active = list.querySelector(".retune-variable-dialog-item-active");
+      if (active) active.scrollIntoView({ block: "center" });
+    });
+  }, [activeTab]);
 
   // Refs for native token handlers
   const onCloseRef = useRef(onClose);
@@ -235,7 +280,9 @@ export function ColorPicker({
     const hex = hsvaToHex(newHsva);
     lastSentRef.current = hex;
     onChange(hex);
-  }, [onChange]);
+    // Auto-unlink variable when user manually picks a different color
+    if (currentVariable) onVariableUnlink?.();
+  }, [onChange, currentVariable, onVariableUnlink]);
 
   // ── SV Picker ───────────────────────────────────────────────────────
 
@@ -407,6 +454,24 @@ export function ColorPicker({
 
   const categoryLabel = "Variables";
 
+  const hasEyeDropper = typeof window !== "undefined" && "EyeDropper" in window;
+
+  const handleEyeDropper = useCallback(async () => {
+    if (!hasEyeDropper) return;
+    try {
+      const dropper = new (window as any).EyeDropper();
+      const result = await dropper.open();
+      if (result?.sRGBHex) {
+        const hex = result.sRGBHex;
+        onChange(hex);
+        setHsva(hexToHsva(hex));
+        if (currentVariable) onVariableUnlink?.();
+      }
+    } catch {
+      // User cancelled or API error
+    }
+  }, [hasEyeDropper, onChange]);
+
   const handleHeaderAction = useCallback((action: string) => {
     if (action === "unlink") {
       onVariableUnlink?.();
@@ -454,16 +519,15 @@ export function ColorPicker({
 
       {/* Sliders */}
       <div className="retune-cp-sliders">
-        <div className="retune-cp-preview-wrap">
-          <div className="retune-cp-preview-checker" />
-          <div
-            className="retune-cp-preview"
-            style={{ backgroundColor: localAlpha < 100
-              ? `rgba(${hsvToRgb(hsva.h, hsva.s, hsva.v).r}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).g}, ${hsvToRgb(hsva.h, hsva.s, hsva.v).b}, ${localAlpha / 100})`
-              : currentHex
-            }}
-          />
-        </div>
+        {hasEyeDropper && (
+          <Tooltip content="Pick color from screen" side="bottom" delay={300}>
+            <button type="button" className="retune-cp-eyedropper" onClick={handleEyeDropper}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M14.5156 5.76709C15.5386 4.73901 17.203 4.7367 18.2285 5.76221C19.25 6.78399 19.2513 8.43996 18.2324 9.46436L16.6602 11.0435C17.0848 11.771 16.9869 12.7196 16.3633 13.3433L16.3438 13.3638C15.6018 14.1055 14.3982 14.1054 13.6562 13.3638L13.5 13.2075L8.43945 18.2642C7.97069 18.7324 7.33447 18.9956 6.67188 18.9956L5.50391 18.9946C5.22841 18.9944 5.00451 18.7712 5.00391 18.4956L5.00195 17.3315C5.00057 16.6668 5.26346 16.0282 5.7334 15.5581L10.792 10.4995L10.6367 10.3433C9.89467 9.60127 9.8947 8.39778 10.6367 7.65576L10.6562 7.63623C11.2789 7.01362 12.2251 6.91514 12.9521 7.3374L14.5156 5.76709ZM6.44043 16.2661C6.15876 16.5481 6.00112 16.931 6.00195 17.3296L6.00391 17.9937L6.67188 17.9956C7.06948 17.9956 7.45115 17.8372 7.73242 17.5562L12.793 12.5005L11.499 11.2065L6.44043 16.2661ZM17.5205 6.46924C16.8863 5.8355 15.8572 5.83673 15.2246 6.47217L13.3545 8.35205L13.001 8.70752L12.6367 8.34326C12.2852 7.99183 11.7147 7.99181 11.3633 8.34326L11.3438 8.36279C10.9923 8.71427 10.9923 9.28476 11.3438 9.63623L14.3633 12.6558C14.7147 13.0073 15.2852 13.0072 15.6367 12.6558L15.6562 12.6362C16.0077 12.2848 16.0077 11.7143 15.6562 11.3628L15.2939 11.0005L15.6455 10.647L17.5234 8.75928C18.1538 8.12571 18.1523 7.10128 17.5205 6.46924Z" fill="rgba(0,0,0,0.9)" />
+              </svg>
+            </button>
+          </Tooltip>
+        )}
         <div className="retune-cp-slider-tracks">
           <div ref={hueRef} className="retune-cp-hue" onPointerDown={handleHuePointerDown}>
             <div className="retune-cp-handle" style={{ left: `${(hsva.h / 360) * 100}%`, top: "50%" }}>
@@ -505,30 +569,79 @@ export function ColorPicker({
     </>
   );
 
-  const tokenContent = (
-    <div ref={tokenListRef} className="retune-variable-dialog-list">
-      {filteredVariables.length === 0 && (
-        <div className="retune-variable-dialog-empty">No variables found</div>
-      )}
-      {filteredVariables.map((v, i) => {
-        const isActive = currentVariable?.className === v.className;
-        const isHighlighted = i === highlightedIndex;
-        return (
-          <div
-            key={v.className}
-            className={`retune-variable-dialog-item${isActive ? " retune-variable-dialog-item-active" : ""}${isHighlighted ? " retune-variable-dialog-item-highlighted" : ""}`}
-            data-token-index={i}
-          >
-            <span
-              className="retune-variable-dialog-swatch"
-              style={{ backgroundColor: getSwatchColor(v) || "transparent" }}
-            />
-            <span className="retune-variable-dialog-name">{formatVarName(v.className)}</span>
+  const rampGroups = useMemo(() => groupByRamp(filteredVariables), [filteredVariables]);
+
+  // Separate ramps (2+ items) from standalone items, sort alphabetically
+  const { ramps, standalone } = useMemo(() => {
+    const ramps: [string, DesignVariable[]][] = [];
+    const standalone: DesignVariable[] = [];
+    for (const [name, items] of rampGroups) {
+      if (items.length > 1) {
+        items.sort((a, b) => {
+          const aShade = parseInt(extractColorGroup(getDisplayName(a.className)).shade) || 0;
+          const bShade = parseInt(extractColorGroup(getDisplayName(b.className)).shade) || 0;
+          return aShade - bShade;
+        });
+        ramps.push([name, items]);
+      }
+      else standalone.push(...items);
+    }
+    standalone.sort((a, b) => getDisplayName(a.className).localeCompare(getDisplayName(b.className)));
+    ramps.sort((a, b) => a[0].localeCompare(b[0]));
+    return { ramps, standalone };
+  }, [rampGroups]);
+
+  // Build flat array in RENDER ORDER for click handler + keyboard nav indexing
+  const orderedVariables = useMemo(() => {
+    const ordered: DesignVariable[] = [...standalone];
+    for (const [, items] of ramps) ordered.push(...items);
+    return ordered;
+  }, [standalone, ramps]);
+
+  // Override the ref with render-ordered array
+  filteredVariablesRef.current = orderedVariables;
+
+  const tokenContent = (() => {
+    let globalIndex = 0;
+
+    const renderItem = (v: DesignVariable) => {
+      const idx = globalIndex++;
+      const isActive = currentVariable?.className === v.className;
+      const isHighlighted = idx === highlightedIndex;
+      return (
+        <div
+          key={v.className}
+          className={`retune-variable-dialog-item${isActive ? " retune-variable-dialog-item-active" : ""}${isHighlighted ? " retune-variable-dialog-item-highlighted" : ""}`}
+          data-token-index={idx}
+        >
+          <span
+            className="retune-variable-dialog-swatch"
+            style={{ backgroundColor: getSwatchColor(v) || "transparent" }}
+          />
+          <span className="retune-variable-dialog-name">{getDisplayName(v.className)}</span>
+        </div>
+      );
+    };
+
+    return (
+      <div ref={tokenListRef} className="retune-variable-dialog-list">
+        {filteredVariables.length === 0 && (
+          <div className="retune-variable-dialog-empty">No variables found</div>
+        )}
+        {/* Standalone items first (no group header) */}
+        {standalone.map(renderItem)}
+        {/* Ramp groups with headers */}
+        {ramps.map(([groupName, items]) => (
+          <div key={groupName}>
+            <div className="retune-variable-dialog-group-title">
+              {groupName.replace(/-/g, " ")}
+            </div>
+            {items.map(renderItem)}
           </div>
-        );
-      })}
-    </div>
-  );
+        ))}
+      </div>
+    );
+  })();
 
   if (hasVariables) {
     return (

@@ -19,7 +19,7 @@ import { ChangeTracker } from "../engine/change-tracker";
 import { formatChanges, collapseShorthands, type Fidelity } from "../engine/output";
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
-import { getSelector, getSelectorCandidates, type SelectorCandidate } from "../selector/identifier";
+import { getSelector, getSelectorCandidates, scoreNamePattern, isHashedClass, type SelectorCandidate } from "../selector/identifier";
 import { getPseudoStateStyles, getStyleSources, getScopedStyles, type ForcedState, type StyleSource } from "../inspector/styles";
 import { PropertyPanel } from "./PropertyPanel";
 import { ElementTree } from "./ElementTree";
@@ -96,29 +96,131 @@ const MIN_VIEWPORT_WIDTH = 768;
 
 /** A pre-computed scope level in the target rail. */
 interface ScopeLevel {
-  label: string;           // Display name: class name or "This element"
+  label: string;           // Display name: class name or "This instance"
   selector: string | null; // Compound CSS selector, null = element-specific path
   count: number;           // querySelectorAll match count
 }
 
+
+/** Abbreviation lookup for common CSS class name stems */
+const CLASS_ABBREVIATIONS: Record<string, string> = {
+  btn: "Button", nav: "Navigation", col: "Column", img: "Image",
+  sm: "Small", md: "Medium", lg: "Large", xs: "Extra Small", xl: "Extra Large",
+  hdr: "Header", ftr: "Footer", cta: "Call to Action", desc: "Description",
+  msg: "Message", info: "Information", bg: "Background", txt: "Text",
+  pg: "Page", sec: "Section", el: "Element", opt: "Option",
+  val: "Value", err: "Error", warn: "Warning", num: "Number",
+  prev: "Previous", curr: "Current", temp: "Temporary",
+};
+
+/** Humanize a single class name segment: split on hyphens, title-case, expand abbreviations */
+function humanizeSegment(segment: string): string {
+  return segment
+    .split("-")
+    .map(word => CLASS_ABBREVIATIONS[word] || (word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(" ");
+}
+
+/** Humanize a scope level label.
+ *  BEM modifiers (--): strip block prefix, show modifier only.
+ *  BEM elements (__): strip block prefix, show element only.
+ *  Contextual: strip previous level's class prefix if it matches.
+ *  Default: humanize full class name. */
+function humanizeScopeLabel(className: string, previousClassName?: string): string {
+  // BEM modifier: "message-row--unread" → "Unread"
+  if (className.includes("--")) {
+    const modifier = className.split("--").pop()!;
+    return humanizeSegment(modifier);
+  }
+  // BEM element: "sidebar__item" → "Sidebar Item"
+  if (className.includes("__")) {
+    const element = className.split("__").pop()!;
+    return humanizeSegment(element);
+  }
+  // Contextual prefix stripping: "btn-primary" after "btn" → "Primary"
+  if (previousClassName && className.startsWith(previousClassName + "-")) {
+    const suffix = className.slice(previousClassName.length + 1);
+    return humanizeSegment(suffix);
+  }
+  // Default: humanize full name
+  return humanizeSegment(className);
+}
+
+/** Strategy 1: Build a compound selector from ALL non-hashed classes on the element.
+ *  If it matches > 1, these are "all instances" of this element type. */
+function buildCompoundFingerprint(element: Element): ScopeLevel | null {
+  const el = element as HTMLElement;
+  if (!el.classList || el.classList.length === 0) return null;
+
+  const classes: string[] = [];
+  for (const cls of el.classList) {
+    if (!isHashedClass(cls)) classes.push(cls);
+  }
+  if (classes.length === 0) return null;
+
+  const selector = classes.sort().map(c => `.${CSS.escape(c)}`).join('');
+  let count: number;
+  try { count = document.querySelectorAll(selector).length; } catch { count = 0; }
+  if (count <= 1) return null; // same as "This instance", skip
+
+  return { label: `All instances`, selector, count };
+}
+
+/** Strategy 2: Walk up the DOM tree for a semantic ancestor and build
+ *  a parent-scoped selector like ".parent tag" for classless elements. */
+function buildParentScopeLevel(element: Element): ScopeLevel | null {
+  const tag = element.tagName.toLowerCase();
+  let current = element.parentElement;
+
+  while (current && current !== document.body) {
+    for (const cls of current.classList) {
+      if (isHashedClass(cls)) continue;
+      const { score } = scoreNamePattern(cls);
+      if (score >= 0.65) continue; // skip utility classes
+
+      const selector = `.${CSS.escape(cls)} ${tag}`;
+      let count: number;
+      try { count = document.querySelectorAll(selector).length; } catch { count = 0; }
+      if (count > 1 && count <= 20) {
+        return { label: "All instances", selector, count };
+      }
+    }
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
 /** Build scope levels from candidates (sorted broadest-first).
- *  Each level accumulates classes into a compound selector. */
-function buildScopeLevels(candidates: SelectorCandidate[]): ScopeLevel[] {
+ *  Each level accumulates classes into a compound selector.
+ *  Falls back to parent-scoped selectors when no semantic classes exist. */
+function buildScopeLevels(candidates: SelectorCandidate[], element: Element): ScopeLevel[] {
   const meaningful = candidates.filter(c => c.verdict === "semantic");
   if (meaningful.length === 0) {
-    return [{ label: "This element", selector: null, count: 1 }];
+    // Strategy 1: compound class fingerprint (utility-class elements)
+    const fingerprint = buildCompoundFingerprint(element);
+    if (fingerprint) {
+      return [fingerprint, { label: "This instance", selector: null, count: 1 }];
+    }
+    // Strategy 2: parent-scoped tag selector (classless elements)
+    const parentLevel = buildParentScopeLevel(element);
+    if (parentLevel) {
+      return [parentLevel, { label: "This instance", selector: null, count: 1 }];
+    }
+    return [{ label: "This instance", selector: null, count: 1 }];
   }
   const levels: ScopeLevel[] = [];
   const parts: string[] = [];
   for (const candidate of meaningful) {
     const className = candidate.selector.replace(/^\./, '');
+    const prevClassName = parts.length > 0 ? parts[parts.length - 1] : undefined;
     parts.push(className);
     const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
     let count: number;
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
-    levels.push({ label: className, selector: compound, count });
+    levels.push({ label: humanizeScopeLabel(className, prevClassName), selector: compound, count });
   }
-  levels.push({ label: "This element", selector: null, count: 1 });
+  levels.push({ label: "This instance", selector: null, count: 1 });
   return levels;
 }
 
@@ -169,7 +271,7 @@ function RetuneInner(props: RetuneConfig) {
 
   // Selector candidates for the selected element (class-based selectors with match counts)
   const [selectorCandidates, setSelectorCandidates] = useState<SelectorCandidate[]>([]);
-  // Scope rail: pre-computed levels from broadest to "This element"
+  // Scope rail: pre-computed levels from broadest to "This instance"
   const [scopeLevels, setScopeLevels] = useState<ScopeLevel[]>([]);
   const [activeLevelIndex, setActiveLevelIndex] = useState(0);
   const activeLevelIndexRef = useRef(0);
@@ -312,7 +414,7 @@ function RetuneInner(props: RetuneConfig) {
         const candidates = getSelectorCandidates(element);
         setSelectorCandidates(candidates);
         // Build scope levels and default to the narrowest class level
-        const levels = buildScopeLevels(candidates);
+        const levels = buildScopeLevels(candidates, element);
         setScopeLevels(levels);
         scopeLevelsRef.current = levels;
         const defaultIndex = levels.length >= 2 ? levels.length - 2 : 0;
@@ -321,8 +423,9 @@ function RetuneInner(props: RetuneConfig) {
         const newActiveSelector = levels[defaultIndex]?.selector ?? null;
         activeSelectorRef.current = newActiveSelector;
 
-        // Apply scoped styles if a class selector is the default
-        if (newActiveSelector) {
+        // Apply scoped styles if a class selector is the default (skip for parent-scoped selectors)
+        const isParentScoped = newActiveSelector && newActiveSelector.includes(' ');
+        if (newActiveSelector && !isParentScoped) {
           const scoped = getScopedStyles(element, newActiveSelector);
           inspected.computedStyles = scoped.styles;
           setOwnedProperties(scoped.ownedProperties);
@@ -1010,7 +1113,8 @@ function RetuneInner(props: RetuneConfig) {
     activeSelectorRef.current = newSelector;
 
     // Update ownedProperties immediately (can't wait for render since activeSelector is derived)
-    if (newSelector && el.element) {
+    const isParentScoped = newSelector && newSelector.includes(' ');
+    if (newSelector && el.element && !isParentScoped) {
       const scoped = getScopedStyles(el.element, newSelector);
       setOwnedProperties(scoped.ownedProperties);
     } else {
