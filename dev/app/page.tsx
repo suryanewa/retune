@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // ── Data ──
 
@@ -80,11 +80,54 @@ function Tag({ children, color }: { children: React.ReactNode; color: string }) 
 
 // ── Main App ──
 
+/** Drawer with document-level "close on outside click" — common real-world pattern */
+function SettingsDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClick = (e: MouseEvent) => {
+      if (drawerRef.current && !drawerRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div ref={drawerRef} style={{
+      position: "fixed", top: 0, right: 0, width: 360, height: "100vh",
+      background: "var(--color-bg)", borderLeft: "1px solid var(--color-border)",
+      boxShadow: "var(--shadow-lg)", zIndex: 50, padding: "var(--spacing-6)",
+      display: "flex", flexDirection: "column", gap: "var(--spacing-4)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h3 style={{ fontSize: "var(--font-lg)", fontWeight: "var(--font-weight-semibold)" }}>Settings</h3>
+        <button className="btn btn-ghost btn-sm" onClick={onClose}>✕</button>
+      </div>
+      <p style={{ fontSize: "var(--font-sm)", color: "var(--color-text-muted)" }}>
+        This drawer uses document-level &quot;close on outside click&quot;. If Retune interactions close this drawer, the event propagation fix isn&apos;t working.
+      </p>
+      <div className="form-field">
+        <label className="form-field__label">Display Name</label>
+        <input className="input" defaultValue="Sarah Chen" />
+      </div>
+      <div className="form-field">
+        <label className="form-field__label">Email Signature</label>
+        <textarea className="input input--textarea" rows={3} defaultValue="Best regards," />
+      </div>
+    </div>
+  );
+}
+
 export default function MailApp() {
   const [activeFolder, setActiveFolder] = useState("Inbox");
   const [selectedMessage, setSelectedMessage] = useState<number | null>(1);
   const [composeOpen, setComposeOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const selected = MESSAGES.find(m => m.id === selectedMessage);
 
@@ -208,6 +251,7 @@ export default function MailApp() {
               <div className="message-detail__actions">
                 <button className="btn btn-ghost btn-sm">Reply</button>
                 <button className="btn btn-ghost btn-sm">Forward</button>
+                <button className="btn btn-ghost btn-sm btn-icon" onClick={(e) => { e.stopPropagation(); setSettingsOpen(true); }}>⚙</button>
                 <button className="btn btn-ghost btn-sm btn-icon">⋯</button>
               </div>
             </div>
@@ -280,6 +324,9 @@ export default function MailApp() {
           </button>
         </div>
       </div>
+
+      {/* ── Settings Drawer (tests event propagation fix) ── */}
+      <SettingsDrawer open={settingsOpen} onClose={useCallback(() => setSettingsOpen(false), [])} />
     </div>
   );
 }
