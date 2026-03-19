@@ -1596,11 +1596,7 @@ export function PropertyPanel({
               </div>
             }
           >
-            {fillHasVariable ? (
-              <Row>
-                <ColorInput prop="backgroundColor" value={s.backgroundColor} onChange={onPropertyChange} {...variableProps("backgroundColor")} {...changeProps("backgroundColor")} />
-              </Row>
-            ) : hasFill ? (
+            {(hasFill || fillHasVariable) ? (
               <>
                 <Row>
                   <SelectInput
