@@ -347,20 +347,12 @@ function RetuneInner(props: RetuneConfig) {
         case "getFormattedChanges":
           return formatChanges(tracker.getPendingChanges(), params?.fidelity || fidelityRef.current);
         case "clearChanges": {
-          // Re-insert all deleted elements (try/catch for stale DOM refs after hot reload)
-          while (deleteStackRef.current.length > 0) {
-            const entry = deleteStackRef.current.pop()!;
-            try {
-              if (entry.nextSibling) {
-                entry.parent.insertBefore(entry.element, entry.nextSibling);
-              } else {
-                entry.parent.appendChild(entry.element);
-              }
-            } catch {
-              // DOM references stale after hot reload — skip
-            }
-          }
+          // MCP clear = agent already applied changes to source.
+          // Don't restore DOM mutations — just clear the stacks and tracking data.
+          deleteStackRef.current = [];
           deleteRedoStackRef.current = [];
+          textStackRef.current = [];
+          textRedoStackRef.current = [];
           // Clean up forced pseudo-state inline styles
           if (forcedStateRef.current) {
             const f = forcedStylesRef.current;
@@ -407,7 +399,36 @@ function RetuneInner(props: RetuneConfig) {
       preview.attach();
       for (const change of tracker.getPendingChanges()) {
         for (const c of change.changes) {
-          preview.applyChange(change.selector, c.property, c.to);
+          if (c.property === "__delete") {
+            // Re-apply deletion: find element by selector, remove it
+            try {
+              const el = document.querySelector(change.selector);
+              if (el) {
+                const parent = el.parentNode;
+                if (parent) {
+                  deleteStackRef.current.push({ element: el, parent, nextSibling: el.nextSibling });
+                  el.remove();
+                }
+              }
+            } catch {}
+          } else if (c.property === "__text") {
+            // Re-apply text edit: find element by selector, set text content
+            try {
+              const el = document.querySelector(change.selector) as HTMLElement;
+              if (el) {
+                const originalHTML = el.innerHTML;
+                // Only safe to set textContent if element has no child elements
+                // (otherwise it would destroy the children)
+                const hasChildElements = el.querySelector("*") !== null;
+                if (!hasChildElements) {
+                  el.textContent = c.to;
+                  textStackRef.current.push({ element: el, originalHTML, newHTML: el.innerHTML });
+                }
+              }
+            } catch {}
+          } else {
+            preview.applyChange(change.selector, c.property, c.to);
+          }
         }
       }
       setChangeCount(tracker.getPendingChanges().length);
@@ -508,6 +529,95 @@ function RetuneInner(props: RetuneConfig) {
             );
           }
         }
+      },
+      onDoubleClick: (element: Element) => {
+        // Enter inline text editing mode
+        const el = element as HTMLElement;
+        if (!el.textContent?.trim()) return; // no text to edit
+        // Skip elements that are Retune's own UI
+        if (el.closest("[data-retune-host]") || el.hasAttribute("data-retune-host")) return;
+
+        // Store original text for undo
+        const originalText = el.textContent;
+        const originalHTML = el.innerHTML;
+
+        // Make editable
+        el.contentEditable = "true";
+        el.focus();
+
+        // Select all text
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+
+        // Style hint
+        el.style.outline = "2px solid #3b82f6";
+        el.style.outlineOffset = "2px";
+
+        const cleanup = () => {
+          el.contentEditable = "false";
+          el.style.removeProperty("outline");
+          el.style.removeProperty("outline-offset");
+          el.removeEventListener("keydown", onKeyDown);
+          el.removeEventListener("blur", onBlur);
+        };
+
+        const save = () => {
+          const newText = el.textContent || "";
+          if (newText !== originalText) {
+            // Generate a selector for the ACTUAL edited element (not the panel's scope selector)
+            const editSelector = getSelector(el);
+            // Record the text change against the edited element
+            const tracker = trackerRef.current;
+            if (tracker) {
+              const inspected = selectedElementRef.current;
+              tracker.track(
+                editSelector, el.tagName.toLowerCase(), originalText, Array.from(el.classList),
+                inspected?.reactComponents ?? [], {}, inspected?.sourceFile ?? null,
+                inspected?.stylingApproach ?? null, null, el.id || null,
+                null, null, null,
+                inspected?.domPath ?? "", null, { x: 0, y: 0, width: 0, height: 0 },
+              );
+              const tracked = (tracker as any).tracked?.get(editSelector);
+              if (tracked) tracked.currentStyles["__text"] = originalText;
+              tracker.recordChange(editSelector, "__text", newText);
+              tracker.persist();
+            }
+            // Store for undo
+            textStackRef.current.push({ element: el, originalHTML, newHTML: el.innerHTML });
+            textRedoStackRef.current = [];
+            syncTrackerStateRef.current();
+            setChangeRevision((r) => r + 1);
+          }
+          cleanup();
+        };
+
+        const cancel = () => {
+          el.innerHTML = originalHTML;
+          cleanup();
+        };
+
+        const onKeyDown = (e: KeyboardEvent) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            e.stopPropagation();
+            cancel();
+          } else if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            e.stopPropagation();
+            save();
+          }
+        };
+
+        const onBlur = () => {
+          // Delay to allow click-outside to register
+          setTimeout(save, 100);
+        };
+
+        el.addEventListener("keydown", onKeyDown);
+        el.addEventListener("blur", onBlur);
       },
       onCancel: () => {
         deactivateOverlay();
@@ -930,6 +1040,10 @@ function RetuneInner(props: RetuneConfig) {
   const deleteStackRef = useRef<Array<{ element: Element; parent: Node; nextSibling: Node | null }>>([]);
   const deleteRedoStackRef = useRef<Array<{ element: Element; parent: Node; nextSibling: Node | null }>>([]);
 
+  // Text change stack for undo/redo: stores original HTML so text edits can be reverted
+  const textStackRef = useRef<Array<{ element: HTMLElement; originalHTML: string; newHTML: string }>>([]);
+  const textRedoStackRef = useRef<Array<{ element: HTMLElement; originalHTML: string; newHTML: string }>>([]);
+
   // Delete selected element
   const handleDelete = useCallback(() => {
     const el = selectedElementRef.current;
@@ -1003,6 +1117,18 @@ function RetuneInner(props: RetuneConfig) {
       return;
     }
 
+    // If this undo group contains a __text, restore original HTML
+    if (entries.some(e => e.property === "__text")) {
+      const entry = textStackRef.current.pop();
+      if (entry) {
+        entry.element.innerHTML = entry.originalHTML;
+        textRedoStackRef.current.push(entry);
+      }
+      syncTrackerStateRef.current();
+      setChangeRevision((r) => r + 1);
+      return;
+    }
+
     {
       // Apply preview changes only for value entries (skip metadata-only unlink entries)
       const valueEntries = entries.filter(e => !e.action);
@@ -1040,6 +1166,18 @@ function RetuneInner(props: RetuneConfig) {
     if (!tracker || !preview) return;
     const entries = tracker.popRedo();
     if (!entries) return;
+
+    // If this redo group contains a __text, re-apply edited text
+    if (entries.some(e => e.property === "__text")) {
+      const entry = textRedoStackRef.current.pop();
+      if (entry) {
+        entry.element.innerHTML = entry.newHTML;
+        textStackRef.current.push(entry);
+      }
+      syncTrackerStateRef.current();
+      setChangeRevision((r) => r + 1);
+      return;
+    }
 
     // If this redo group contains a __delete, re-remove the element
     if (entries.some(e => e.property === "__delete")) {
@@ -1159,6 +1297,12 @@ function RetuneInner(props: RetuneConfig) {
       }
     }
     deleteRedoStackRef.current = [];
+    // Restore all text edits
+    while (textStackRef.current.length > 0) {
+      const entry = textStackRef.current.pop()!;
+      try { entry.element.innerHTML = entry.originalHTML; } catch {}
+    }
+    textRedoStackRef.current = [];
     // Clean up forced pseudo-state inline styles before clearing
     if (forcedStateRef.current) clearForcedInlineStyles();
     preview.clearAll();

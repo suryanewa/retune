@@ -13,6 +13,7 @@ export interface PickerCallbacks {
   onHover: (element: Element, rect: DOMRect) => void;
   onSelect: (element: Element) => void;
   onCancel: () => void;
+  onDoubleClick?: (element: Element) => void;
 }
 
 export function createPicker(
@@ -327,6 +328,16 @@ export function createPicker(
     callbacks.onSelect(el);
   }
 
+  function handleDblClick(e: MouseEvent) {
+    if (!active || !selectedElement) return;
+    e.preventDefault();
+    e.stopPropagation();
+    // Find the deepest element at the click point for text editing
+    // (the selected element might be a container)
+    const deepest = document.elementFromPoint(e.clientX, e.clientY);
+    callbacks.onDoubleClick?.(deepest || selectedElement);
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (!active) return;
     if (e.key === "Escape") {
@@ -343,6 +354,7 @@ export function createPicker(
     document.body.style.cursor = "crosshair";
     document.addEventListener("mousemove", handleMouseMove, true);
     document.addEventListener("click", handleClick, true);
+    document.addEventListener("dblclick", handleDblClick, true);
     document.addEventListener("keydown", handleKeyDown, true);
     startTracking();
   }
@@ -361,6 +373,7 @@ export function createPicker(
     stopTracking();
     document.removeEventListener("mousemove", handleMouseMove, true);
     document.removeEventListener("click", handleClick, true);
+    document.removeEventListener("dblclick", handleDblClick, true);
     document.removeEventListener("keydown", handleKeyDown, true);
   }
 

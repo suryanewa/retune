@@ -233,6 +233,18 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     return lines.join("\n");
   }
 
+  // Check for text content change
+  const textChange = change.changes.find(c => c.property === "__text");
+  if (textChange) {
+    lines.push("");
+    lines.push("### Action: Edit Text Content");
+    lines.push("");
+    lines.push("| Before | After |");
+    lines.push("|--------|-------|");
+    lines.push(`| ${truncate(textChange.from, 60)} | ${truncate(textChange.to, 60)} |`);
+    lines.push("");
+  }
+
   // Collapse longhand groups into shorthands where possible
   const collapsed = collapseShorthands(change.changes);
 
