@@ -133,3 +133,34 @@ export interface ElementChange {
   /** Properties explicitly detached from their design variable: property → current value */
   unlinkedProperties?: Array<{ property: string; value: string }>;
 }
+
+/** A child element within a reorderable container */
+export interface ReorderChild {
+  element: Element;
+  index: number;
+  label: string;
+  sourceFile?: { fileName: string; lineNumber: number; columnNumber?: number } | null;
+  componentName?: string | null;
+}
+
+/** Information about a reorderable container (flex/grid with 2+ children) */
+export interface ReorderableContainer {
+  container: Element;
+  layout: "flex" | "grid";
+  childrenType: "array" | "static";
+  children: ReorderChild[];
+  sourceFile?: { fileName: string; lineNumber: number; columnNumber?: number } | null;
+}
+
+/** A structural change: element reorder within a container */
+export interface StructuralChange {
+  type: "reorder";
+  containerSelector: string;
+  containerComponents: string[];
+  containerSourceFile?: { fileName: string; lineNumber: number; columnNumber?: number } | null;
+  childrenType: "array" | "static";
+  originalOrder: string[];
+  newOrder: string[];
+  childSources?: { label: string; sourceFile: { fileName: string; lineNumber: number; columnNumber?: number } }[];
+  timestamp: number;
+}
