@@ -39,6 +39,7 @@ export function createPicker(
   shadowRoot.appendChild(selectionLabel);
 
   let active = false;
+  let suspended = false; // temporarily suppress hover (e.g. during text editing)
   let hoveredElement: Element | null = null;
   let selectedElement: Element | null = null;
   let selectionLabelHidden = false;
@@ -85,7 +86,7 @@ export function createPicker(
     box.style.left = `${rect.left}px`;
     box.style.width = `${rect.width}px`;
     box.style.height = `${rect.height}px`;
-    box.style.border = `2px ${borderStyle} #3b82f6`;
+    box.style.border = `1px ${borderStyle} #3b82f6`;
     box.style.background = `rgba(59, 130, 246, ${bgAlpha})`;
     box.style.display = "";
 
@@ -98,7 +99,7 @@ export function createPicker(
   function updateHighlight(el: Element) {
     const rect = el.getBoundingClientRect();
     const dashed = selectedElement !== null && el !== selectedElement;
-    positionBox(highlight, label, rect, dashed ? "dashed" : "solid", "0.08");
+    positionBox(highlight, label, rect, dashed ? "dotted" : "solid", "0.08");
     label.style.display = "";
     label.textContent = formatLabel(el);
   }
@@ -220,7 +221,7 @@ export function createPicker(
   }
 
   function handleMouseMove(e: MouseEvent) {
-    if (!active) return;
+    if (!active || suspended) return;
     // Skip if cursor is over overlay UI (toolbar, panel) inside the shadow root.
     // elementFromPoint on a ShadowRoot falls through to page elements when no
     // shadow element is at the point, so we verify the hit actually belongs to
@@ -416,5 +417,8 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: scheduleTrack };
+  function suspend() { suspended = true; hideHighlight(); hideSelection(); }
+  function resume() { suspended = false; if (selectedElement) showSelection(); }
+
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: scheduleTrack, suspend, resume };
 }

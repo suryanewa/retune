@@ -576,6 +576,9 @@ function RetuneInner(props: RetuneConfig) {
         // Skip elements that are Retune's own UI
         if (el.closest("[data-retune-host]") || el.hasAttribute("data-retune-host")) return;
 
+        // Suspend picker so hover highlights don't show during editing
+        pickerRef.current?.suspend();
+
         // Store original text for undo
         const originalText = el.textContent;
         const originalHTML = el.innerHTML;
@@ -592,15 +595,16 @@ function RetuneInner(props: RetuneConfig) {
         sel?.addRange(range);
 
         // Style hint
-        el.style.outline = "2px solid #3b82f6";
-        el.style.outlineOffset = "2px";
+        el.style.outline = "1px solid #3b82f6";
 
         const cleanup = () => {
           el.contentEditable = "false";
           el.style.removeProperty("outline");
-          el.style.removeProperty("outline-offset");
           el.removeEventListener("keydown", onKeyDown);
           el.removeEventListener("blur", onBlur);
+          // Resume picker and restore selection highlight
+          pickerRef.current?.resume();
+          pickerRef.current?.refreshSelection();
         };
 
         const save = () => {
