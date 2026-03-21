@@ -81,6 +81,133 @@ export function createPicker(
   initBoxStyles(highlight, label);
   initBoxStyles(selection, selectionLabel);
 
+  // ── Spacing measurement lines ──
+  // Shows distance between selected and hovered elements
+  const spacingContainer = document.createElement("div");
+  spacingContainer.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483646;";
+  shadowRoot.appendChild(spacingContainer);
+
+  const SPACING_LINE = "position:fixed;pointer-events:none;display:none;";
+  const SPACING_LABEL = `
+    position:fixed;pointer-events:none;display:none;
+    font-size:10px;font-weight:500;
+    font-family:InterVariable,Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    color:#fff;white-space:nowrap;
+    background:#e5484d;padding:1px 4px;border-radius:2px;
+  `;
+
+  function createMeasure() {
+    const line = document.createElement("div");
+    line.style.cssText = SPACING_LINE;
+    const connector = document.createElement("div");
+    connector.style.cssText = SPACING_LINE;
+    const lbl = document.createElement("div");
+    lbl.style.cssText = SPACING_LABEL;
+    spacingContainer.appendChild(line);
+    spacingContainer.appendChild(connector);
+    spacingContainer.appendChild(lbl);
+    return { line, connector, label: lbl };
+  }
+
+  const hMeasure = createMeasure(); // horizontal distance
+  const vMeasure = createMeasure(); // vertical distance
+
+  function hideSpacing() {
+    for (const m of [hMeasure, vMeasure]) {
+      m.line.style.display = "none";
+      m.connector.style.display = "none";
+      m.label.style.display = "none";
+    }
+  }
+
+  function drawSegment(el: HTMLElement, x: number, y: number, size: number, horizontal: boolean) {
+    el.style.cssText = `
+      position:fixed;pointer-events:none;display:block;
+      top:${y}px;left:${x}px;
+      width:${horizontal ? size : 0}px;height:${horizontal ? 0 : size}px;
+      border-${horizontal ? "top" : "left"}:1px dashed #e5484d;
+    `;
+  }
+
+  function positionLabel(el: HTMLElement, value: number, x: number, y: number, size: number, horizontal: boolean) {
+    el.style.cssText = SPACING_LABEL;
+    el.style.display = "block";
+    el.textContent = `${value}`;
+    if (horizontal) {
+      el.style.top = `${y - 4}px`;
+      el.style.left = `${x + size / 2}px`;
+      el.style.transform = "translate(-50%, -100%)";
+    } else {
+      el.style.top = `${y + size / 2}px`;
+      el.style.left = `${x + 4}px`;
+      el.style.transform = "translateY(-50%)";
+    }
+  }
+
+  function showSpacing(selRect: DOMRect, hoverRect: DOMRect) {
+    hideSpacing();
+
+    const hoverIsRight = hoverRect.left + hoverRect.width / 2 > selRect.left + selRect.width / 2;
+    const hoverIsBelow = hoverRect.top + hoverRect.height / 2 > selRect.top + selRect.height / 2;
+
+    // Nearest edges and gaps (negative gap = overlap, no line)
+    const selEdgeX = hoverIsRight ? selRect.right : selRect.left;
+    const selEdgeY = hoverIsBelow ? selRect.bottom : selRect.top;
+    const hoverEdgeX = hoverIsRight ? hoverRect.left : hoverRect.right;
+    const hoverEdgeY = hoverIsBelow ? hoverRect.top : hoverRect.bottom;
+
+    const hGap = hoverIsRight ? (hoverRect.left - selRect.right) : (selRect.left - hoverRect.right);
+    const vGap = hoverIsBelow ? (hoverRect.top - selRect.bottom) : (selRect.top - hoverRect.bottom);
+    const hDist = hGap > 0 ? Math.round(hGap) : 0;
+    const vDist = vGap > 0 ? Math.round(vGap) : 0;
+
+    if (hDist <= 0 && vDist <= 0) return;
+
+    // ── Horizontal line: from center of selected's left/right edge, going outward ──
+    if (hDist > 0) {
+      const hOriginX = selEdgeX;
+      const hOriginY = selRect.top + selRect.height / 2;
+      const hx1 = Math.min(hOriginX, hoverEdgeX);
+
+      // Straight segment going outward
+      drawSegment(hMeasure.line, hx1, hOriginY, hDist, true);
+      positionLabel(hMeasure.label, hDist, hx1, hOriginY, hDist, true);
+
+      // Can the straight line reach the hovered element?
+      if (hOriginY >= hoverRect.top && hOriginY <= hoverRect.bottom) {
+        // Yes — straight line connects directly
+        hMeasure.connector.style.display = "none";
+      } else {
+        // No — bend 90° toward hovered's closest edge
+        const bendTargetY = hoverIsBelow ? hoverRect.top : hoverRect.bottom;
+        const cy1 = Math.min(hOriginY, bendTargetY);
+        drawSegment(hMeasure.connector, hoverEdgeX, cy1, Math.abs(bendTargetY - hOriginY), false);
+      }
+    }
+
+    // ── Vertical line: from center of selected's top/bottom edge, going outward ──
+    if (vDist > 0) {
+      const vOriginX = selRect.left + selRect.width / 2;
+      const vOriginY = selEdgeY;
+      const vy1 = Math.min(vOriginY, hoverEdgeY);
+
+      // Straight segment going outward
+      drawSegment(vMeasure.line, vOriginX, vy1, vDist, false);
+      positionLabel(vMeasure.label, vDist, vOriginX, vy1, vDist, false);
+
+      // Can the straight line reach the hovered element?
+      if (vOriginX >= hoverRect.left && vOriginX <= hoverRect.right) {
+        // Yes — straight line connects directly
+        vMeasure.connector.style.display = "none";
+      } else {
+        // No — bend 90° toward hovered's closest edge
+        const bendTargetX = hoverIsRight ? hoverRect.left : hoverRect.right;
+        const cx1 = Math.min(vOriginX, bendTargetX);
+        drawSegment(vMeasure.connector, cx1, hoverEdgeY, Math.abs(bendTargetX - vOriginX), true);
+      }
+    }
+  }
+
   function positionBox(box: HTMLElement, labelEl: HTMLElement, rect: DOMRect, borderStyle: string, bgAlpha: string) {
     box.style.top = `${rect.top}px`;
     box.style.left = `${rect.left}px`;
@@ -153,6 +280,7 @@ export function createPicker(
   function hideHighlight() {
     highlight.style.display = "none";
     label.style.display = "none";
+    hideSpacing();
   }
 
   function hideSelection() {
@@ -211,10 +339,15 @@ export function createPicker(
 
     if (el === selectedElement) {
       hideHighlight();
+      hideSpacing();
       selectionLabelHidden = false;
       selectionLabel.style.display = "";
     } else {
       updateHighlight(el);
+      // Show spacing between selected and hovered elements
+      if (selectedElement) {
+        showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+      }
     }
 
     callbacks.onHover(el, el.getBoundingClientRect());
@@ -392,6 +525,7 @@ export function createPicker(
     label.remove();
     selection.remove();
     selectionLabel.remove();
+    spacingContainer.remove();
   }
 
   /** Programmatically select an element (e.g. from the element tree) */
