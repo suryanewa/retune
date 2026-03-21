@@ -1838,10 +1838,10 @@ function RetuneInner(props: RetuneConfig) {
                 <span style={{ flex: 1, lineHeight: "16px", letterSpacing: "-0.005em" }}>
                   Retune v{updateInfo.latest} is available
                 </span>
-                <Tooltip content="Copy update command" side="bottom" delay={200}>
+                <Tooltip content="Copy update prompt" side="bottom" delay={200}>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText("npm install retune@latest");
+                      navigator.clipboard.writeText("Update Retune to the latest version by running `npm install retune@latest` and `npx retune setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect.");
                       setUpdateCopied(true);
                       setTimeout(() => setUpdateCopied(false), 1500);
                     }}
