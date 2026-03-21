@@ -1,5 +1,9 @@
 import { defineConfig } from "tsup";
 import { writeFileSync, readFileSync } from "fs";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pkg = require("./package.json");
 
 export default defineConfig([
   // React component bundle
@@ -11,6 +15,9 @@ export default defineConfig([
     clean: true,
     external: ["react", "react-dom"],
     treeshake: true,
+    define: {
+      __RETUNE_VERSION__: JSON.stringify(pkg.version),
+    },
     onSuccess: async () => {
       const file = "dist/index.js";
       const content = readFileSync(file, "utf-8");

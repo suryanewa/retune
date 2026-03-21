@@ -19,9 +19,59 @@ export class Bridge {
   private pendingRequests = new Map<string, RequestHandler>();
   private changeBuffer: any[] = [];
   private onChangesCallback: ((changes: any[]) => void) | null = null;
+  /** Latest version from npm registry (checked on startup) */
+  latestVersion: string | null = null;
+  /** Current installed version */
+  currentVersion: string;
 
   constructor(port: number = 9223) {
     this.port = port;
+    this.currentVersion = "__VERSION__"; // replaced at build time, fallback below
+    this.checkForUpdates();
+  }
+
+  /** Check npm registry for the latest version (non-blocking) */
+  private async checkForUpdates() {
+    // Test override — skip registry fetch
+    const testVersion = process.env.RETUNE_TEST_LATEST_VERSION;
+    if (testVersion) {
+      this.latestVersion = testVersion;
+      console.error(`[Retune MCP] Update check: using test version ${testVersion}`);
+      return;
+    }
+
+    try {
+      // Read current version from package.json if __VERSION__ wasn't replaced
+      if (this.currentVersion === "__VERSION__") {
+        const { createRequire } = await import("module");
+        const require = createRequire(import.meta.url);
+        try {
+          const pkg = require("../../package.json");
+          this.currentVersion = pkg.version;
+        } catch {
+          this.currentVersion = "0.0.0";
+        }
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch("https://registry.npmjs.org/retune/latest", {
+        signal: controller.signal,
+        headers: { "Accept": "application/json" },
+      });
+      clearTimeout(timeout);
+      if (res.ok) {
+        const data = await res.json() as { version?: string };
+        if (data.version) {
+          this.latestVersion = data.version;
+          if (data.version !== this.currentVersion) {
+            console.error(`[Retune MCP] Update available: ${this.currentVersion} → ${data.version}`);
+          }
+        }
+      }
+    } catch {
+      // Network error or timeout — silently ignore
+    }
   }
 
   /** Start the WebSocket server */
@@ -77,7 +127,10 @@ export class Bridge {
               }
               this.client = ws;
 
-              ws.send(JSON.stringify({ id: msg.id, result: { ok: true } }));
+              ws.send(JSON.stringify({ id: msg.id, result: {
+                ok: true,
+                ...(this.latestVersion ? { latestVersion: this.latestVersion } : {}),
+              } }));
               return;
             }
 

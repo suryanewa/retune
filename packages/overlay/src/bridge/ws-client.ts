@@ -9,6 +9,8 @@ import type { ElementChange } from "../types";
 
 type MessageHandler = (method: string, params: any) => Promise<any>;
 
+declare const __RETUNE_VERSION__: string;
+
 export class BridgeClient {
   private ws: WebSocket | null = null;
   private port: number;
@@ -19,6 +21,9 @@ export class BridgeClient {
   private _connected = false;
   private reconnectDelay = 3000;
   private maxReconnectDelay = 60000;
+  /** If set, a newer version is available */
+  updateAvailable: { current: string; latest: string } | null = null;
+  private onUpdateCallback: ((info: { current: string; latest: string }) => void) | null = null;
 
   constructor(port: number = 9223) {
     this.port = port;
@@ -31,6 +36,13 @@ export class BridgeClient {
   /** Register a handler for incoming requests from the MCP server */
   onRequest(handler: MessageHandler) {
     this.handlers = handler;
+  }
+
+  /** Register a callback for when an update is available */
+  onUpdate(callback: (info: { current: string; latest: string }) => void) {
+    this.onUpdateCallback = callback;
+    // Fire immediately if we already have update info
+    if (this.updateAvailable) callback(this.updateAvailable);
   }
 
   /** Connect to the MCP server */
@@ -58,9 +70,17 @@ export class BridgeClient {
           }
         }, 3000);
         this.pendingRequests.set(handshakeId, {
-          resolve: () => {
+          resolve: (result: any) => {
             this._connected = true;
             console.log("[Retune] Connected to MCP server (verified)");
+            // Check for update info — compare against overlay's own version
+            if (result?.latestVersion) {
+              const overlayVersion = typeof __RETUNE_VERSION__ === "string" ? __RETUNE_VERSION__ : "0.0.0";
+              if (result.latestVersion !== overlayVersion && this.isNewer(result.latestVersion, overlayVersion)) {
+                this.updateAvailable = { current: overlayVersion, latest: result.latestVersion };
+                this.onUpdateCallback?.(this.updateAvailable);
+              }
+            }
           },
           reject: () => {
             // Server rejected handshake — still usable but log warning
@@ -150,6 +170,17 @@ export class BridgeClient {
       this.pendingRequests.set(id, { resolve, reject, timer });
       this.ws.send(JSON.stringify({ id, method, params }));
     });
+  }
+
+  /** Simple semver comparison: is `a` newer than `b`? */
+  private isNewer(a: string, b: string): boolean {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    for (let i = 0; i < 3; i++) {
+      if ((pa[i] || 0) > (pb[i] || 0)) return true;
+      if ((pa[i] || 0) < (pb[i] || 0)) return false;
+    }
+    return false;
   }
 
   /** Disconnect and clean up */

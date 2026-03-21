@@ -138,6 +138,55 @@ The selector annotation tells you the blast radius:
 
 When the output includes `variableAssociations`, the user explicitly picked a design variable in Retune's variable picker. Always honor this association — use the variable's class name or CSS custom property, not the raw value.
 
+## Structural Actions
+
+The output may include structural DOM actions instead of (or alongside) CSS property changes. These appear as `### Action:` sections.
+
+### Delete Element
+
+```
+### Action: Delete Element
+
+Remove this element from the source code entirely.
+```
+
+Delete the entire JSX element (opening tag, children, closing tag) from the source file. Use the Component, Source, and Selector fields to locate it. If the element is rendered conditionally or inside a `.map()`, remove the appropriate block.
+
+### Edit Text Content
+
+```
+### Action: Edit Text Content
+
+| Text | Before | After |
+|------|--------|-------|
+| Content | `Get Started` | `Start Free Trial` |
+```
+
+Replace the text content in the JSX. Only change the text — don't modify the element's tag, classes, or styles.
+
+### Reorder Element
+
+```
+### Action: Reorder Element
+
+Moved from position 5 to position 1 within its parent container.
+```
+
+Move the element's JSX block to the new position among its siblings. If the children are rendered from a `.map()` call over an array, reorder the array items instead. If they're static JSX, move the entire JSX block (opening tag through closing tag, including all props and children).
+
+### Resize (Width/Height Changes)
+
+Width and height changes from drag-to-resize appear as regular property changes in the changes table. Apply them using the project's styling approach — don't add inline styles if the project uses CSS classes or stylesheets.
+
+## Clearing Changes
+
+After applying all changes to source code, **always call `retune_clear_changes`** to clear the pending changes from the Retune overlay. This:
+- Removes the change badge from the toolbar
+- Clears the undo/redo history for applied changes
+- Resets the overlay state so new changes can be tracked cleanly
+
+If you don't clear, the overlay will still show the old changes and the user may get confused.
+
 ## Workflow
 
 1. Read the formatted changes output
@@ -146,4 +195,6 @@ When the output includes `variableAssociations`, the user explicitly picked a de
    a. Check if an exact token/class/variable match exists
    b. Apply using the project's styling approach
    c. Watch for competing rules and scope
-4. Verify the change makes sense in context (don't blindly apply if something looks wrong)
+4. For structural actions (delete, text edit, reorder): apply the DOM change to the JSX source
+5. Verify the change makes sense in context (don't blindly apply if something looks wrong)
+6. **Call `retune_clear_changes`** to clear the applied changes from the overlay
