@@ -1,5 +1,7 @@
 "use client";
 
+declare const __RETUNE_VERSION__: string;
+
 /**
  * Retune — the main React component users add to their app.
  *
@@ -263,7 +265,9 @@ function RetuneInner(props: RetuneConfig) {
   const [ownedProperties, setOwnedProperties] = useState<Set<string> | undefined>(undefined);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
+  const [updateDismissing, setUpdateDismissing] = useState(false);
   const [updateCopied, setUpdateCopied] = useState(false);
+  const [updateRolling, setUpdateRolling] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
   const [side, setSide] = useState<"right" | "left">(config.position.includes("right") ? "right" : "left");
@@ -1822,54 +1826,117 @@ function RetuneInner(props: RetuneConfig) {
             <div className="retune-tab-pill" ref={tabPillRef} />
             <button className={`retune-tab${panelTab === "elements" ? " active" : ""}`} onClick={() => setPanelTab("elements")}>Elements</button>
             <button className={`retune-tab${panelTab === "design" ? " active" : ""}`} onClick={() => setPanelTab("design")}>Design</button>
+            <span style={{ marginLeft: "auto", fontSize: "11px", lineHeight: "16px", color: "#a8a29e", letterSpacing: "-0.005em", paddingRight: "8px", display: "flex", alignItems: "center" }}>v{updateInfo?.current || (typeof __RETUNE_VERSION__ === "string" ? __RETUNE_VERSION__ : "")}</span>
           </div>
           <div className="retune-panel-body">
             {updateInfo && (
-              <div style={{
-                padding: "8px 8px 8px 16px",
-                background: "#f5f5f4",
-                borderBottom: "1px solid #e7e5e4",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                fontSize: "11px",
-                color: "#44403c",
-              }}>
-                <span style={{ flex: 1, lineHeight: "16px", letterSpacing: "-0.005em" }}>
-                  Retune v{updateInfo.latest} is available
-                </span>
-                <Tooltip content="Copy update prompt" side="bottom" delay={200}>
-                  <button
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateRows: updateDismissing ? "0fr" : "1fr",
+                  opacity: updateDismissing ? 0 : 1,
+                  transition: "grid-template-rows 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                }}
+                onTransitionEnd={(e) => {
+                  if (e.propertyName === "opacity" && updateDismissing) {
+                    setUpdateInfo(null);
+                    setUpdateDismissing(false);
+                  }
+                }}
+              >
+              <div style={{ overflow: "hidden", minHeight: 0 }}>
+              <div
+                style={{
+                  padding: "12px 12px 12px 16px",
+                  background: "rgba(110, 17, 176, 0.05)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  fontSize: "11px",
+                  color: "#6E11B0",
+                }}
+              >
+                <div style={{ flex: 1, lineHeight: "16px", letterSpacing: "-0.005em" }}>
+                  <div style={{ fontWeight: 500, fontSize: "12px", marginBottom: "4px" }}>Retune v{updateInfo.latest} is available</div>
+                  <span
                     onClick={() => {
+                      if (updateCopied) return;
                       navigator.clipboard.writeText("Update Retune to the latest version by running `npm install retune@latest` and `npx retune setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect.");
                       setUpdateCopied(true);
-                      setTimeout(() => setUpdateCopied(false), 1500);
+                      setUpdateRolling(true);
+                      setTimeout(() => setUpdateRolling(false), 150);
+                      setTimeout(() => {
+                        setUpdateRolling(true);
+                        setTimeout(() => setUpdateRolling(false), 150);
+                        setUpdateCopied(false);
+                      }, 3000);
                     }}
                     style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      padding: "2px",
-                      display: "flex",
+                      display: "inline-flex",
                       alignItems: "center",
+                      gap: "2px",
+                      cursor: "pointer",
+                      height: "16px",
                     }}
                   >
-                    <span className="retune-icon-swap" style={{ width: 16, height: 16 }}>
-                      <span className={`retune-icon-swap-icon ${updateCopied ? "out" : "in"}`}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M8.5 3.5C9.32843 3.5 10 4.17157 10 5V6H11C11.8284 6 12.5 6.67157 12.5 7.5V11C12.5 11.8284 11.8284 12.5 11 12.5H7.5C6.67157 12.5 6 11.8284 6 11V10H5C4.17157 10 3.5 9.32843 3.5 8.5V5C3.5 4.17157 4.17157 3.5 5 3.5H8.5ZM10 8.5C10 9.32843 9.32843 10 8.5 10H7V11C7 11.2761 7.22386 11.5 7.5 11.5H11C11.2761 11.5 11.5 11.2761 11.5 11V7.5C11.5 7.22386 11.2761 7 11 7H10V8.5ZM5 4.5C4.72386 4.5 4.5 4.72386 4.5 5V8.5C4.5 8.77614 4.72386 9 5 9H8.5C8.77614 9 9 8.77614 9 8.5V5C9 4.72386 8.77614 4.5 8.5 4.5H5Z" fill="black" fillOpacity="0.9" />
-                        </svg>
-                      </span>
-                      <span className={`retune-icon-swap-icon ${updateCopied ? "in" : "out"}`}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M11.0839 4.22268C11.2371 3.99294 11.5475 3.93087 11.7773 4.08401C12.007 4.23718 12.0691 4.5476 11.916 4.77737L7.91596 10.7774C7.83287 10.902 7.69784 10.9833 7.54877 10.9981C7.39988 11.0127 7.25223 10.9593 7.14643 10.8535L4.14643 7.85354C3.9512 7.65827 3.95118 7.34176 4.14643 7.14651C4.34168 6.95126 4.6582 6.95128 4.85346 7.14651L7.42182 9.71487L11.0839 4.22268Z" fill="black" fillOpacity="0.9" />
-                        </svg>
+                    <span style={{ overflow: "hidden", width: 14, height: 16, flexShrink: 0, marginLeft: "-2.5px",
+                      maskImage: "linear-gradient(to bottom, transparent, black 3px, black calc(100% - 3px), transparent)",
+                      WebkitMaskImage: "linear-gradient(to bottom, transparent, black 3px, black calc(100% - 3px), transparent)",
+                    }}>
+                      <span style={{
+                        display: "block", willChange: "transform, filter",
+                        transform: updateCopied ? "translateY(-16px)" : "translateY(0)",
+                        filter: updateRolling ? "blur(1.5px)" : "blur(0)",
+                        transition: "transform 300ms cubic-bezier(0.23, 1, 0.32, 1), filter 150ms cubic-bezier(0.23, 1, 0.32, 1)",
+                      }}>
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "16px",
+                          opacity: updateCopied ? 0 : 1, transition: "opacity 150ms cubic-bezier(0.23, 1, 0.32, 1)",
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path d="M8.5 3.5C9.32843 3.5 10 4.17157 10 5V6H11C11.8284 6 12.5 6.67157 12.5 7.5V11C12.5 11.8284 11.8284 12.5 11 12.5H7.5C6.67157 12.5 6 11.8284 6 11V10H5C4.17157 10 3.5 9.32843 3.5 8.5V5C3.5 4.17157 4.17157 3.5 5 3.5H8.5ZM10 8.5C10 9.32843 9.32843 10 8.5 10H7V11C7 11.2761 7.22386 11.5 7.5 11.5H11C11.2761 11.5 11.5 11.2761 11.5 11V7.5C11.5 7.22386 11.2761 7 11 7H10V8.5ZM5 4.5C4.72386 4.5 4.5 4.72386 4.5 5V8.5C4.5 8.77614 4.72386 9 5 9H8.5C8.77614 9 9 8.77614 9 8.5V5C9 4.72386 8.77614 4.5 8.5 4.5H5Z" fill="rgba(110, 17, 176, 0.7)" />
+                          </svg>
+                        </span>
+                        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "16px",
+                          opacity: updateCopied ? 1 : 0, transition: "opacity 200ms cubic-bezier(0.23, 1, 0.32, 1) 100ms",
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                            <path d="M11.0839 4.22268C11.2371 3.99294 11.5475 3.93087 11.7773 4.08401C12.007 4.23718 12.0691 4.5476 11.916 4.77737L7.91596 10.7774C7.83287 10.902 7.69784 10.9833 7.54877 10.9981C7.39988 11.0127 7.25223 10.9593 7.14643 10.8535L4.14643 7.85354C3.9512 7.65827 3.95118 7.34176 4.14643 7.14651C4.34168 6.95126 4.6582 6.95128 4.85346 7.14651L7.42182 9.71487L11.0839 4.22268Z" fill="rgba(110, 17, 176, 0.7)" />
+                          </svg>
+                        </span>
                       </span>
                     </span>
-                  </button>
-                </Tooltip>
+                    <span style={{ overflow: "hidden", height: "16px",
+                      maskImage: "linear-gradient(to bottom, transparent, black 3px, black calc(100% - 3px), transparent)",
+                      WebkitMaskImage: "linear-gradient(to bottom, transparent, black 3px, black calc(100% - 3px), transparent)",
+                    }}>
+                      <span style={{
+                        display: "block", willChange: "transform, filter",
+                        transform: updateCopied ? "translateY(-16px)" : "translateY(0)",
+                        filter: updateRolling ? "blur(1.5px)" : "blur(0)",
+                        transition: "transform 300ms cubic-bezier(0.23, 1, 0.32, 1), filter 150ms cubic-bezier(0.23, 1, 0.32, 1)",
+                      }}>
+                        <span
+                          style={{
+                            display: "block", height: "16px",
+                            color: "rgba(110, 17, 176, 0.7)",
+                            textDecoration: "underline dotted rgba(110, 17, 176, 0.7)", textUnderlineOffset: "2px",
+                            opacity: updateCopied ? 0 : 1,
+                            transition: "opacity 150ms cubic-bezier(0.23, 1, 0.32, 1), color 150ms ease, text-decoration-color 150ms ease",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = "rgba(110, 17, 176, 0.9)"; e.currentTarget.style.textDecorationColor = "rgba(110, 17, 176, 0.9)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(110, 17, 176, 0.7)"; e.currentTarget.style.textDecorationColor = "rgba(110, 17, 176, 0.7)"; }}
+                        >Copy update instructions</span>
+                        <span style={{
+                          display: "block", height: "16px", color: "rgba(110, 17, 176, 0.7)",
+                          opacity: updateCopied ? 1 : 0,
+                          transition: "opacity 200ms cubic-bezier(0.23, 1, 0.32, 1) 100ms",
+                        }}>Paste in your AI agent to update</span>
+                      </span>
+                    </span>
+                  </span>
+                </div>
                 <button
-                  onClick={() => setUpdateInfo(null)}
+                  onClick={() => setUpdateDismissing(true)}
                   style={{
                     background: "none",
                     border: "none",
@@ -1877,12 +1944,19 @@ function RetuneInner(props: RetuneConfig) {
                     padding: "2px",
                     display: "flex",
                     alignItems: "center",
+                    alignSelf: "flex-start",
+                    opacity: 0.45,
+                    transition: "opacity 150ms ease",
                   }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.45"; }}
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path fillRule="evenodd" clipRule="evenodd" d="M4.14645 4.14645C4.34171 3.95118 4.65829 3.95118 4.85355 4.14645L8 7.29289L11.1464 4.14645C11.3417 3.95118 11.6583 3.95118 11.8536 4.14645C12.0488 4.34171 12.0488 4.65829 11.8536 4.85355L8.70711 8L11.8536 11.1464C12.0488 11.3417 12.0488 11.6583 11.8536 11.8536C11.6583 12.0488 11.3417 12.0488 11.1464 11.8536L8 8.70711L4.85355 11.8536C4.65829 12.0488 4.34171 12.0488 4.14645 11.8536C3.95118 11.6583 3.95118 11.3417 4.14645 11.1464L7.29289 8L4.14645 4.85355C3.95118 4.65829 3.95118 4.34171 4.14645 4.14645Z" fill="black" fillOpacity="0.9" />
+                    <path fillRule="evenodd" clipRule="evenodd" d="M4.14645 4.14645C4.34171 3.95118 4.65829 3.95118 4.85355 4.14645L8 7.29289L11.1464 4.14645C11.3417 3.95118 11.6583 3.95118 11.8536 4.14645C12.0488 4.34171 12.0488 4.65829 11.8536 4.85355L8.70711 8L11.8536 11.1464C12.0488 11.3417 12.0488 11.6583 11.8536 11.8536C11.6583 12.0488 11.3417 12.0488 11.1464 11.8536L8 8.70711L4.85355 11.8536C4.65829 12.0488 4.34171 12.0488 4.14645 11.8536C3.95118 11.6583 3.95118 11.3417 4.14645 11.1464L7.29289 8L4.14645 4.85355C3.95118 4.65829 3.95118 4.34171 4.14645 4.14645Z" fill="#6E11B0" />
                   </svg>
                 </button>
+              </div>
+              </div>
               </div>
             )}
             {panelTab === "elements" && (
