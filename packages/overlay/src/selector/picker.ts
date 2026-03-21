@@ -14,6 +14,9 @@ export interface PickerCallbacks {
   onSelect: (element: Element) => void;
   onCancel: () => void;
   onDoubleClick?: (element: Element) => void;
+  onResize?: (element: Element, property: "width" | "height", value: string) => void;
+  /** Called during resize drag for live preview (updates stylesheet without recording changes) */
+  onResizePreview?: (element: Element, property: "width" | "height", value: string) => void;
 }
 
 export function createPicker(
@@ -80,6 +83,183 @@ export function createPicker(
 
   initBoxStyles(highlight, label);
   initBoxStyles(selection, selectionLabel);
+
+  // ── Resize handles (corners + edges) ──
+  const HANDLE_SIZE = 8;
+  const HALF_HANDLE = HANDLE_SIZE / 2;
+  const EDGE_HIT_SIZE = 6; // invisible grab zone width for edges
+
+  type HandlePos = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+  const CORNER_POSITIONS: HandlePos[] = ["nw", "ne", "se", "sw"];
+  const EDGE_POSITIONS: HandlePos[] = ["n", "e", "s", "w"];
+  const ALL_POSITIONS: HandlePos[] = [...CORNER_POSITIONS, ...EDGE_POSITIONS];
+
+  const HANDLE_CURSORS: Record<HandlePos, string> = {
+    nw: "nwse-resize", n: "ns-resize", ne: "nesw-resize", e: "ew-resize",
+    se: "nwse-resize", s: "ns-resize", sw: "nesw-resize", w: "ew-resize",
+  };
+  const HANDLE_AXES: Record<HandlePos, { dx: -1 | 0 | 1; dy: -1 | 0 | 1 }> = {
+    nw: { dx: -1, dy: -1 }, n: { dx: 0, dy: -1 }, ne: { dx: 1, dy: -1 }, e: { dx: 1, dy: 0 },
+    se: { dx: 1, dy: 1 }, s: { dx: 0, dy: 1 }, sw: { dx: -1, dy: 1 }, w: { dx: -1, dy: 0 },
+  };
+
+  const handleEls: Record<string, HTMLElement> = {};
+
+  // Corner handles: visible white squares
+  for (const pos of CORNER_POSITIONS) {
+    const h = document.createElement("div");
+    h.style.cssText = `
+      position:fixed;pointer-events:auto;display:none;box-sizing:border-box;
+      width:${HANDLE_SIZE}px;height:${HANDLE_SIZE}px;
+      background:#fff;border:1.5px solid #3b82f6;border-radius:1px;
+      z-index:2147483647;cursor:${HANDLE_CURSORS[pos]};
+    `;
+    shadowRoot.appendChild(h);
+    handleEls[pos] = h;
+  }
+
+  // Edge handles: invisible hit zones along sides
+  for (const pos of EDGE_POSITIONS) {
+    const h = document.createElement("div");
+    h.style.cssText = `
+      position:fixed;pointer-events:auto;display:none;
+      z-index:2147483647;cursor:${HANDLE_CURSORS[pos]};
+    `;
+    shadowRoot.appendChild(h);
+    handleEls[pos] = h;
+  }
+
+  function positionHandles(rect: DOMRect) {
+    // Corners
+    const corners: Record<string, { x: number; y: number }> = {
+      nw: { x: rect.left, y: rect.top }, ne: { x: rect.right, y: rect.top },
+      se: { x: rect.right, y: rect.bottom }, sw: { x: rect.left, y: rect.bottom },
+    };
+    for (const pos of CORNER_POSITIONS) {
+      const h = handleEls[pos];
+      const p = corners[pos];
+      h.style.left = `${p.x - HALF_HANDLE}px`;
+      h.style.top = `${p.y - HALF_HANDLE}px`;
+      h.style.display = "block";
+    }
+    // Edges: invisible hit zones between corners
+    const inset = HALF_HANDLE;
+    handleEls.n.style.cssText += `display:block;left:${rect.left + inset}px;top:${rect.top - EDGE_HIT_SIZE / 2}px;width:${rect.width - inset * 2}px;height:${EDGE_HIT_SIZE}px;cursor:${HANDLE_CURSORS.n};`;
+    handleEls.s.style.cssText += `display:block;left:${rect.left + inset}px;top:${rect.bottom - EDGE_HIT_SIZE / 2}px;width:${rect.width - inset * 2}px;height:${EDGE_HIT_SIZE}px;cursor:${HANDLE_CURSORS.s};`;
+    handleEls.e.style.cssText += `display:block;left:${rect.right - EDGE_HIT_SIZE / 2}px;top:${rect.top + inset}px;width:${EDGE_HIT_SIZE}px;height:${rect.height - inset * 2}px;cursor:${HANDLE_CURSORS.e};`;
+    handleEls.w.style.cssText += `display:block;left:${rect.left - EDGE_HIT_SIZE / 2}px;top:${rect.top + inset}px;width:${EDGE_HIT_SIZE}px;height:${rect.height - inset * 2}px;cursor:${HANDLE_CURSORS.w};`;
+  }
+
+  function hideHandles() {
+    for (const pos of ALL_POSITIONS) handleEls[pos].style.display = "none";
+  }
+
+  // ── Resize drag state ──
+  let resizeDrag: {
+    handle: HandlePos;
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null = null;
+
+  function handleResizePointerDown(e: PointerEvent, handle: HandlePos) {
+    if (!selectedElement) return;
+    e.stopPropagation();
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    const rect = selectedElement.getBoundingClientRect();
+    resizeDrag = {
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: rect.width,
+      startHeight: rect.height,
+    };
+
+    document.addEventListener("pointermove", handleResizePointerMove, true);
+    document.addEventListener("pointerup", handleResizePointerUp, true);
+  }
+
+  function computeResize(e: PointerEvent): { width: number; height: number } {
+    if (!resizeDrag) return { width: 0, height: 0 };
+    const axes = HANDLE_AXES[resizeDrag.handle];
+    const dx = e.clientX - resizeDrag.startX;
+    const dy = e.clientY - resizeDrag.startY;
+    const MIN_SIZE = 10;
+
+    let w = axes.dx !== 0 ? Math.max(MIN_SIZE, resizeDrag.startWidth + dx * axes.dx) : resizeDrag.startWidth;
+    let h = axes.dy !== 0 ? Math.max(MIN_SIZE, resizeDrag.startHeight + dy * axes.dy) : resizeDrag.startHeight;
+
+    // Shift = aspect ratio lock (only for corners)
+    if (e.shiftKey && axes.dx !== 0 && axes.dy !== 0 && resizeDrag.startWidth > 0 && resizeDrag.startHeight > 0) {
+      const ratio = resizeDrag.startWidth / resizeDrag.startHeight;
+      if (w / ratio < h) h = w / ratio;
+      else w = h * ratio;
+    }
+    return { width: Math.round(w), height: Math.round(h) };
+  }
+
+  function handleResizePointerMove(e: PointerEvent) {
+    if (!resizeDrag || !selectedElement) return;
+    e.preventDefault();
+
+    const { width, height } = computeResize(e);
+    const el = selectedElement as HTMLElement;
+    const axes = HANDLE_AXES[resizeDrag.handle];
+
+    // Update LivePreviewEngine stylesheet for all matching instances
+    if (axes.dx !== 0) callbacks.onResizePreview?.(selectedElement, "width", `${width}px`);
+    if (axes.dy !== 0) callbacks.onResizePreview?.(selectedElement, "height", `${height}px`);
+    // Also set inline !important on selected element to guarantee it wins
+    if (axes.dx !== 0) el.style.setProperty("width", `${width}px`, "important");
+    if (axes.dy !== 0) el.style.setProperty("height", `${height}px`, "important");
+
+    // Update selection box and handles
+    const newRect = selectedElement.getBoundingClientRect();
+    positionBox(selection, selectionLabel, newRect, "solid", "0.04");
+    positionHandles(newRect);
+    selectionLabel.textContent = formatLabel(selectedElement);
+  }
+
+  function handleResizePointerUp(e: PointerEvent) {
+    if (!resizeDrag || !selectedElement) {
+      resizeDrag = null;
+      return;
+    }
+
+    const { width, height } = computeResize(e);
+    const axes = HANDLE_AXES[resizeDrag.handle];
+    const el = selectedElement as HTMLElement;
+
+    // Report final values through callback (keeps inline styles — LivePreviewEngine overrides)
+    const widthChanged = axes.dx !== 0 && Math.abs(width - resizeDrag.startWidth) > 0.5;
+    const heightChanged = axes.dy !== 0 && Math.abs(height - resizeDrag.startHeight) > 0.5;
+    if (widthChanged) {
+      el.style.removeProperty("width");
+      callbacks.onResize?.(selectedElement, "width", `${width}px`);
+    }
+    if (heightChanged) {
+      el.style.removeProperty("height");
+      callbacks.onResize?.(selectedElement, "height", `${height}px`);
+    }
+
+    resizeDrag = null;
+    document.removeEventListener("pointermove", handleResizePointerMove, true);
+    document.removeEventListener("pointerup", handleResizePointerUp, true);
+
+    // Refresh selection box
+    const newRect = selectedElement.getBoundingClientRect();
+    positionBox(selection, selectionLabel, newRect, "solid", "0.04");
+    positionHandles(newRect);
+    selectionLabel.textContent = formatLabel(selectedElement);
+  }
+
+  // Attach resize handlers to all handles
+  for (const pos of ALL_POSITIONS) {
+    handleEls[pos].addEventListener("pointerdown", (e) => handleResizePointerDown(e, pos));
+  }
 
   // ── Spacing measurement lines ──
   // Shows distance between selected and hovered elements
@@ -240,6 +420,7 @@ export function createPicker(
     }
     selectionLabel.textContent = formatLabel(selectedElement);
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+    positionHandles(rect);
   }
 
   // Lightweight position-only update for scroll/resize tracking
@@ -264,6 +445,7 @@ export function createPicker(
     selectionLabel.style.left = `${rect.left}px`;
     selectionLabel.textContent = formatLabel(selectedElement);
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+    positionHandles(rect);
   }
 
   function formatLabel(el: Element): string {
@@ -286,6 +468,7 @@ export function createPicker(
   function hideSelection() {
     selection.style.display = "none";
     selectionLabel.style.display = "none";
+    hideHandles();
   }
 
   // Debounce multiple events into a single rAF update
@@ -523,7 +706,7 @@ export function createPicker(
     selectionLabelHidden = false;
     elementStack = [];
     stackIndex = -1;
-    hideSelection();
+    hideSelection(); // also hides handles
   }
 
   function destroy() {
@@ -533,6 +716,7 @@ export function createPicker(
     selection.remove();
     selectionLabel.remove();
     spacingContainer.remove();
+    for (const pos of ALL_POSITIONS) handleEls[pos].remove();
   }
 
   /** Programmatically select an element (e.g. from the element tree) */
