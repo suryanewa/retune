@@ -360,7 +360,14 @@ export function createPicker(
     // shadow element is at the point, so we verify the hit actually belongs to
     // our shadow tree via getRootNode().
     const hoverShadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
-    if (hoverShadowHit && hoverShadowHit.getRootNode() === shadowRoot) return;
+    if (hoverShadowHit && hoverShadowHit.getRootNode() === shadowRoot) {
+      // Cursor is over Retune UI — clear hover highlight
+      if (hoveredElement) {
+        hoveredElement = null;
+        hideHighlight();
+      }
+      return;
+    }
     const raw = document.elementFromPoint(e.clientX, e.clientY);
     if (!raw || isOverlayElement(raw)) return;
     const el = resolveElement(raw);
