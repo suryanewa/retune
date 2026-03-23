@@ -62,7 +62,7 @@ export function createPicker(
     box.style.cssText = `
       position: fixed;
       pointer-events: none;
-      z-index: 2147483646;
+      z-index: 2147483644;
       box-sizing: border-box;
       display: none;
     `;
@@ -112,7 +112,7 @@ export function createPicker(
       position:fixed;pointer-events:auto;display:none;box-sizing:border-box;
       width:${HANDLE_SIZE}px;height:${HANDLE_SIZE}px;
       background:#fff;border:1px solid #0D99FF;border-radius:1px;
-      z-index:2147483646;cursor:${HANDLE_CURSORS[pos]};
+      z-index:2147483645;cursor:${HANDLE_CURSORS[pos]};
     `;
     shadowRoot.appendChild(h);
     handleEls[pos] = h;
@@ -123,7 +123,7 @@ export function createPicker(
     const h = document.createElement("div");
     h.style.cssText = `
       position:fixed;pointer-events:auto;display:none;
-      z-index:2147483646;cursor:${HANDLE_CURSORS[pos]};
+      z-index:2147483645;cursor:${HANDLE_CURSORS[pos]};
     `;
     shadowRoot.appendChild(h);
     handleEls[pos] = h;
@@ -264,7 +264,7 @@ export function createPicker(
   // ── Spacing measurement lines ──
   // Shows distance between selected and hovered elements
   const spacingContainer = document.createElement("div");
-  spacingContainer.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483646;";
+  spacingContainer.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483645;";
   shadowRoot.appendChild(spacingContainer);
 
   const SPACING_LINE = "position:fixed;pointer-events:none;display:none;";
