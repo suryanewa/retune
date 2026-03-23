@@ -31,6 +31,7 @@ import { IconStepBack } from "@central-icons-react/round-outlined-radius-2-strok
 import { IconCrossMedium } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCrossMedium";
 import { IconBroom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBroom";
 import { IconCheckCircle2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCheckCircle2";
+import { IconSettingsGear2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSettingsGear2";
 import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
@@ -280,6 +281,8 @@ function RetuneInner(props: RetuneConfig) {
   });
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabPillRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; dragging: boolean } | null>(null);
   const tabPillFirstRender = useRef(true);
 
   // Selector candidates for the selected element (class-based selectors with match counts)
@@ -1107,6 +1110,80 @@ function RetuneInner(props: RetuneConfig) {
       const next = s === "right" ? "left" : "right";
       try { localStorage.setItem("retune-panel-side", next); } catch {}
       return next;
+    });
+  }, []);
+
+  // Drag-to-snap toolbar
+  const handleToolbarPointerDown = useCallback((e: React.PointerEvent) => {
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: 0, dragging: false };
+  }, []);
+
+  const handleToolbarPointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    const toolbar = toolbarRef.current;
+    if (!drag || !toolbar) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.dragging && Math.abs(dx) < 5 && Math.abs(dy) < 5) return;
+
+    if (!drag.dragging) {
+      // Snapshot origin on first drag frame and capture pointer
+      const rect = toolbar.getBoundingClientRect();
+      drag.originX = rect.left + rect.width / 2;
+      drag.dragging = true;
+      toolbar.setPointerCapture(e.pointerId);
+    }
+
+    // Use translateX for GPU-only animation (no layout thrash)
+    const offset = e.clientX - drag.startX;
+    toolbar.style.transition = "none";
+    toolbar.style.transform = `translateX(${offset}px)`;
+  }, []);
+
+  const handleToolbarPointerUp = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    const toolbar = toolbarRef.current;
+    if (!drag || !toolbar) return;
+    dragRef.current = null;
+
+    if (!drag.dragging) {
+      return;
+    }
+
+    // FLIP: record current visual position before class change
+    const beforeRect = toolbar.getBoundingClientRect();
+
+    // Snap based on which half of the viewport the pointer is in
+    const newSide = e.clientX < window.innerWidth / 2 ? "left" : "right";
+    setSide(newSide);
+    try { localStorage.setItem("retune-panel-side", newSide); } catch {}
+
+    // After React re-renders with new side class, FLIP animate
+    requestAnimationFrame(() => {
+      // Clear drag transform so CSS class positions it at target
+      toolbar.style.transition = "none";
+      toolbar.style.transform = "";
+      const afterRect = toolbar.getBoundingClientRect();
+
+      // Invert: translate back to where it was
+      const dx = beforeRect.left - afterRect.left;
+      toolbar.style.transform = `translateX(${dx}px)`;
+
+      // Play: animate to final position (transform: none)
+      requestAnimationFrame(() => {
+        toolbar.style.transition = "transform 200ms cubic-bezier(0.77, 0, 0.175, 1)";
+        toolbar.style.transform = "";
+
+        const cleanup = () => {
+          toolbar.removeEventListener("transitionend", cleanup);
+          toolbar.style.transition = "";
+        };
+        toolbar.addEventListener("transitionend", cleanup, { once: true });
+      });
     });
   }, []);
 
@@ -1999,7 +2076,13 @@ function RetuneInner(props: RetuneConfig) {
   return createPortal(
     <TooltipPortalContext.Provider value={portalTarget}>
       {/* Floating toolbar */}
-      <div className={`retune-toolbar bottom ${side} ${active ? "expanded" : "collapsed"}`}>
+      <div
+        ref={toolbarRef}
+        className={`retune-toolbar bottom ${side} ${active ? "expanded" : "collapsed"}`}
+        onPointerDown={handleToolbarPointerDown}
+        onPointerMove={handleToolbarPointerMove}
+        onPointerUp={handleToolbarPointerUp}
+      >
         {/* Collapsed: single activate button */}
         <Tooltip content="Toggle edit mode" shortcut={config.hotkey} side="top">
           <button
@@ -2032,26 +2115,6 @@ function RetuneInner(props: RetuneConfig) {
               </span>
             </button>
           </Tooltip>
-          <Tooltip content="Undo" shortcut="⌘Z" side="top">
-            <button
-              className={`retune-toolbar-btn${!canUndo ? " disabled" : ""}`}
-              onClick={handleUndo}
-              disabled={!canUndo}
-            >
-              <IconStepBack size={20} />
-            </button>
-          </Tooltip>
-          <Tooltip content="Redo" shortcut="⌘⇧Z" side="top">
-            <button
-              className={`retune-toolbar-btn${!canRedo ? " disabled" : ""}`}
-              onClick={handleRedo}
-              disabled={!canRedo}
-            >
-              <span className="retune-icon-flip">
-                <IconStepBack size={20} />
-              </span>
-            </button>
-          </Tooltip>
           <Tooltip content="Reset all" side="top">
             <button
               className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
@@ -2061,15 +2124,11 @@ function RetuneInner(props: RetuneConfig) {
               <IconBroom size={20} />
             </button>
           </Tooltip>
-          <Tooltip content={`Move to ${side === "right" ? "left" : "right"}`} side="top">
+          <Tooltip content="Settings" side="top">
             <button
               className="retune-toolbar-btn"
-              onClick={handleToggleSide}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="3" />
-                <line x1={side === "right" ? "9" : "15"} y1="3" x2={side === "right" ? "9" : "15"} y2="21" />
-              </svg>
+              <IconSettingsGear2 size={20} />
             </button>
           </Tooltip>
           <Tooltip content="Close" shortcut="Esc" side="top">
