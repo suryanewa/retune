@@ -264,7 +264,7 @@ export function createPicker(
   // ── Spacing measurement lines ──
   // Shows distance between selected and hovered elements
   const spacingContainer = document.createElement("div");
-  spacingContainer.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483645;";
+  spacingContainer.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;z-index:2147483646;";
   shadowRoot.appendChild(spacingContainer);
 
   const SPACING_LINE = "position:fixed;pointer-events:none;display:none;";
@@ -292,8 +292,21 @@ export function createPicker(
   const hMeasure = createMeasure(); // horizontal distance
   const vMeasure = createMeasure(); // vertical distance
 
+  // Parent-child spacing: 4 lines (top, right, bottom, left)
+  const parentMeasures = {
+    top: createMeasure(),
+    right: createMeasure(),
+    bottom: createMeasure(),
+    left: createMeasure(),
+  };
+
   function hideSpacing() {
     for (const m of [hMeasure, vMeasure]) {
+      m.line.style.display = "none";
+      m.connector.style.display = "none";
+      m.label.style.display = "none";
+    }
+    for (const m of Object.values(parentMeasures)) {
       m.line.style.display = "none";
       m.connector.style.display = "none";
       m.label.style.display = "none";
@@ -385,6 +398,63 @@ export function createPicker(
         const cx1 = Math.min(vOriginX, bendTargetX);
         drawSegment(vMeasure.connector, cx1, hoverEdgeY, Math.abs(bendTargetX - vOriginX), true);
       }
+    }
+  }
+
+  /** Show distances from selected child to all four inner edges of a parent container. */
+  function showParentSpacing(childRect: DOMRect, parentEl: Element) {
+    hideSpacing();
+
+    const computed = getComputedStyle(parentEl);
+    const parentRect = parentEl.getBoundingClientRect();
+
+    // Measure to padding box (inside border, outside padding)
+    // This shows the visual distance from the parent's inner edge to the child,
+    // which includes any padding — matching what users see as "the gap"
+    const bt = parseFloat(computed.borderTopWidth) || 0;
+    const br = parseFloat(computed.borderRightWidth) || 0;
+    const bb = parseFloat(computed.borderBottomWidth) || 0;
+    const bl = parseFloat(computed.borderLeftWidth) || 0;
+
+    const innerTop = parentRect.top + bt;
+    const innerRight = parentRect.right - br;
+    const innerBottom = parentRect.bottom - bb;
+    const innerLeft = parentRect.left + bl;
+
+    const topDist = Math.round(childRect.top - innerTop);
+    const rightDist = Math.round(innerRight - childRect.right);
+    const bottomDist = Math.round(innerBottom - childRect.bottom);
+    const leftDist = Math.round(childRect.left - innerLeft);
+
+    const childCenterX = childRect.left + childRect.width / 2;
+    const childCenterY = childRect.top + childRect.height / 2;
+
+    // Top
+    if (topDist > 0) {
+      drawSegment(parentMeasures.top.line, childCenterX, innerTop, topDist, false, false);
+      positionLabel(parentMeasures.top.label, topDist, childCenterX, innerTop, topDist, false);
+      parentMeasures.top.connector.style.display = "none";
+    }
+
+    // Bottom
+    if (bottomDist > 0) {
+      drawSegment(parentMeasures.bottom.line, childCenterX, childRect.bottom, bottomDist, false, false);
+      positionLabel(parentMeasures.bottom.label, bottomDist, childCenterX, childRect.bottom, bottomDist, false);
+      parentMeasures.bottom.connector.style.display = "none";
+    }
+
+    // Left
+    if (leftDist > 0) {
+      drawSegment(parentMeasures.left.line, innerLeft, childCenterY, leftDist, true, false);
+      positionLabel(parentMeasures.left.label, leftDist, innerLeft, childCenterY, leftDist, true);
+      parentMeasures.left.connector.style.display = "none";
+    }
+
+    // Right
+    if (rightDist > 0) {
+      drawSegment(parentMeasures.right.line, childRect.right, childCenterY, rightDist, true, false);
+      positionLabel(parentMeasures.right.label, rightDist, childRect.right, childCenterY, rightDist, true);
+      parentMeasures.right.connector.style.display = "none";
     }
   }
 
@@ -535,9 +605,14 @@ export function createPicker(
       selectionLabel.style.display = "";
     } else {
       updateHighlight(el);
-      // Show spacing between selected and hovered elements
       if (selectedElement) {
-        showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+        if (el.contains(selectedElement)) {
+          // Hovered element is a parent/ancestor — show four-edge distances
+          showParentSpacing(selectedElement.getBoundingClientRect(), el);
+        } else {
+          // Sibling or unrelated — show nearest-edge spacing
+          showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+        }
       }
     }
 

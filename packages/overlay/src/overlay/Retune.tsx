@@ -1534,14 +1534,35 @@ function RetuneInner(props: RetuneConfig) {
     }
   }
 
-  /** Move selected element up or down among its siblings */
+  /**
+   * Walk up from an element to find the nearest ancestor that has siblings to reorder with.
+   * Returns the proxy element (the ancestor that will be reordered) and its parent,
+   * or null if no reorderable ancestor is found.
+   */
+  function findReorderProxy(start: HTMLElement): { proxy: HTMLElement; parent: HTMLElement } | null {
+    let current: HTMLElement | null = start;
+    while (current) {
+      const p: HTMLElement | null = current.parentElement;
+      if (!p) return null;
+      const siblings = Array.from(p.children);
+      if (siblings.length >= 2) {
+        return { proxy: current, parent: p };
+      }
+      current = p;
+    }
+    return null;
+  }
+
+  /** Move selected element (or its reorder proxy) up or down among siblings */
   const handleReorderByKey = useCallback((direction: "up" | "down") => {
     const el = selectedElementRef.current?.element as HTMLElement;
     if (!el?.parentElement) return;
 
-    const parent = el.parentElement;
+    // Find the reorderable element — either the selected element itself or an ancestor
+    const context = findReorderProxy(el);
+    if (!context) return;
+    const { proxy, parent } = context;
     const children = Array.from(parent.children) as HTMLElement[];
-    if (children.length < 2) return;
 
     // Determine reorder mode based on parent layout
     const parentDisplay = getComputedStyle(parent).display;
@@ -1560,9 +1581,9 @@ function RetuneInner(props: RetuneConfig) {
       ensureOriginalRects(parent);
     }
 
-    // Find element's visual position
+    // Find proxy's visual position
     const visualOrder = getVisualOrder(parent);
-    const visualIndex = visualOrder.indexOf(el);
+    const visualIndex = visualOrder.indexOf(proxy);
     if (visualIndex === -1) return;
 
     const newVisualIndex = direction === "up" ? visualIndex - 1 : visualIndex + 1;
@@ -1571,34 +1592,34 @@ function RetuneInner(props: RetuneConfig) {
     const neighbor = visualOrder[newVisualIndex];
 
     // Record the change using DOM index (stable)
-    const domIndex = children.indexOf(el);
+    const domIndex = children.indexOf(proxy);
     const tracker = trackerRef.current;
     if (tracker) {
-      const origin = reorderOriginRef.current.get(el);
-      const elSelector = origin?.selector ?? getSelector(el);
+      const origin = reorderOriginRef.current.get(proxy);
+      const proxySelector = origin?.selector ?? getSelector(proxy);
       const originalIndex = origin?.originalIndex ?? domIndex;
       if (!origin) {
-        reorderOriginRef.current.set(el, { selector: elSelector, originalIndex: domIndex });
+        reorderOriginRef.current.set(proxy, { selector: proxySelector, originalIndex: domIndex });
       }
 
       const inspected = selectedElementRef.current;
       tracker.track(
-        elSelector, el.tagName.toLowerCase(), el.textContent?.slice(0, 40) || null,
-        Array.from(el.classList),
+        proxySelector, proxy.tagName.toLowerCase(), proxy.textContent?.slice(0, 40) || null,
+        Array.from(proxy.classList),
         inspected?.reactComponents ?? [], { "__reorder": String(originalIndex) }, inspected?.sourceFile ?? null,
-        inspected?.stylingApproach ?? undefined, null, el.id || null,
+        inspected?.stylingApproach ?? undefined, null, proxy.id || null,
         null, null, null,
         inspected?.domPath ?? "", null, { x: 0, y: 0, width: 0, height: 0 },
       );
-      tracker.ensureOriginalValue(elSelector, "__reorder", String(originalIndex));
+      tracker.ensureOriginalValue(proxySelector, "__reorder", String(originalIndex));
       tracker.breakCoalescing();
-      tracker.recordChange(elSelector, "__reorder", String(newVisualIndex));
+      tracker.recordChange(proxySelector, "__reorder", String(newVisualIndex));
       tracker.persist();
     }
 
     // Save previous values for undo
     const undoEntry: ReorderUndoEntry = [
-      { element: el, prevOrder: el.style.order, prevTranslate: el.style.translate },
+      { element: proxy, prevOrder: proxy.style.order, prevTranslate: proxy.style.translate },
       { element: neighbor, prevOrder: neighbor.style.order, prevTranslate: neighbor.style.translate },
     ];
     reorderStackRef.current.push(undoEntry);
@@ -1606,14 +1627,14 @@ function RetuneInner(props: RetuneConfig) {
 
     if (mode === "order") {
       // Swap CSS order values
-      const temp = el.style.order;
-      el.style.order = neighbor.style.order;
+      const temp = proxy.style.order;
+      proxy.style.order = neighbor.style.order;
       neighbor.style.order = temp;
     } else {
       // Swap in the desired visual order array, then recompute all translates
       const desired = reorderVisualOrderRef.current.get(parent);
       if (desired) {
-        const idx = desired.indexOf(el);
+        const idx = desired.indexOf(proxy);
         const neighborIdx = desired.indexOf(neighbor);
         if (idx !== -1 && neighborIdx !== -1) {
           [desired[idx], desired[neighborIdx]] = [desired[neighborIdx], desired[idx]];
@@ -1623,7 +1644,7 @@ function RetuneInner(props: RetuneConfig) {
     }
 
     // Blur to prevent :focus-visible outline on focusable elements (buttons, inputs)
-    if (el instanceof HTMLElement) el.blur();
+    if (proxy instanceof HTMLElement) proxy.blur();
 
     syncTrackerStateRef.current();
     refreshSelectedElementRef.current();
@@ -1648,16 +1669,18 @@ function RetuneInner(props: RetuneConfig) {
       }
       // Arrow key reorder for flow elements in containers
       // Up/Down for vertical layouts, Left/Right for horizontal (flex-direction: row)
+      // Uses reorder proxy: if selected element has no siblings, walks up to find a reorderable ancestor
       if (active && selectedElementRef.current && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         const path = e.composedPath();
         const target = path[0] as HTMLElement;
         if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
 
         const el = selectedElementRef.current.element as HTMLElement;
-        const parent = el.parentElement;
-        if (!parent || parent.children.length < 2) return;
+        const context = findReorderProxy(el);
+        if (!context) return;
+        const { parent } = context;
 
-        // Determine layout mode and axis
+        // Determine layout mode and axis based on proxy's parent
         const parentDisplay = getComputedStyle(parent).display;
         const isFlex = parentDisplay === "flex" || parentDisplay === "inline-flex";
         const isGrid = parentDisplay === "grid" || parentDisplay === "inline-grid";
