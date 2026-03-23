@@ -271,7 +271,13 @@ function RetuneInner(props: RetuneConfig) {
   const copyBtnRef = useRef<HTMLButtonElement>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
-  const [side, setSide] = useState<"right" | "left">(config.position.includes("right") ? "right" : "left");
+  const [side, setSide] = useState<"right" | "left">(() => {
+    try {
+      const saved = localStorage.getItem("retune-panel-side");
+      if (saved === "left" || saved === "right") return saved;
+    } catch {}
+    return config.position.includes("right") ? "right" : "left";
+  });
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabPillRef = useRef<HTMLDivElement>(null);
   const tabPillFirstRender = useRef(true);
@@ -1063,7 +1069,11 @@ function RetuneInner(props: RetuneConfig) {
 
   // Toggle toolbar + panel side
   const handleToggleSide = useCallback(() => {
-    setSide((s) => s === "right" ? "left" : "right");
+    setSide((s) => {
+      const next = s === "right" ? "left" : "right";
+      try { localStorage.setItem("retune-panel-side", next); } catch {}
+      return next;
+    });
   }, []);
 
   /** After undo/redo, sync forced inline styles on the DOM element to match the current preview state. */
