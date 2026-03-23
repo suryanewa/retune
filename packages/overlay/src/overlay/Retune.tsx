@@ -282,7 +282,7 @@ function RetuneInner(props: RetuneConfig) {
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabPillRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startX: number; startY: number; originX: number; dragging: boolean } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; dragging: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
   const tabPillFirstRender = useRef(true);
 
   // Selector candidates for the selected element (class-based selectors with match counts)
@@ -1118,7 +1118,7 @@ function RetuneInner(props: RetuneConfig) {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
 
-    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: 0, dragging: false };
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: 0, dragging: false, lastX: e.clientX, lastT: e.timeStamp, velocity: 0 };
   }, []);
 
   const handleToolbarPointerMove = useCallback((e: React.PointerEvent) => {
@@ -1137,6 +1137,14 @@ function RetuneInner(props: RetuneConfig) {
       drag.dragging = true;
       toolbar.setPointerCapture(e.pointerId);
     }
+
+    // Track velocity (px/ms) for flick detection
+    const dt = e.timeStamp - drag.lastT;
+    if (dt > 0) {
+      drag.velocity = (e.clientX - drag.lastX) / dt;
+    }
+    drag.lastX = e.clientX;
+    drag.lastT = e.timeStamp;
 
     // Use translateX for GPU-only animation (no layout thrash)
     const offset = e.clientX - drag.startX;
@@ -1157,8 +1165,12 @@ function RetuneInner(props: RetuneConfig) {
     // FLIP: record current visual position before class change
     const beforeRect = toolbar.getBoundingClientRect();
 
-    // Snap based on which half of the viewport the pointer is in
-    const newSide = e.clientX < window.innerWidth / 2 ? "left" : "right";
+    // Flick: if velocity is strong enough, snap to that direction regardless of position
+    // Otherwise fall back to position-based threshold (which half of viewport)
+    const FLICK_THRESHOLD = 0.4; // px/ms
+    const newSide = Math.abs(drag.velocity) > FLICK_THRESHOLD
+      ? (drag.velocity < 0 ? "left" : "right")
+      : (e.clientX < window.innerWidth / 2 ? "left" : "right");
     setSide(newSide);
     try { localStorage.setItem("retune-panel-side", newSide); } catch {}
 
