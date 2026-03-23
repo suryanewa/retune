@@ -1713,6 +1713,56 @@ function RetuneInner(props: RetuneConfig) {
         handleReorderByKey(goBack ? "up" : "down");
       }
 
+      // Element navigation: Shift+Enter=parent, Enter=child, Tab=next sibling, Shift+Tab=prev sibling
+      if (active && selectedElementRef.current && (e.key === "Enter" || e.key === "Tab")) {
+        const path = e.composedPath();
+        const target = path[0] as HTMLElement;
+        if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
+
+        const el = selectedElementRef.current.element;
+        const picker = pickerRef.current;
+        if (!picker) return;
+
+        if (e.key === "Enter" && e.shiftKey) {
+          // Shift+Enter: select parent
+          const parent = el.parentElement;
+          if (parent && parent !== document.body) {
+            e.preventDefault();
+            e.stopPropagation();
+            picker.selectElement(parent);
+          }
+        } else if (e.key === "Enter" && !e.shiftKey) {
+          // Enter: select first visible child
+          const children = Array.from(el.children).filter(c =>
+            !c.hasAttribute("data-retune-host") &&
+            c.tagName !== "SCRIPT" && c.tagName !== "STYLE" && c.tagName !== "LINK"
+          );
+          if (children.length > 0) {
+            e.preventDefault();
+            e.stopPropagation();
+            picker.selectElement(children[0]);
+          }
+        } else if (e.key === "Tab") {
+          // Tab / Shift+Tab: cycle siblings
+          const parent = el.parentElement;
+          if (!parent) return;
+          const siblings = Array.from(parent.children).filter(c =>
+            !c.hasAttribute("data-retune-host") &&
+            c.tagName !== "SCRIPT" && c.tagName !== "STYLE" && c.tagName !== "LINK"
+          );
+          if (siblings.length < 2) return;
+          const idx = siblings.indexOf(el);
+          if (idx === -1) return;
+          const next = e.shiftKey
+            ? siblings[(idx - 1 + siblings.length) % siblings.length]
+            : siblings[(idx + 1) % siblings.length];
+          e.preventDefault();
+          e.stopPropagation();
+          picker.selectElement(next);
+        }
+        return;
+      }
+
       // Delete selected element
       if (active && selectedElementRef.current && (e.key === "Delete" || e.key === "Backspace")) {
         // Don't intercept if focus is in a text input inside Retune's shadow root
