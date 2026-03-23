@@ -1064,8 +1064,6 @@ function RetuneInner(props: RetuneConfig) {
     if (picker) {
       picker.selectElement(el);
     }
-    // Switch to design tab after selecting
-    setPanelTab("design");
   }, []);
 
   // Tree: hover highlight via picker
