@@ -1622,6 +1622,9 @@ function RetuneInner(props: RetuneConfig) {
       }
     }
 
+    // Blur to prevent :focus-visible outline on focusable elements (buttons, inputs)
+    if (el instanceof HTMLElement) el.blur();
+
     syncTrackerStateRef.current();
     refreshSelectedElementRef.current();
     pickerRef.current?.refreshSelection();
