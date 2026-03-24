@@ -298,6 +298,21 @@ function RetuneInner(props: RetuneConfig) {
     setTheme(t);
     try { localStorage.setItem("retune-theme", t); } catch {}
   }, []);
+
+  // Toggle dark class on host element based on theme
+  useEffect(() => {
+    const host = document.querySelector("[data-retune-host]");
+    if (!host) return;
+    const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    host.classList.toggle("dark", isDark);
+
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const handler = (e: MediaQueryListEvent) => host.classList.toggle("dark", e.matches);
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+  }, [theme]);
   const [side, setSide] = useState<"right" | "left">(() => {
     try {
       const saved = localStorage.getItem("retune-panel-side");

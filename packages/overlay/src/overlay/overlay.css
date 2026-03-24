@@ -8,38 +8,138 @@
   line-height: 1.4;
   interpolate-size: allow-keywords;
 
-  /* ── Core colors ── */
-  --retune-stone: #1c1917;
+  /* ══════════════════════════════════════
+     PRIMITIVES — raw palette, never change
+     ══════════════════════════════════════ */
+
+  /* ── Black (#1c1917) opacity ramp ── */
+  --retune-black: #1c1917;
+  --retune-black-5:  color-mix(in srgb, var(--retune-black) 5%, transparent);
+  --retune-black-10: color-mix(in srgb, var(--retune-black) 10%, transparent);
+  --retune-black-15: color-mix(in srgb, var(--retune-black) 15%, transparent);
+  --retune-black-20: color-mix(in srgb, var(--retune-black) 20%, transparent);
+  --retune-black-25: color-mix(in srgb, var(--retune-black) 25%, transparent);
+  --retune-black-30: color-mix(in srgb, var(--retune-black) 30%, transparent);
+  --retune-black-35: color-mix(in srgb, var(--retune-black) 35%, transparent);
+  --retune-black-40: color-mix(in srgb, var(--retune-black) 40%, transparent);
+  --retune-black-45: color-mix(in srgb, var(--retune-black) 45%, transparent);
+  --retune-black-50: color-mix(in srgb, var(--retune-black) 50%, transparent);
+  --retune-black-55: color-mix(in srgb, var(--retune-black) 55%, transparent);
+  --retune-black-60: color-mix(in srgb, var(--retune-black) 60%, transparent);
+  --retune-black-65: color-mix(in srgb, var(--retune-black) 65%, transparent);
+  --retune-black-70: color-mix(in srgb, var(--retune-black) 70%, transparent);
+  --retune-black-75: color-mix(in srgb, var(--retune-black) 75%, transparent);
+  --retune-black-80: color-mix(in srgb, var(--retune-black) 80%, transparent);
+  --retune-black-85: color-mix(in srgb, var(--retune-black) 85%, transparent);
+  --retune-black-90: color-mix(in srgb, var(--retune-black) 90%, transparent);
+  --retune-black-95: color-mix(in srgb, var(--retune-black) 95%, transparent);
+
+  /* ── White (#ffffff) opacity ramp ── */
   --retune-white: #ffffff;
-  --retune-blue: #0D99FF;
-  --retune-blue-text: #006DBD;
-  --retune-red: #e5484d;
+  --retune-white-5:  color-mix(in srgb, var(--retune-white) 5%, transparent);
+  --retune-white-10: color-mix(in srgb, var(--retune-white) 10%, transparent);
+  --retune-white-15: color-mix(in srgb, var(--retune-white) 15%, transparent);
+  --retune-white-20: color-mix(in srgb, var(--retune-white) 20%, transparent);
+  --retune-white-25: color-mix(in srgb, var(--retune-white) 25%, transparent);
+  --retune-white-30: color-mix(in srgb, var(--retune-white) 30%, transparent);
+  --retune-white-35: color-mix(in srgb, var(--retune-white) 35%, transparent);
+  --retune-white-40: color-mix(in srgb, var(--retune-white) 40%, transparent);
+  --retune-white-45: color-mix(in srgb, var(--retune-white) 45%, transparent);
+  --retune-white-50: color-mix(in srgb, var(--retune-white) 50%, transparent);
+  --retune-white-55: color-mix(in srgb, var(--retune-white) 55%, transparent);
+  --retune-white-60: color-mix(in srgb, var(--retune-white) 60%, transparent);
+  --retune-white-65: color-mix(in srgb, var(--retune-white) 65%, transparent);
+  --retune-white-70: color-mix(in srgb, var(--retune-white) 70%, transparent);
+  --retune-white-75: color-mix(in srgb, var(--retune-white) 75%, transparent);
+  --retune-white-80: color-mix(in srgb, var(--retune-white) 80%, transparent);
+  --retune-white-85: color-mix(in srgb, var(--retune-white) 85%, transparent);
+  --retune-white-90: color-mix(in srgb, var(--retune-white) 90%, transparent);
+  --retune-white-95: color-mix(in srgb, var(--retune-white) 95%, transparent);
 
-  /* ── Semantic: text ── */
-  --retune-text: var(--retune-stone);
-  --retune-text-secondary: color-mix(in srgb, var(--retune-stone) 70%, transparent);
-  --retune-text-tertiary: color-mix(in srgb, var(--retune-stone) 50%, transparent);
-  --retune-text-disabled: color-mix(in srgb, var(--retune-stone) 25%, transparent);
+  /* ── Blue (Figma blue ramp) ── */
+  --retune-blue-100: #F2F9FF;
+  --retune-blue-200: #E5F4FF;
+  --retune-blue-300: #BDE3FF;
+  --retune-blue-400: #80CAFF;
+  --retune-blue-500: #0D99FF;
+  --retune-blue-600: #007BE5;
+  --retune-blue-700: #0768CF;
+  --retune-blue-800: #034AC1;
+  --retune-blue-900: #093077;
+  --retune-blue-1000: #0D193F;
 
-  /* ── Semantic: surfaces ── */
+  /* ── Red (Tailwind red ramp) ── */
+  --retune-red-100: #FFF5F5;
+  --retune-red-200: #FFE2E0;
+  --retune-red-300: #FFC7C2;
+  --retune-red-400: #FFAFA3;
+  --retune-red-500: #F24822;
+  --retune-red-600: #DC3412;
+  --retune-red-700: #BD2915;
+  --retune-red-800: #9F1F18;
+  --retune-red-900: #771208;
+  --retune-red-1000: #660E0B;
+
+  /* ══════════════════════════════════════
+     SEMANTIC — swap these for dark mode
+     ══════════════════════════════════════ */
+
+  /* ── Text ── */
+  --retune-text: var(--retune-black);
+  --retune-text-secondary: var(--retune-black-70);
+  --retune-text-tertiary: var(--retune-black-50);
+  --retune-text-disabled: var(--retune-black-25);
+
+  /* ── Surfaces ── */
   --retune-surface: var(--retune-white);
-  --retune-surface-hover: color-mix(in srgb, var(--retune-stone) 4%, transparent);
-  --retune-surface-active: color-mix(in srgb, var(--retune-stone) 6%, transparent);
-  --retune-input-bg: color-mix(in srgb, var(--retune-stone) 3%, transparent);
-  --retune-input-bg-hover: color-mix(in srgb, var(--retune-stone) 8%, transparent);
+  --retune-surface-hover: var(--retune-black-5);
+  --retune-surface-active: var(--retune-black-5);
+  --retune-input-bg: var(--retune-black-5);
+  --retune-input-bg-hover: var(--retune-black-10);
 
-  /* ── Semantic: borders & shadows ── */
-  --retune-border: color-mix(in srgb, var(--retune-stone) 12%, transparent);
-  --retune-border-subtle: color-mix(in srgb, var(--retune-stone) 6%, transparent);
-  --retune-shadow: color-mix(in srgb, var(--retune-stone) 8%, transparent);
+  /* ── Borders & shadows ── */
+  --retune-border: var(--retune-black-10);
+  --retune-border-subtle: var(--retune-black-5);
+  --retune-shadow: var(--retune-black-10);
 
-  /* ── Semantic: blue ── */
-  --retune-blue-bg: color-mix(in srgb, var(--retune-blue) 10%, transparent);
-  --retune-blue-bg-hover: color-mix(in srgb, var(--retune-blue) 15%, transparent);
-  --retune-blue-selection: color-mix(in srgb, var(--retune-blue) 25%, transparent);
+  /* ── Blue ── */
+  --retune-blue: var(--retune-blue-500);
+  --retune-blue-text: var(--retune-blue-700);
+  --retune-blue-bg: var(--retune-blue-200);
+  --retune-blue-bg-hover: var(--retune-blue-100);
 
-  /* ── Semantic: red ── */
-  --retune-red-bg: color-mix(in srgb, var(--retune-red) 10%, transparent);
+  /* ── Red ── */
+  --retune-red: var(--retune-red-500);
+}
+
+/* ══════════════════════════════════════
+   DARK MODE — swap semantic tokens only
+   ══════════════════════════════════════ */
+:host(.dark) {
+  /* ── Text ── */
+  --retune-text: var(--retune-white);
+  --retune-text-secondary: var(--retune-white-70);
+  --retune-text-tertiary: var(--retune-white-50);
+  --retune-text-disabled: var(--retune-white-25);
+
+  /* ── Surfaces ── */
+  --retune-surface: var(--retune-black);
+  --retune-surface-hover: var(--retune-white-5);
+  --retune-surface-active: var(--retune-white-5);
+  --retune-input-bg: var(--retune-white-5);
+  --retune-input-bg-hover: var(--retune-white-10);
+
+  /* ── Borders & shadows ── */
+  --retune-border: var(--retune-white-10);
+  --retune-border-subtle: var(--retune-white-5);
+  --retune-shadow: var(--retune-white-5);
+
+  /* ── Blue ── */
+  --retune-blue-text: var(--retune-white);
+  --retune-blue-bg: color-mix(in srgb, var(--retune-blue-700) 50%, transparent);
+  --retune-blue-bg-hover: color-mix(in srgb, var(--retune-blue-700) 75%, transparent);
+
+  /* ── Red ── */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -79,7 +179,7 @@
   overflow: visible;
 }
 .retune-toolbar.collapsed:hover {
-  background: color-mix(in srgb, var(--retune-stone) 4%, var(--retune-surface));
+  background: color-mix(in srgb, var(--retune-black) 5%, var(--retune-surface));
 }
 
 .retune-toolbar.top.right { top: 16px; right: 16px; }
@@ -449,6 +549,12 @@
 .retune-selector-tag.included .retune-selector-tag-count,
 .retune-selector-tag.active .retune-selector-tag-count {
   color: var(--retune-blue-text);
+}
+
+:host(.dark) .retune-selector-tag.included .retune-selector-tag-count,
+:host(.dark) .retune-selector-tag.active .retune-selector-tag-count {
+  background: var(--retune-white);
+  color: var(--retune-blue-700);
 }
 
 .retune-selector-tag-name {
