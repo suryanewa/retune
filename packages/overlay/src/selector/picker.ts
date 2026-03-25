@@ -282,7 +282,7 @@ export function createPicker(
   // ── Snap guides ──
   const SNAP_THRESHOLD = 5;
   const snapGuidePool: Array<{ line: HTMLDivElement; label: HTMLDivElement }> = [];
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 16; i++) {
     const line = document.createElement("div");
     line.className = "retune-snap-guide";
     shadowRoot.appendChild(line);
@@ -530,6 +530,242 @@ export function createPicker(
     }
   }
 
+  // ── Position snap (for reposition drag) ──
+
+  let posSnapCache: {
+    parentEdges: { top: number; right: number; bottom: number; left: number; centerX: number; centerY: number };
+    siblingEdges: Array<{ top: number; right: number; bottom: number; left: number; centerX: number; centerY: number }>;
+  } | null = null;
+
+  function buildPosSnapCache(el: Element) {
+    const parent = el.parentElement;
+    if (!parent) { posSnapCache = null; return; }
+
+    const pr = parent.getBoundingClientRect();
+    const pcs = getComputedStyle(parent);
+    const bt = parseFloat(pcs.borderTopWidth) || 0;
+    const br = parseFloat(pcs.borderRightWidth) || 0;
+    const bb = parseFloat(pcs.borderBottomWidth) || 0;
+    const bl = parseFloat(pcs.borderLeftWidth) || 0;
+    const pt = parseFloat(pcs.paddingTop) || 0;
+    const pRight = parseFloat(pcs.paddingRight) || 0;
+    const pb = parseFloat(pcs.paddingBottom) || 0;
+    const pl = parseFloat(pcs.paddingLeft) || 0;
+
+    // Parent content box edges
+    const contentTop = pr.top + bt + pt;
+    const contentRight = pr.right - br - pRight;
+    const contentBottom = pr.bottom - bb - pb;
+    const contentLeft = pr.left + bl + pl;
+
+    const parentEdges = {
+      top: contentTop,
+      right: contentRight,
+      bottom: contentBottom,
+      left: contentLeft,
+      centerX: (contentLeft + contentRight) / 2,
+      centerY: (contentTop + contentBottom) / 2,
+    };
+
+    // Sibling edges
+    const siblings = Array.from(parent.children).filter(c =>
+      c !== el && c.tagName !== "SCRIPT" && c.tagName !== "STYLE"
+    );
+    const siblingEdges = siblings.map(s => {
+      const r = s.getBoundingClientRect();
+      return {
+        top: r.top, right: r.right, bottom: r.bottom, left: r.left,
+        centerX: r.left + r.width / 2, centerY: r.top + r.height / 2,
+      };
+    });
+
+    posSnapCache = { parentEdges, siblingEdges };
+  }
+
+  type PosSnapGuide = {
+    axis: "x" | "y";
+    pos: number;
+    elIsCenter: boolean;   // true if the element's center edge matched
+    refIsCenter: boolean;  // true if the reference's center edge matched
+    refTop: number; refRight: number; refBottom: number; refLeft: number;
+  };
+
+  type PosSnapResult = {
+    dx: number;
+    dy: number;
+    guides: PosSnapGuide[];
+  };
+
+  function checkPosSnap(elRect: DOMRect): PosSnapResult {
+    if (!posSnapCache) return { dx: 0, dy: 0, guides: [] };
+
+    const elEdges = {
+      top: elRect.top, right: elRect.right, bottom: elRect.bottom, left: elRect.left,
+      centerX: elRect.left + elRect.width / 2, centerY: elRect.top + elRect.height / 2,
+    };
+
+    type SnapTarget = { val: number; isCenter: boolean; top: number; right: number; bottom: number; left: number };
+    const xTargets: SnapTarget[] = [];
+    const yTargets: SnapTarget[] = [];
+
+    const pe = posSnapCache.parentEdges;
+    const pRef = { top: pe.top, right: pe.right, bottom: pe.bottom, left: pe.left };
+    xTargets.push(
+      { val: pe.left, isCenter: false, ...pRef },
+      { val: pe.right, isCenter: false, ...pRef },
+      { val: pe.centerX, isCenter: true, ...pRef },
+    );
+    yTargets.push(
+      { val: pe.top, isCenter: false, ...pRef },
+      { val: pe.bottom, isCenter: false, ...pRef },
+      { val: pe.centerY, isCenter: true, ...pRef },
+    );
+
+    for (const s of posSnapCache.siblingEdges) {
+      const sRef = { top: s.top, right: s.right, bottom: s.bottom, left: s.left };
+      xTargets.push(
+        { val: s.left, isCenter: false, ...sRef },
+        { val: s.right, isCenter: false, ...sRef },
+        { val: s.centerX, isCenter: true, ...sRef },
+      );
+      yTargets.push(
+        { val: s.top, isCenter: false, ...sRef },
+        { val: s.bottom, isCenter: false, ...sRef },
+        { val: s.centerY, isCenter: true, ...sRef },
+      );
+    }
+
+    // Element edges for x: [left, right, centerX] — track which matched
+    const xEdges: Array<{ val: number; isCenter: boolean }> = [
+      { val: elEdges.left, isCenter: false },
+      { val: elEdges.right, isCenter: false },
+      { val: elEdges.centerX, isCenter: true },
+    ];
+
+    let bestDx = 0;
+    let bestXDist = SNAP_THRESHOLD + 1;
+    let snapXPos = 0;
+    let snapXRef: SnapTarget | null = null;
+    let snapXElIsCenter = false;
+
+    for (const target of xTargets) {
+      for (const edge of xEdges) {
+        const dist = Math.abs(edge.val - target.val);
+        if (dist < bestXDist) {
+          bestXDist = dist;
+          bestDx = target.val - edge.val;
+          snapXPos = target.val;
+          snapXRef = target;
+          snapXElIsCenter = edge.isCenter;
+        }
+      }
+    }
+
+    const yEdges: Array<{ val: number; isCenter: boolean }> = [
+      { val: elEdges.top, isCenter: false },
+      { val: elEdges.bottom, isCenter: false },
+      { val: elEdges.centerY, isCenter: true },
+    ];
+
+    let bestDy = 0;
+    let bestYDist = SNAP_THRESHOLD + 1;
+    let snapYPos = 0;
+    let snapYRef: SnapTarget | null = null;
+    let snapYElIsCenter = false;
+
+    for (const target of yTargets) {
+      for (const edge of yEdges) {
+        const dist = Math.abs(edge.val - target.val);
+        if (dist < bestYDist) {
+          bestYDist = dist;
+          bestDy = target.val - edge.val;
+          snapYPos = target.val;
+          snapYRef = target;
+          snapYElIsCenter = edge.isCenter;
+        }
+      }
+    }
+
+    const guides: PosSnapGuide[] = [];
+    const snapDx = bestXDist <= SNAP_THRESHOLD ? bestDx : 0;
+    const snapDy = bestYDist <= SNAP_THRESHOLD ? bestDy : 0;
+
+    if ((snapDx !== 0 || bestXDist <= SNAP_THRESHOLD) && snapXRef) {
+      guides.push({ axis: "x", pos: snapXPos, elIsCenter: snapXElIsCenter, refIsCenter: snapXRef.isCenter, refTop: snapXRef.top, refRight: snapXRef.right, refBottom: snapXRef.bottom, refLeft: snapXRef.left });
+    }
+    if ((snapDy !== 0 || bestYDist <= SNAP_THRESHOLD) && snapYRef) {
+      guides.push({ axis: "y", pos: snapYPos, elIsCenter: snapYElIsCenter, refIsCenter: snapYRef.isCenter, refTop: snapYRef.top, refRight: snapYRef.right, refBottom: snapYRef.bottom, refLeft: snapYRef.left });
+    }
+
+    return { dx: snapDx, dy: snapDy, guides };
+  }
+
+  function showPosSnapGuides(guides: PosSnapGuide[], elRect: DOMRect) {
+    hideSnapGuides();
+    let poolIdx = 0;
+
+    function addXMark(x: number, y: number) {
+      if (poolIdx >= snapGuidePool.length) return;
+      const g = snapGuidePool[poolIdx++];
+      drawXMark(g.line, x, y);
+      g.line.classList.add("visible");
+    }
+
+    for (const guide of guides) {
+      if (poolIdx >= snapGuidePool.length) break;
+
+      const { line } = snapGuidePool[poolIdx++];
+      // border-left/border-top visual center is at pos + 0.5
+      if (guide.axis === "x") {
+        line.style.cssText = `
+          position:fixed;pointer-events:none;z-index:2147483645;background:none;
+          top:0;left:${guide.pos}px;width:0;height:100vh;
+          border-left:1px solid var(--retune-red);
+        `;
+        line.classList.add("visible");
+        const cx = guide.pos + 0.5;
+
+        // Reference element X marks: center if center matched, else corners
+        if (guide.refIsCenter) {
+          addXMark(cx, (guide.refTop + guide.refBottom) / 2);
+        } else {
+          addXMark(cx, guide.refTop);
+          addXMark(cx, guide.refBottom);
+        }
+        // Dragged element X marks: center if center matched, else corners
+        if (guide.elIsCenter) {
+          addXMark(cx, elRect.top + elRect.height / 2);
+        } else {
+          addXMark(cx, elRect.top);
+          addXMark(cx, elRect.bottom);
+        }
+      } else {
+        line.style.cssText = `
+          position:fixed;pointer-events:none;z-index:2147483645;background:none;
+          top:${guide.pos}px;left:0;width:100vw;height:0;
+          border-top:1px solid var(--retune-red);
+        `;
+        line.classList.add("visible");
+        const cy = guide.pos + 0.5;
+
+        // Reference element X marks: center if center matched, else corners
+        if (guide.refIsCenter) {
+          addXMark((guide.refLeft + guide.refRight) / 2, cy);
+        } else {
+          addXMark(guide.refLeft, cy);
+          addXMark(guide.refRight, cy);
+        }
+        // Dragged element X marks: center if center matched, else corners
+        if (guide.elIsCenter) {
+          addXMark(elRect.left + elRect.width / 2, cy);
+        } else {
+          addXMark(elRect.left, cy);
+          addXMark(elRect.right, cy);
+        }
+      }
+    }
+  }
+
   // ── Resize drag state ──
   let resizeFillWidth = false;
   let resizeFillHeight = false;
@@ -546,6 +782,9 @@ export function createPicker(
     e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    // Clear any existing hover/spacing visuals
+    hideHighlight();
 
     const rect = selectedElement.getBoundingClientRect();
     resizeDrag = {
@@ -672,6 +911,7 @@ export function createPicker(
     startLeft: number;
     startRight: number;
     startBottom: number;
+    startRect: DOMRect;
   } | null = null;
 
   function isRepositionable(el: Element): boolean {
@@ -694,6 +934,12 @@ export function createPicker(
     e.stopPropagation();
     e.preventDefault();
     selection.setPointerCapture(e.pointerId);
+
+    // Clear visuals and hide selection chrome during drag
+    hideHighlight();
+    selection.style.display = "none";
+    selectionLabel.style.display = "none";
+    hideHandles();
 
     const el = selectedElement as HTMLElement;
     const cs = getComputedStyle(el);
@@ -756,7 +1002,11 @@ export function createPicker(
       startLeft: parseFloat(cs.left) || 0,
       startRight: parseFloat(cs.right) || 0,
       startBottom: parseFloat(cs.bottom) || 0,
+      startRect: selectedElement.getBoundingClientRect(),
     };
+
+    // Cache snap targets for position snapping
+    buildPosSnapCache(selectedElement);
 
     document.addEventListener("pointermove", handleRepositionPointerMove, true);
     document.addEventListener("pointerup", handleRepositionPointerUp, true);
@@ -766,36 +1016,51 @@ export function createPicker(
     if (!repositionDrag || !selectedElement) return;
     e.preventDefault();
 
-    const dx = e.clientX - repositionDrag.startX;
-    const dy = e.clientY - repositionDrag.startY;
+    const rawDx = e.clientX - repositionDrag.startX;
+    const rawDy = e.clientY - repositionDrag.startY;
     const el = selectedElement as HTMLElement;
 
-    // Update the correct positioning properties based on what the element uses
+    // Compute proposed rect from start position + raw delta (no previous snap)
+    const startRect = repositionDrag.startRect;
+    const proposedRect = new DOMRect(
+      startRect.left + rawDx, startRect.top + rawDy, startRect.width, startRect.height
+    );
+
+    // Check alignment snap
+    const snap = checkPosSnap(proposedRect);
+    const snapDx = snap.dx;
+    const snapDy = snap.dy;
+
+    // Show/hide position snap guides
+    if (snap.guides.length > 0) {
+      const snappedRect = new DOMRect(
+        proposedRect.left + snap.dx, proposedRect.top + snap.dy, proposedRect.width, proposedRect.height
+      );
+      showPosSnapGuides(snap.guides, snappedRect);
+    } else {
+      hideSnapGuides();
+    }
+
+    // Compute final position values with snap correction applied
     if (repositionAxes?.useBottom) {
-      const newBottom = Math.round(repositionDrag.startBottom - dy);
+      const newBottom = Math.round(repositionDrag.startBottom - rawDy - snapDy);
       el.style.setProperty("bottom", `${newBottom}px`, "important");
       callbacks.onRepositionPreview?.(selectedElement, "bottom", `${newBottom}px`);
     } else {
-      const newTop = Math.round(repositionDrag.startTop + dy);
+      const newTop = Math.round(repositionDrag.startTop + rawDy + snapDy);
       el.style.setProperty("top", `${newTop}px`, "important");
       callbacks.onRepositionPreview?.(selectedElement, "top", `${newTop}px`);
     }
 
     if (repositionAxes?.useRight) {
-      const newRight = Math.round(repositionDrag.startRight - dx);
+      const newRight = Math.round(repositionDrag.startRight - rawDx - snapDx);
       el.style.setProperty("right", `${newRight}px`, "important");
       callbacks.onRepositionPreview?.(selectedElement, "right", `${newRight}px`);
     } else {
-      const newLeft = Math.round(repositionDrag.startLeft + dx);
+      const newLeft = Math.round(repositionDrag.startLeft + rawDx + snapDx);
       el.style.setProperty("left", `${newLeft}px`, "important");
       callbacks.onRepositionPreview?.(selectedElement, "left", `${newLeft}px`);
     }
-
-    // Update selection box + handles
-    const newRect = selectedElement.getBoundingClientRect();
-    positionBox(selection, selectionLabel, newRect, "solid", "0");
-    positionHandles(newRect);
-    selectionLabel.textContent = formatLabel(selectedElement);
 
     // Update parent indicator + pin lines
     const parent = selectedElement.parentElement;
@@ -815,9 +1080,14 @@ export function createPicker(
       return;
     }
 
-    const dx = e.clientX - repositionDrag.startX;
-    const dy = e.clientY - repositionDrag.startY;
+    const rawDx = e.clientX - repositionDrag.startX;
+    const rawDy = e.clientY - repositionDrag.startY;
     const el = selectedElement as HTMLElement;
+
+    // Compute final snap correction
+    const startRect = repositionDrag.startRect;
+    const finalProposed = new DOMRect(startRect.left + rawDx, startRect.top + rawDy, startRect.width, startRect.height);
+    const finalSnap = checkPosSnap(finalProposed);
 
     // Remove inline overrides
     if (repositionAxes?.useBottom) el.style.removeProperty("bottom");
@@ -825,23 +1095,27 @@ export function createPicker(
     if (repositionAxes?.useRight) el.style.removeProperty("right");
     else el.style.removeProperty("left");
 
-    // Report final values using the correct properties
-    if (Math.abs(dy) > 0.5) {
+    // Report final values with snap correction
+    const totalDy = rawDy + finalSnap.dy;
+    const totalDx = rawDx + finalSnap.dx;
+    if (Math.abs(totalDy) > 0.5) {
       if (repositionAxes?.useBottom) {
-        callbacks.onReposition?.(selectedElement, "bottom", `${Math.round(repositionDrag.startBottom - dy)}px`);
+        callbacks.onReposition?.(selectedElement, "bottom", `${Math.round(repositionDrag.startBottom - totalDy)}px`);
       } else {
-        callbacks.onReposition?.(selectedElement, "top", `${Math.round(repositionDrag.startTop + dy)}px`);
+        callbacks.onReposition?.(selectedElement, "top", `${Math.round(repositionDrag.startTop + totalDy)}px`);
       }
     }
-    if (Math.abs(dx) > 0.5) {
+    if (Math.abs(totalDx) > 0.5) {
       if (repositionAxes?.useRight) {
-        callbacks.onReposition?.(selectedElement, "right", `${Math.round(repositionDrag.startRight - dx)}px`);
+        callbacks.onReposition?.(selectedElement, "right", `${Math.round(repositionDrag.startRight - totalDx)}px`);
       } else {
-        callbacks.onReposition?.(selectedElement, "left", `${Math.round(repositionDrag.startLeft + dx)}px`);
+        callbacks.onReposition?.(selectedElement, "left", `${Math.round(repositionDrag.startLeft + totalDx)}px`);
       }
     }
 
     repositionDrag = null;
+    posSnapCache = null;
+    hideSnapGuides();
     document.removeEventListener("pointermove", handleRepositionPointerMove, true);
     document.removeEventListener("pointerup", handleRepositionPointerUp, true);
 
@@ -1259,7 +1533,7 @@ export function createPicker(
   }
 
   function handleMouseMove(e: MouseEvent) {
-    if (!active || suspended) return;
+    if (!active || suspended || repositionDrag || resizeDrag) return;
     // Skip if cursor is over overlay UI (toolbar, panel) inside the shadow root.
     // elementFromPoint on a ShadowRoot falls through to page elements when no
     // shadow element is at the point, so we verify the hit actually belongs to

@@ -2823,13 +2823,11 @@
   pointer-events: none;
   z-index: 2147483645;
   background: var(--retune-red);
-  opacity: 0;
-  transition: opacity 100ms ease;
+  display: none;
 }
 
 .retune-snap-guide.visible {
-  opacity: 1;
-  transition: none;
+  display: block;
 }
 
 .retune-snap-label {
