@@ -154,6 +154,151 @@ export function createPicker(
     for (const pos of ALL_POSITIONS) handleEls[pos].style.display = "none";
   }
 
+  // ── Snap guides ──
+  const SNAP_THRESHOLD = 5;
+  const snapGuidePool: Array<{ line: HTMLDivElement; label: HTMLDivElement }> = [];
+  for (let i = 0; i < 8; i++) {
+    const line = document.createElement("div");
+    line.className = "retune-snap-guide";
+    shadowRoot.appendChild(line);
+    const label = document.createElement("div");
+    label.className = "retune-snap-label";
+    shadowRoot.appendChild(label);
+    snapGuidePool.push({ line, label });
+  }
+
+  let snapCache: {
+    siblingWidths: number[];
+    siblingHeights: number[];
+    siblingRects: DOMRect[];
+    parentRect: DOMRect | null;
+    parentWidth: number;
+    parentHeight: number;
+  } | null = null;
+
+  function buildSnapCache(el: Element) {
+    const parent = el.parentElement;
+    const siblings = parent
+      ? Array.from(parent.children).filter(c => c !== el && c.tagName !== "SCRIPT" && c.tagName !== "STYLE")
+      : [];
+    const siblingRects = siblings.map(s => s.getBoundingClientRect());
+    const siblingWidths = [...new Set(siblingRects.map(r => Math.round(r.width)))].sort((a, b) => a - b);
+    const siblingHeights = [...new Set(siblingRects.map(r => Math.round(r.height)))].sort((a, b) => a - b);
+    const parentRect = parent ? parent.getBoundingClientRect() : null;
+    const parentCs = parent ? getComputedStyle(parent) : null;
+    const parentWidth = parentRect && parentCs
+      ? parentRect.width - parseFloat(parentCs.paddingLeft) - parseFloat(parentCs.paddingRight) - parseFloat(parentCs.borderLeftWidth) - parseFloat(parentCs.borderRightWidth)
+      : 0;
+    const parentHeight = parentRect && parentCs
+      ? parentRect.height - parseFloat(parentCs.paddingTop) - parseFloat(parentCs.paddingBottom) - parseFloat(parentCs.borderTopWidth) - parseFloat(parentCs.borderBottomWidth)
+      : 0;
+    snapCache = { siblingWidths, siblingHeights, siblingRects, parentRect, parentWidth: Math.round(parentWidth), parentHeight: Math.round(parentHeight) };
+  }
+
+  function findSnap(value: number, candidates: number[]): number | null {
+    // Binary search for nearest candidate within threshold
+    let lo = 0, hi = candidates.length - 1;
+    let best: number | null = null;
+    let bestDist = SNAP_THRESHOLD + 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const dist = Math.abs(candidates[mid] - value);
+      if (dist < bestDist) { bestDist = dist; best = candidates[mid]; }
+      if (candidates[mid] < value) lo = mid + 1;
+      else hi = mid - 1;
+    }
+    return bestDist <= SNAP_THRESHOLD ? best : null;
+  }
+
+  function snapResize(w: number, h: number, axes: { dx: number; dy: number }): { width: number; height: number; guides: Array<{ axis: "x" | "y"; value: number; ref: number; refRect?: DOMRect }> } {
+    if (!snapCache) return { width: w, height: h, guides: [] };
+    const guides: Array<{ axis: "x" | "y"; value: number; ref: number; refRect?: DOMRect }> = [];
+
+    if (axes.dx !== 0) {
+      // Check sibling widths
+      const snapW = findSnap(w, snapCache.siblingWidths);
+      // Check parent content width
+      const parentSnapW = Math.abs(w - snapCache.parentWidth) <= SNAP_THRESHOLD ? snapCache.parentWidth : null;
+      const bestW = parentSnapW !== null ? parentSnapW : snapW;
+      if (bestW !== null) {
+        w = bestW;
+        // Find a sibling with matching width for the guide line
+        const matchRect = snapCache.siblingRects.find(r => Math.round(r.width) === bestW);
+        guides.push({ axis: "x", value: bestW, ref: bestW, refRect: matchRect });
+      }
+    }
+
+    if (axes.dy !== 0) {
+      const snapH = findSnap(h, snapCache.siblingHeights);
+      const parentSnapH = Math.abs(h - snapCache.parentHeight) <= SNAP_THRESHOLD ? snapCache.parentHeight : null;
+      const bestH = parentSnapH !== null ? parentSnapH : snapH;
+      if (bestH !== null) {
+        h = bestH;
+        const matchRect = snapCache.siblingRects.find(r => Math.round(r.height) === bestH);
+        guides.push({ axis: "y", value: bestH, ref: bestH, refRect: matchRect });
+      }
+    }
+
+    return { width: w, height: h, guides };
+  }
+
+  function showSnapGuides(guides: Array<{ axis: "x" | "y"; value: number; ref: number; refRect?: DOMRect }>, elRect: DOMRect) {
+    // Hide all first
+    for (const g of snapGuidePool) {
+      g.line.classList.remove("visible");
+      g.label.classList.remove("visible");
+    }
+
+    guides.forEach((guide, i) => {
+      if (i >= snapGuidePool.length) return;
+      const { line, label } = snapGuidePool[i];
+
+      if (guide.axis === "x" && guide.refRect) {
+        // Horizontal dashed line connecting widths
+        const y = Math.min(elRect.bottom, guide.refRect.bottom) + 8;
+        const left = Math.min(elRect.left, guide.refRect.left);
+        const right = Math.max(elRect.right, guide.refRect.right);
+        line.style.cssText = `position:fixed;pointer-events:none;z-index:2147483645;top:${y}px;left:${left}px;width:${right - left}px;height:1px;background:#e5484d;`;
+        line.classList.add("visible");
+        label.textContent = `${guide.value}`;
+        label.style.cssText = `position:fixed;pointer-events:none;z-index:2147483646;top:${y + 4}px;left:${(left + right) / 2}px;transform:translateX(-50%);font-size:10px;font-weight:500;font-family:inherit;color:#fff;background:#e5484d;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+        label.classList.add("visible");
+      } else if (guide.axis === "y" && guide.refRect) {
+        // Vertical dashed line connecting heights
+        const x = Math.min(elRect.right, guide.refRect.right) + 8;
+        const top = Math.min(elRect.top, guide.refRect.top);
+        const bottom = Math.max(elRect.bottom, guide.refRect.bottom);
+        line.style.cssText = `position:fixed;pointer-events:none;z-index:2147483645;top:${top}px;left:${x}px;width:1px;height:${bottom - top}px;background:#e5484d;`;
+        line.classList.add("visible");
+        label.textContent = `${guide.value}`;
+        label.style.cssText = `position:fixed;pointer-events:none;z-index:2147483646;top:${(top + bottom) / 2}px;left:${x + 4}px;transform:translateY(-50%);font-size:10px;font-weight:500;font-family:inherit;color:#fff;background:#e5484d;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+        label.classList.add("visible");
+      } else if (guide.axis === "x") {
+        // Width matches parent — show horizontal line at element bottom
+        const y = elRect.bottom + 8;
+        line.style.cssText = `position:fixed;pointer-events:none;z-index:2147483645;top:${y}px;left:${elRect.left}px;width:${elRect.width}px;height:1px;background:#e5484d;`;
+        line.classList.add("visible");
+        label.textContent = `${guide.value}`;
+        label.style.cssText = `position:fixed;pointer-events:none;z-index:2147483646;top:${y + 4}px;left:${elRect.left + elRect.width / 2}px;transform:translateX(-50%);font-size:10px;font-weight:500;font-family:inherit;color:#fff;background:#e5484d;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+        label.classList.add("visible");
+      } else if (guide.axis === "y") {
+        const x = elRect.right + 8;
+        line.style.cssText = `position:fixed;pointer-events:none;z-index:2147483645;top:${elRect.top}px;left:${x}px;width:1px;height:${elRect.height}px;background:#e5484d;`;
+        line.classList.add("visible");
+        label.textContent = `${guide.value}`;
+        label.style.cssText = `position:fixed;pointer-events:none;z-index:2147483646;top:${elRect.top + elRect.height / 2}px;left:${x + 4}px;transform:translateY(-50%);font-size:10px;font-weight:500;font-family:inherit;color:#fff;background:#e5484d;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+        label.classList.add("visible");
+      }
+    });
+  }
+
+  function hideSnapGuides() {
+    for (const g of snapGuidePool) {
+      g.line.classList.remove("visible");
+      g.label.classList.remove("visible");
+    }
+  }
+
   // ── Resize drag state ──
   let resizeDrag: {
     handle: HandlePos;
@@ -177,6 +322,9 @@ export function createPicker(
       startWidth: rect.width,
       startHeight: rect.height,
     };
+
+    // Cache snap targets
+    buildSnapCache(selectedElement);
 
     document.addEventListener("pointermove", handleResizePointerMove, true);
     document.addEventListener("pointerup", handleResizePointerUp, true);
@@ -205,9 +353,10 @@ export function createPicker(
     if (!resizeDrag || !selectedElement) return;
     e.preventDefault();
 
-    const { width, height } = computeResize(e);
-    const el = selectedElement as HTMLElement;
+    const raw = computeResize(e);
     const axes = HANDLE_AXES[resizeDrag.handle];
+    const { width, height, guides } = snapResize(raw.width, raw.height, axes);
+    const el = selectedElement as HTMLElement;
 
     // Update LivePreviewEngine stylesheet for all matching instances
     if (axes.dx !== 0) callbacks.onResizePreview?.(selectedElement, "width", `${width}px`);
@@ -221,6 +370,13 @@ export function createPicker(
     positionBox(selection, selectionLabel, newRect, "solid", "0.04");
     positionHandles(newRect);
     selectionLabel.textContent = formatLabel(selectedElement);
+
+    // Show/hide snap guides
+    if (guides.length > 0) {
+      showSnapGuides(guides, newRect);
+    } else {
+      hideSnapGuides();
+    }
   }
 
   function handleResizePointerUp(e: PointerEvent) {
@@ -229,9 +385,13 @@ export function createPicker(
       return;
     }
 
-    const { width, height } = computeResize(e);
+    const raw = computeResize(e);
     const axes = HANDLE_AXES[resizeDrag.handle];
+    const { width, height } = snapResize(raw.width, raw.height, axes);
     const el = selectedElement as HTMLElement;
+
+    hideSnapGuides();
+    snapCache = null;
 
     // Report final values through callback (keeps inline styles — LivePreviewEngine overrides)
     const widthChanged = axes.dx !== 0 && Math.abs(width - resizeDrag.startWidth) > 0.5;
@@ -799,6 +959,7 @@ export function createPicker(
     selection.remove();
     selectionLabel.remove();
     spacingContainer.remove();
+    for (const g of snapGuidePool) { g.line.remove(); g.label.remove(); }
     for (const pos of ALL_POSITIONS) handleEls[pos].remove();
   }
 
