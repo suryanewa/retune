@@ -2487,6 +2487,7 @@ function RetuneInner(props: RetuneConfig) {
                 styleSources={styleSources}
                 forcedState={forcedState}
                 onForcedStateChange={handleForcedStateChange}
+                onPinLinesChange={(authored) => pickerRef.current?.updatePinLines(authored)}
               />
             )}
           </div>

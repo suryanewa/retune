@@ -56,6 +56,116 @@ export function createPicker(
   `;
   shadowRoot.appendChild(parentIndicator);
 
+  // Pin lines — dashed lines from element to parent edges for pinned sides
+  const pinLines: Record<string, HTMLDivElement> = {};
+  for (const side of ["top", "right", "bottom", "left"] as const) {
+    const line = document.createElement("div");
+    line.style.cssText = "position:fixed;display:none;pointer-events:none;z-index:2147483644;";
+    shadowRoot.appendChild(line);
+    pinLines[side] = line;
+  }
+
+  /** Detect which position properties are authored (inline style or CSS rules) */
+  function detectAuthoredPositionProps(el: Element): { top: boolean; right: boolean; bottom: boolean; left: boolean } {
+    const htmlEl = el as HTMLElement;
+    const result = { top: false, right: false, bottom: false, left: false };
+    const pos = getComputedStyle(el).position;
+    if (pos !== "absolute" && pos !== "fixed") return result;
+
+    for (const prop of ["top", "right", "bottom", "left"] as const) {
+      if (htmlEl.style[prop] !== "") { result[prop] = true; continue; }
+      try {
+        for (const sheet of document.styleSheets) {
+          try {
+            for (const rule of sheet.cssRules) {
+              if (rule instanceof CSSStyleRule && el.matches(rule.selectorText)) {
+                const val = rule.style.getPropertyValue(prop);
+                if (val && val !== "auto") { result[prop] = true; break; }
+              }
+            }
+          } catch {}
+          if (result[prop]) break;
+        }
+      } catch {}
+    }
+    return result;
+  }
+
+  function showPinLines(elRect: DOMRect, parentRect: DOMRect, authored: { top: boolean; right: boolean; bottom: boolean; left: boolean }) {
+    const elCenterX = elRect.left + elRect.width / 2;
+    const elCenterY = elRect.top + elRect.height / 2;
+
+    // Top pin line: from element top edge to parent top edge
+    if (authored.top && elRect.top > parentRect.top) {
+      pinLines.top.style.cssText = `
+        position:fixed;display:block;pointer-events:none;z-index:2147483644;
+        top:${parentRect.top}px;left:${elCenterX}px;
+        width:0;height:${elRect.top - parentRect.top}px;
+        border-left:1px dashed #0D99FF;
+      `;
+    } else {
+      pinLines.top.style.display = "none";
+    }
+
+    // Bottom pin line: from element bottom edge to parent bottom edge
+    if (authored.bottom && parentRect.bottom > elRect.bottom) {
+      pinLines.bottom.style.cssText = `
+        position:fixed;display:block;pointer-events:none;z-index:2147483644;
+        top:${elRect.bottom}px;left:${elCenterX}px;
+        width:0;height:${parentRect.bottom - elRect.bottom}px;
+        border-left:1px dashed #0D99FF;
+      `;
+    } else {
+      pinLines.bottom.style.display = "none";
+    }
+
+    // Left pin line: from element left edge to parent left edge
+    if (authored.left && elRect.left > parentRect.left) {
+      pinLines.left.style.cssText = `
+        position:fixed;display:block;pointer-events:none;z-index:2147483644;
+        top:${elCenterY}px;left:${parentRect.left}px;
+        width:${elRect.left - parentRect.left}px;height:0;
+        border-top:1px dashed #0D99FF;
+      `;
+    } else {
+      pinLines.left.style.display = "none";
+    }
+
+    // Right pin line: from element right edge to parent right edge
+    if (authored.right && parentRect.right > elRect.right) {
+      pinLines.right.style.cssText = `
+        position:fixed;display:block;pointer-events:none;z-index:2147483644;
+        top:${elCenterY}px;left:${elRect.right}px;
+        width:${parentRect.right - elRect.right}px;height:0;
+        border-top:1px dashed #0D99FF;
+      `;
+    } else {
+      pinLines.right.style.display = "none";
+    }
+  }
+
+  function hidePinLines() {
+    for (const line of Object.values(pinLines)) line.style.display = "none";
+  }
+
+  // Cache the latest pin state (from panel or initial detection)
+  let cachedPinState: { top: boolean; right: boolean; bottom: boolean; left: boolean } | null = null;
+
+  /** Refresh pin lines using current element + parent rects */
+  function refreshPinLines() {
+    if (!selectedElement) return;
+    const parent = selectedElement.parentElement;
+    if (!parent || parent === document.body || parent === document.documentElement) return;
+    const rect = selectedElement.getBoundingClientRect();
+    const pr = parent.getBoundingClientRect();
+    const authored = cachedPinState || detectAuthoredPositionProps(selectedElement);
+    if (authored.top || authored.right || authored.bottom || authored.left) {
+      showPinLines(rect, pr, authored);
+    } else {
+      hidePinLines();
+    }
+  }
+
   let active = false;
   let suspended = false; // temporarily suppress hover (e.g. during text editing)
   let hoveredElement: Element | null = null;
@@ -502,6 +612,7 @@ export function createPicker(
     } else {
       hideSnapGuides();
     }
+    refreshPinLines();
   }
 
   function handleResizePointerUp(e: PointerEvent) {
@@ -541,6 +652,7 @@ export function createPicker(
     positionBox(selection, selectionLabel, newRect, "solid", "0");
     positionHandles(newRect);
     selectionLabel.textContent = formatLabel(selectedElement);
+    refreshPinLines();
   }
 
   // Attach resize handlers to all handles
@@ -685,7 +797,7 @@ export function createPicker(
     positionHandles(newRect);
     selectionLabel.textContent = formatLabel(selectedElement);
 
-    // Update parent indicator
+    // Update parent indicator + pin lines
     const parent = selectedElement.parentElement;
     if (parent && parent !== document.body && parent !== document.documentElement) {
       const pr = parent.getBoundingClientRect();
@@ -694,6 +806,7 @@ export function createPicker(
       parentIndicator.style.width = `${pr.width}px`;
       parentIndicator.style.height = `${pr.height}px`;
     }
+    refreshPinLines();
   }
 
   function handleRepositionPointerUp(e: PointerEvent) {
@@ -737,6 +850,7 @@ export function createPicker(
     positionBox(selection, selectionLabel, newRect, "solid", "0");
     positionHandles(newRect);
     selectionLabel.textContent = formatLabel(selectedElement);
+    refreshPinLines();
   }
 
   selection.addEventListener("pointerdown", handleRepositionPointerDown);
@@ -981,8 +1095,19 @@ export function createPicker(
         border:1px dotted #0D99FF;background:none;
         top:${pr.top}px;left:${pr.left}px;width:${pr.width}px;height:${pr.height}px;
       `;
+
+      // Show dashed pin lines for absolute/fixed elements
+      const authored = detectAuthoredPositionProps(selectedElement);
+      cachedPinState = authored;
+      if (authored.top || authored.right || authored.bottom || authored.left) {
+        showPinLines(rect, pr, authored);
+      } else {
+        hidePinLines();
+      }
     } else {
       parentIndicator.style.display = "none";
+      cachedPinState = null;
+      hidePinLines();
     }
   }
 
@@ -1010,7 +1135,7 @@ export function createPicker(
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
     positionHandles(rect);
 
-    // Update parent indicator position
+    // Update parent indicator + pin lines
     const parent = selectedElement.parentElement;
     if (parent && parent !== document.body && parent !== document.documentElement && parentIndicator.style.display !== "none") {
       const pr = parent.getBoundingClientRect();
@@ -1018,6 +1143,11 @@ export function createPicker(
       parentIndicator.style.left = `${pr.left}px`;
       parentIndicator.style.width = `${pr.width}px`;
       parentIndicator.style.height = `${pr.height}px`;
+
+      const authored = detectAuthoredPositionProps(selectedElement);
+      if (authored.top || authored.right || authored.bottom || authored.left) {
+        showPinLines(rect, pr, authored);
+      }
     }
   }
 
@@ -1044,6 +1174,8 @@ export function createPicker(
     selection.style.pointerEvents = "none";
     selection.style.cursor = "";
     parentIndicator.style.display = "none";
+    hidePinLines();
+    cachedPinState = null;
     repositionAxes = null;
     hideHandles();
   }
@@ -1313,6 +1445,7 @@ export function createPicker(
     selectionLabel.remove();
     spacingContainer.remove();
     parentIndicator.remove();
+    for (const line of Object.values(pinLines)) line.remove();
     for (const g of snapGuidePool) { g.line.remove(); g.label.remove(); }
     for (const pos of ALL_POSITIONS) handleEls[pos].remove();
   }
@@ -1343,5 +1476,20 @@ export function createPicker(
   function suspend() { suspended = true; hideHighlight(); hideSelection(); }
   function resume() { suspended = false; if (selectedElement) showSelection(); }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: scheduleTrack, suspend, resume };
+  /** Update pin lines externally (called by PropertyPanel when pins change) */
+  function updatePinLines(authored: { top: boolean; right: boolean; bottom: boolean; left: boolean }) {
+    cachedPinState = authored;
+    if (!selectedElement) return;
+    const rect = selectedElement.getBoundingClientRect();
+    const parent = selectedElement.parentElement;
+    if (!parent || parent === document.body || parent === document.documentElement) return;
+    const pr = parent.getBoundingClientRect();
+    if (authored.top || authored.right || authored.bottom || authored.left) {
+      showPinLines(rect, pr, authored);
+    } else {
+      hidePinLines();
+    }
+  }
+
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume };
 }

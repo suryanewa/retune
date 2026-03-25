@@ -178,6 +178,7 @@ export function PropertyPanel({
   styleSources = {},
   forcedState = null,
   onForcedStateChange,
+  onPinLinesChange,
 }: {
   element: InspectedElement;
   position: "left" | "right";
@@ -207,6 +208,7 @@ export function PropertyPanel({
   styleSources?: Record<string, StyleSource>;
   forcedState?: ForcedState;
   onForcedStateChange?: (state: ForcedState) => void;
+  onPinLinesChange?: (authored: { top: boolean; right: boolean; bottom: boolean; left: boolean }) => void;
 }) {
   const rawStyles = element.computedStyles;
 
@@ -649,8 +651,12 @@ export function PropertyPanel({
   }, [filters, applyFilters]);
 
   const handlePinChange = useCallback((side: "top" | "right" | "bottom" | "left", pinned: boolean) => {
-    setPins((prev) => ({ ...prev, [side]: pinned }));
-  }, []);
+    setPins((prev) => {
+      const next = { ...prev, [side]: pinned };
+      onPinLinesChange?.(next);
+      return next;
+    });
+  }, [onPinLinesChange]);
 
   const applyTransform = useCallback(() => {
     const { h, v } = centeredAxes.current;
