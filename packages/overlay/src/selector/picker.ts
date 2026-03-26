@@ -2275,8 +2275,11 @@ export function createPicker(
     return current;
   }
 
-  function applyHover(el: Element) {
+  let lastAltState = false; // track Alt key to show/hide spacing on key change
+
+  function applyHover(el: Element, altKey = false) {
     hoveredElement = el;
+    lastAltState = altKey;
 
     if (el === selectedElement) {
       hideHighlight();
@@ -2288,12 +2291,14 @@ export function createPicker(
       updateHighlight(el);
       if (selectedElement) {
         if (el.contains(selectedElement)) {
-          // Hovered element is a parent/ancestor — show four-edge distances + sibling outlines
-          showParentSpacing(selectedElement.getBoundingClientRect(), el);
+          // Hovered element is a parent/ancestor
+          if (altKey) showParentSpacing(selectedElement.getBoundingClientRect(), el);
+          else hideSpacing();
           showSiblingOutlines(el, selectedElement);
         } else {
-          // Sibling or unrelated — show nearest-edge spacing
-          showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+          // Sibling or unrelated
+          if (altKey) showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+          else hideSpacing();
           hideSiblingOutlines();
         }
       }
@@ -2342,10 +2347,10 @@ export function createPicker(
         hoverTimer = null;
         // Re-check — cursor may have moved to a sibling by now
         const current = document.elementFromPoint(e.clientX, e.clientY);
-        if (current === el) applyHover(el);
+        if (current === el) applyHover(el, e.altKey);
       }, 50);
     } else {
-      applyHover(el);
+      applyHover(el, e.altKey);
     }
   }
 
@@ -2456,11 +2461,22 @@ export function createPicker(
   function handleKeyDown(e: KeyboardEvent) {
     if (!active) return;
     if (e.key === "Escape") {
-      // If a nested overlay (e.g. color picker) is open, let it handle Escape
       if (shadowRoot.querySelector(".retune-floating-dialog")) return;
       e.preventDefault();
       e.stopPropagation();
       callbacks.onCancel();
+    }
+    // Alt/Option pressed — show spacing if hovering
+    if (e.key === "Alt" && hoveredElement && selectedElement) {
+      applyHover(hoveredElement, true);
+    }
+  }
+
+  function handleKeyUp(e: KeyboardEvent) {
+    if (!active) return;
+    // Alt/Option released — hide spacing
+    if (e.key === "Alt" && hoveredElement && selectedElement) {
+      applyHover(hoveredElement, false);
     }
   }
 
@@ -2476,6 +2492,7 @@ export function createPicker(
     document.addEventListener("click", handleClick, true);
     document.addEventListener("dblclick", handleDblClick, true);
     document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("keyup", handleKeyUp, true);
     startTracking();
   }
 
@@ -2496,6 +2513,7 @@ export function createPicker(
     document.removeEventListener("click", handleClick, true);
     document.removeEventListener("dblclick", handleDblClick, true);
     document.removeEventListener("keydown", handleKeyDown, true);
+    document.removeEventListener("keyup", handleKeyUp, true);
   }
 
   function clearSelection() {

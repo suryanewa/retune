@@ -17,15 +17,21 @@ interface SettingsPanelProps {
   exiting?: boolean;
 }
 
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
+const MOD = isMac ? "⌘" : "Ctrl";
+const ALT = isMac ? "⌥" : "Alt";
+const DEL = isMac ? "⌫" : "Del";
+
 const SHORTCUTS: Array<{ label: string; keys: string[] }> = [
-  { label: "Undo", keys: ["⌘", "Z"] },
-  { label: "Redo", keys: ["⌘", "⇧", "Z"] },
+  { label: "Undo", keys: [MOD, "Z"] },
+  { label: "Redo", keys: [MOD, "⇧", "Z"] },
   { label: "Select Child", keys: ["Enter"] },
   { label: "Select Parent", keys: ["⇧", "Enter"] },
   { label: "Select Next Sibling", keys: ["Tab"] },
   { label: "Select Previous Sibling", keys: ["⇧", "Tab"] },
   { label: "Reorder", keys: ["↑", "↓", "←", "→"] },
-  { label: "Delete Element", keys: ["⌫"] },
+  { label: "Delete Element", keys: [DEL] },
+  { label: "Measure Spacing", keys: [ALT, "Hover"] },
 ];
 
 function KeyBadge({ children }: { children: string }) {
