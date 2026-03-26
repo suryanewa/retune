@@ -60,6 +60,51 @@ export function createPicker(
   `;
   shadowRoot.appendChild(parentIndicator);
 
+  // Sibling outlines — dotted outlines on non-selected siblings when hovering their parent
+  const siblingOutlinePool: HTMLDivElement[] = [];
+  for (let i = 0; i < 20; i++) {
+    const outline = document.createElement("div");
+    outline.style.cssText = `
+      position:fixed;display:none;pointer-events:none;z-index:2147483644;
+      border:1px dotted #0D99FF;background:none;
+    `;
+    shadowRoot.appendChild(outline);
+    siblingOutlinePool.push(outline);
+  }
+
+  function showSiblingOutlines(parent: Element, selected: Element) {
+    const children = Array.from(parent.children).filter(c => {
+      if (c === selected) return false;
+      if (c.hasAttribute("data-retune-host")) return false;
+      const cs = getComputedStyle(c);
+      if (cs.display === "none" || cs.visibility === "hidden") return false;
+      return true;
+    });
+
+    let poolIdx = 0;
+    for (const child of children) {
+      if (poolIdx >= siblingOutlinePool.length) break;
+      const r = child.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const outline = siblingOutlinePool[poolIdx++];
+      outline.style.top = `${r.top}px`;
+      outline.style.left = `${r.left}px`;
+      outline.style.width = `${r.width}px`;
+      outline.style.height = `${r.height}px`;
+      outline.style.display = "block";
+    }
+    // Hide unused
+    for (let i = poolIdx; i < siblingOutlinePool.length; i++) {
+      siblingOutlinePool[i].style.display = "none";
+    }
+  }
+
+  function hideSiblingOutlines() {
+    for (const outline of siblingOutlinePool) {
+      outline.style.display = "none";
+    }
+  }
+
   // Pin lines — dashed lines from element to parent edges for pinned sides
   const pinLines: Record<string, HTMLDivElement> = {};
   for (const side of ["top", "right", "bottom", "left"] as const) {
@@ -2153,6 +2198,7 @@ export function createPicker(
     highlight.style.display = "none";
     label.style.display = "none";
     hideSpacing();
+    hideSiblingOutlines();
   }
 
   function hideSelection() {
@@ -2227,17 +2273,20 @@ export function createPicker(
     if (el === selectedElement) {
       hideHighlight();
       hideSpacing();
+      hideSiblingOutlines();
       selectionLabelHidden = false;
       selectionLabel.style.display = "";
     } else {
       updateHighlight(el);
       if (selectedElement) {
         if (el.contains(selectedElement)) {
-          // Hovered element is a parent/ancestor — show four-edge distances
+          // Hovered element is a parent/ancestor — show four-edge distances + sibling outlines
           showParentSpacing(selectedElement.getBoundingClientRect(), el);
+          showSiblingOutlines(el, selectedElement);
         } else {
           // Sibling or unrelated — show nearest-edge spacing
           showSpacing(selectedElement.getBoundingClientRect(), el.getBoundingClientRect());
+          hideSiblingOutlines();
         }
       }
     }
