@@ -25,6 +25,8 @@ export interface PickerCallbacks {
   onRepositionPreview?: (element: Element, property: "top" | "left" | "right" | "bottom", value: string) => void;
   /** Called when a flow element is reordered by drag among its siblings */
   onCanvasReorder?: (element: Element, fromIndex: number, toIndex: number) => void;
+  /** Called when a flow element is reparented by dragging to a different container */
+  onCanvasReparent?: (element: Element, newParent: Element, insertIndex: number) => void;
 }
 
 export function createPicker(
@@ -1143,9 +1145,9 @@ export function createPicker(
     element: Element;
     parent: Element;
     siblings: Element[];
-    allRects: DOMRect[];       // all sibling rects in visual order (including dragged)
-    otherRects: DOMRect[];     // rects excluding dragged element (for drop index)
-    otherIndices: number[];    // original indices in full array
+    allRects: DOMRect[];
+    otherRects: DOMRect[];
+    otherIndices: number[];
     dragIndex: number;
     dropIndex: number;
     horizontal: boolean;
@@ -1154,6 +1156,11 @@ export function createPicker(
     startRect: DOMRect;
     active: boolean;
     ghost: HTMLDivElement | null;
+    // Reparent state (when cursor exits parent bounds)
+    mode: "reorder" | "reparent";
+    reparentTarget: Element | null;
+    reparentIndex: number;
+    reparentHighlight: HTMLDivElement | null;
   } | null = null;
 
   /** Detect if element is in a reorderable container (flex, grid, or block with 2+ children).
@@ -1243,6 +1250,175 @@ export function createPicker(
   /** Check if drop index is effectively the same position (no real move). */
   function isEffectiveNoOp(dragIndex: number, dropIndex: number): boolean {
     return dragIndex === dropIndex;
+  }
+
+  /** Check if cursor is inside the parent's bounding rect (with buffer to prevent flickering at edges) */
+  function isCursorInParent(x: number, y: number, parent: Element): boolean {
+    const r = parent.getBoundingClientRect();
+    const BUFFER = 10; // px outside parent before switching to reparent mode
+    return x >= r.left - BUFFER && x <= r.right + BUFFER && y >= r.top - BUFFER && y <= r.bottom + BUFFER;
+  }
+
+  /** Find a valid reparent container at cursor position (walks up from elementFromPoint) */
+  function findReparentTarget(x: number, y: number, draggedEl: Element, originalParent: Element): {
+    target: Element; insertIndex: number; horizontal: boolean;
+  } | null {
+    // Temporarily show the hidden element so elementFromPoint skips it
+    const ghost = reorderDrag?.ghost;
+    if (ghost) ghost.style.display = "none";
+    (draggedEl as HTMLElement).style.visibility = "";
+    const hit = document.elementFromPoint(x, y);
+    (draggedEl as HTMLElement).style.visibility = "hidden";
+    if (ghost) ghost.style.display = "";
+
+    if (!hit || isOverlayElement(hit)) return null;
+
+    // Walk up from the hit element to find a valid container
+    let current: Element | null = hit;
+    while (current) {
+      if (current === draggedEl) { current = current.parentElement; continue; }
+      if (current === originalParent) return null; // back in original parent — stay in reorder mode
+      if (current === document.body || current === document.documentElement) break;
+
+      // Check if this element is a valid container that can hold children
+      const display = getComputedStyle(current).display;
+      const isContainer = display === "flex" || display === "inline-flex"
+        || display === "grid" || display === "inline-grid"
+        || display === "block" || display === "inline-block" || display === "flow-root";
+
+      // Reject void/self-closing elements and text-only elements that can't contain block children
+      const tag = current.tagName;
+      const cantContain = new Set([
+        "INPUT", "IMG", "BR", "HR", "AREA", "BASE", "COL", "EMBED",
+        "LINK", "META", "PARAM", "SOURCE", "TRACK", "WBR",
+        "P", "H1", "H2", "H3", "H4", "H5", "H6", "SPAN", "A",
+        "STRONG", "EM", "B", "I", "U", "SMALL", "SUB", "SUP",
+        "LABEL", "BUTTON", "TEXTAREA", "SELECT", "OPTION",
+      ]);
+
+      if (isContainer && !cantContain.has(tag) && !isAncestor(draggedEl, current)) {
+        // Compute insert index from cursor position relative to children
+        const children = Array.from(current.children).filter(c => {
+          const cs = getComputedStyle(c);
+          return cs.display !== "none" && cs.visibility !== "hidden";
+        });
+
+        const dir = getComputedStyle(current).flexDirection;
+        const horizontal = (display === "flex" || display === "inline-flex")
+          ? (dir === "row" || dir === "row-reverse")
+          : false;
+
+        let insertIndex = children.length; // default: after all children
+        for (let i = 0; i < children.length; i++) {
+          const r = children[i].getBoundingClientRect();
+          const mid = horizontal ? r.left + r.width / 2 : r.top + r.height / 2;
+          const cursor = horizontal ? x : y;
+          if (cursor < mid) { insertIndex = i; break; }
+        }
+
+        return { target: current, insertIndex, horizontal };
+      }
+
+      current = current.parentElement;
+    }
+    return null;
+  }
+
+  /** Check if ancestor is an ancestor of descendant */
+  function isAncestor(ancestor: Element, descendant: Element): boolean {
+    let current: Element | null = descendant.parentElement;
+    while (current) {
+      if (current === ancestor) return true;
+      current = current.parentElement;
+    }
+    return false;
+  }
+
+  /** Create/update reparent highlight overlay (parent outline + drop indicator line) */
+  function showReparentHighlight(
+    target: Element, insertIndex: number, horizontal: boolean,
+    dragState: NonNullable<typeof reorderDrag>
+  ) {
+    // Parent outline
+    let hl = dragState.reparentHighlight;
+    if (!hl) {
+      hl = document.createElement("div");
+      hl.setAttribute("data-retune-drag-ghost", "");
+      hl.style.cssText = `
+        position:fixed;pointer-events:none;z-index:2147483646;
+        border:1px solid #0D99FF;
+        background:rgba(13,153,255,0.04);
+      `;
+      document.body.appendChild(hl);
+      dragState.reparentHighlight = hl;
+    }
+    const r = target.getBoundingClientRect();
+    hl.style.left = `${r.left}px`;
+    hl.style.top = `${r.top}px`;
+    hl.style.width = `${r.width}px`;
+    hl.style.height = `${r.height}px`;
+    hl.style.display = "block";
+
+    // Drop indicator line inside the container
+    let line = hl.querySelector("[data-retune-reparent-line]") as HTMLDivElement | null;
+    if (!line) {
+      line = document.createElement("div");
+      line.setAttribute("data-retune-reparent-line", "");
+      line.style.cssText = `position:absolute;background:#0D99FF;pointer-events:none;border-radius:1px;`;
+      hl.appendChild(line);
+    }
+    // Inset relative to container size (3%), clamped between 3-12px
+    const INSET = Math.max(3, Math.min(12, Math.round((horizontal ? r.height : r.width) * 0.03)));
+
+    // Get visible children of the target container for positioning the line
+    const children = Array.from(target.children).filter(c => {
+      const cs = getComputedStyle(c);
+      return cs.display !== "none" && cs.visibility !== "hidden";
+    });
+
+    if (horizontal) {
+      // Vertical drop line for horizontal layout
+      let x: number;
+      if (children.length === 0) {
+        x = r.left + 4;
+      } else if (insertIndex <= 0) {
+        x = children[0].getBoundingClientRect().left;
+      } else if (insertIndex >= children.length) {
+        x = children[children.length - 1].getBoundingClientRect().right;
+      } else {
+        const prev = children[insertIndex - 1].getBoundingClientRect();
+        const curr = children[insertIndex].getBoundingClientRect();
+        x = (prev.right + curr.left) / 2;
+      }
+      line.style.left = `${x - r.left - 1}px`;
+      line.style.top = `${INSET}px`;
+      line.style.width = "2px";
+      line.style.height = `${r.height - INSET * 2}px`;
+    } else {
+      // Horizontal drop line for vertical layout
+      let y: number;
+      if (children.length === 0) {
+        y = r.top + 4;
+      } else if (insertIndex <= 0) {
+        y = children[0].getBoundingClientRect().top;
+      } else if (insertIndex >= children.length) {
+        y = children[children.length - 1].getBoundingClientRect().bottom;
+      } else {
+        const prev = children[insertIndex - 1].getBoundingClientRect();
+        const curr = children[insertIndex].getBoundingClientRect();
+        y = (prev.bottom + curr.top) / 2;
+      }
+      line.style.left = `${INSET}px`;
+      line.style.top = `${y - r.top - 1}px`;
+      line.style.width = `${r.width - INSET * 2}px`;
+      line.style.height = "2px";
+    }
+  }
+
+  function hideReparentHighlight(dragState: NonNullable<typeof reorderDrag>) {
+    if (dragState.reparentHighlight) {
+      dragState.reparentHighlight.style.display = "none";
+    }
   }
 
   function createReorderGhost(el: Element): HTMLDivElement {
@@ -1410,53 +1586,90 @@ export function createPicker(
       reorderDrag.ghost.style.top = `${reorderDrag.startRect.top + dy}px`;
     }
 
-    // Compute drop index from filtered rects
-    const newIndex = computeCanvasDropIndex(
-      e.clientX, e.clientY,
-      reorderDrag.otherRects, reorderDrag.otherIndices,
-      reorderDrag.horizontal, reorderDrag.dragIndex
-    );
+    // Check if cursor is inside the parent.
+    // Use buffer when leaving (prevents flickering at edges).
+    // Use exact bounds when returning from reparent (require clear re-entry).
+    const parentRect = reorderDrag.parent.getBoundingClientRect();
+    const LEAVE_BUFFER = 10;
+    const insideParent = reorderDrag.mode === "reparent"
+      ? (e.clientX >= parentRect.left && e.clientX <= parentRect.right &&
+         e.clientY >= parentRect.top && e.clientY <= parentRect.bottom)
+      : (e.clientX >= parentRect.left - LEAVE_BUFFER && e.clientX <= parentRect.right + LEAVE_BUFFER &&
+         e.clientY >= parentRect.top - LEAVE_BUFFER && e.clientY <= parentRect.bottom + LEAVE_BUFFER);
 
-    if (newIndex !== reorderDrag.dropIndex) {
-      reorderDrag.dropIndex = newIndex;
-      const { siblings, dragIndex, allRects, horizontal } = reorderDrag;
-
-      // Compute the dragged element's occupied space (height/width + margin to next sibling).
-      // This is how much room siblings need to shift to make space for the dragged element.
-      let dragOccupied: number;
-      if (horizontal) {
-        if (dragIndex < allRects.length - 1) {
-          dragOccupied = allRects[dragIndex + 1].left - allRects[dragIndex].left;
-        } else {
-          const gap = dragIndex > 0 ? allRects[dragIndex].left - allRects[dragIndex - 1].right : 0;
-          dragOccupied = allRects[dragIndex].width + gap;
-        }
-      } else {
-        if (dragIndex < allRects.length - 1) {
-          dragOccupied = allRects[dragIndex + 1].top - allRects[dragIndex].top;
-        } else {
-          const gap = dragIndex > 0 ? allRects[dragIndex].top - allRects[dragIndex - 1].bottom : 0;
-          dragOccupied = allRects[dragIndex].height + gap;
-        }
+    if (insideParent) {
+      // ── REORDER MODE: cursor inside parent ──
+      if (reorderDrag.mode === "reparent") {
+        reorderDrag.mode = "reorder";
+        reorderDrag.reparentTarget = null;
+        hideReparentHighlight(reorderDrag);
       }
 
-      // Shift siblings by the dragged element's occupied space (not the inter-slot distance)
-      for (let i = 0; i < siblings.length; i++) {
-        if (i === dragIndex) continue;
-        const el = siblings[i] as HTMLElement;
+      const newIndex = computeCanvasDropIndex(
+        e.clientX, e.clientY,
+        reorderDrag.otherRects, reorderDrag.otherIndices,
+        reorderDrag.horizontal, reorderDrag.dragIndex
+      );
 
-        let shift = 0;
-        if (dragIndex < newIndex) {
-          // Dragging forward: siblings between dragIndex+1 and newIndex-1 shift backward
-          if (i > dragIndex && i < newIndex) shift = -dragOccupied;
-        } else if (dragIndex > newIndex) {
-          // Dragging backward: siblings between newIndex and dragIndex-1 shift forward
-          if (i >= newIndex && i < dragIndex) shift = dragOccupied;
+      if (newIndex !== reorderDrag.dropIndex) {
+        reorderDrag.dropIndex = newIndex;
+        const { siblings, dragIndex, allRects, horizontal } = reorderDrag;
+
+        // Compute the dragged element's occupied space
+        let dragOccupied: number;
+        if (horizontal) {
+          if (dragIndex < allRects.length - 1) {
+            dragOccupied = allRects[dragIndex + 1].left - allRects[dragIndex].left;
+          } else {
+            const gap = dragIndex > 0 ? allRects[dragIndex].left - allRects[dragIndex - 1].right : 0;
+            dragOccupied = allRects[dragIndex].width + gap;
+          }
+        } else {
+          if (dragIndex < allRects.length - 1) {
+            dragOccupied = allRects[dragIndex + 1].top - allRects[dragIndex].top;
+          } else {
+            const gap = dragIndex > 0 ? allRects[dragIndex].top - allRects[dragIndex - 1].bottom : 0;
+            dragOccupied = allRects[dragIndex].height + gap;
+          }
         }
 
-        el.style.transform = shift !== 0
-          ? (horizontal ? `translateX(${shift}px)` : `translateY(${shift}px)`)
-          : "";
+        // Shift siblings by dragged element's occupied space
+        for (let i = 0; i < siblings.length; i++) {
+          if (i === dragIndex) continue;
+          const el = siblings[i] as HTMLElement;
+
+          let shift = 0;
+          if (dragIndex < newIndex) {
+            if (i > dragIndex && i < newIndex) shift = -dragOccupied;
+          } else if (dragIndex > newIndex) {
+            if (i >= newIndex && i < dragIndex) shift = dragOccupied;
+          }
+
+          el.style.transform = shift !== 0
+            ? (horizontal ? `translateX(${shift}px)` : `translateY(${shift}px)`)
+            : "";
+        }
+      }
+    } else {
+      // ── REPARENT MODE: cursor outside parent ──
+      reorderDrag.mode = "reparent";
+
+      // Clear sibling shifts (return them to original positions)
+      for (let i = 0; i < reorderDrag.siblings.length; i++) {
+        if (i === reorderDrag.dragIndex) continue;
+        (reorderDrag.siblings[i] as HTMLElement).style.transform = "";
+      }
+
+      // Find a valid container under cursor
+      const reparentResult = findReparentTarget(e.clientX, e.clientY, reorderDrag.element, reorderDrag.parent);
+
+      if (reparentResult) {
+        reorderDrag.reparentTarget = reparentResult.target;
+        reorderDrag.reparentIndex = reparentResult.insertIndex;
+        showReparentHighlight(reparentResult.target, reparentResult.insertIndex, reparentResult.horizontal, reorderDrag);
+      } else {
+        reorderDrag.reparentTarget = null;
+        hideReparentHighlight(reorderDrag);
       }
     }
   }
@@ -1467,18 +1680,22 @@ export function createPicker(
 
     if (!reorderDrag) return;
 
-    const { element, dragIndex, dropIndex, active } = reorderDrag;
+    const { element, dragIndex, dropIndex, active, mode, reparentTarget, reparentIndex } = reorderDrag;
 
-    if (active && !isEffectiveNoOp(dragIndex, dropIndex)) {
-      // CRITICAL: cleanup transforms synchronously BEFORE applying reorder
+    if (active && mode === "reparent" && reparentTarget) {
+      // REPARENT: move element to a different container
       cleanupReorderDrag();
-      // Apply the actual reorder (CSS order/translate via handleTreeReorder)
+      callbacks.onCanvasReparent?.(element, reparentTarget, reparentIndex);
+      reorderDragActive = false;
+      if (selectedElement) showSelection();
+    } else if (active && mode === "reorder" && !isEffectiveNoOp(dragIndex, dropIndex)) {
+      // REORDER: within same parent
+      cleanupReorderDrag();
       callbacks.onCanvasReorder?.(element, dragIndex, dropIndex);
-      // Restore selection after reorder settles
       reorderDragActive = false;
       if (selectedElement) showSelection();
     } else if (active) {
-      // No position change — just cleanup
+      // No meaningful change — just cleanup
       cleanupReorderDrag();
       reorderDragActive = false;
       if (selectedElement) showSelection();
@@ -1520,8 +1737,9 @@ export function createPicker(
   function cleanupReorderDrag() {
     if (!reorderDrag) return;
 
-    // Remove ghost from document body
+    // Remove ghost and reparent highlight from document body
     if (reorderDrag.ghost) reorderDrag.ghost.remove();
+    if (reorderDrag.reparentHighlight) reorderDrag.reparentHighlight.remove();
 
     // Restore user-select
     document.body.style.removeProperty("user-select");
@@ -1576,6 +1794,10 @@ export function createPicker(
       startRect: elRect,
       active: false,
       ghost: null,
+      mode: "reorder",
+      reparentTarget: null,
+      reparentIndex: 0,
+      reparentHighlight: null,
     };
 
     document.addEventListener("pointermove", handleReorderPointerMove, true);

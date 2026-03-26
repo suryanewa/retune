@@ -934,6 +934,9 @@ function RetuneInner(props: RetuneConfig) {
       onCanvasReorder: (element: Element, fromIndex: number, toIndex: number) => {
         handleTreeReorder(element, fromIndex, toIndex);
       },
+      onCanvasReparent: (element: Element, newParent: Element, insertIndex: number) => {
+        handleTreeReparent(element, newParent, insertIndex);
+      },
       onCancel: () => {
         deactivateOverlay();
       },
@@ -1538,12 +1541,38 @@ function RetuneInner(props: RetuneConfig) {
           prevTranslate: s.element.style.translate,
         }));
         for (const s of undoEntry) {
-          s.element.style.order = s.prevOrder;
-          s.element.style.transition = "";
-          s.element.style.translate = s.prevTranslate;
+          if (s.prevOrder) s.element.style.order = s.prevOrder;
+          else s.element.style.removeProperty("order");
+          s.element.style.removeProperty("transition");
+          if (s.prevTranslate) s.element.style.translate = s.prevTranslate;
+          else s.element.style.removeProperty("translate");
+          if (s.element.getAttribute("style")?.trim() === "") s.element.removeAttribute("style");
         }
         reorderRedoStackRef.current.push(redoEntry);
       }
+      syncTrackerStateRef.current();
+      refreshSelectedElementRef.current();
+      pickerRef.current?.refreshSelection();
+      setChangeRevision((r) => r + 1);
+      return;
+    }
+
+    // If this undo group contains a __reparent, move element back to original parent
+    if (entries.some(e => e.property === "__reparent")) {
+      const lastEntry = reparentDOMRef.current.pop();
+      if (lastEntry) {
+        lastEntry.observer.disconnect();
+        try {
+          // Move element back to original parent at original position
+          if (lastEntry.oldNextSibling && lastEntry.oldNextSibling.parentElement === lastEntry.oldParent) {
+            lastEntry.oldParent.insertBefore(lastEntry.element, lastEntry.oldNextSibling);
+          } else {
+            lastEntry.oldParent.appendChild(lastEntry.element);
+          }
+        } catch {}
+      }
+      // Update reparent entries for tree visual preview
+      setReparentEntries(prev => prev.filter(r => r.element !== lastEntry?.element));
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
