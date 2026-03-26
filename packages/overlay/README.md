@@ -2,7 +2,7 @@
 
 The visual layer for vibe coding.
 
-Click any element in your running app, adjust spacing, colors, typography, and more, and your AI agent writes the changes to source. No more prompting for pixels.
+Select, tweak, restructure — directly in your running app. Your AI agent writes the changes to source. No more prompting for pixels.
 
 ## Quick Start
 
@@ -32,21 +32,39 @@ Press **Alt+D** (or **Option+D** on macOS) to toggle edit mode, then click any e
 ## How It Works
 
 1. **Select** — Click any element in your app to inspect it
-2. **Tweak** — Adjust properties with visual controls (sliders, color pickers, etc.)
+2. **Edit** — Adjust styles, reorder elements, edit text, delete, resize, and more
 3. **Apply** — Changes are sent to your AI coding tool via MCP to persist in source code
 
-Changes preview instantly in the browser (like devtools), then get written to your actual files.
+Changes preview instantly in the browser, then get written to your actual source files.
 
 ## Features
 
-### Dynamic Controls
+### Direct Manipulation
+
+- **Drag to reorder** — Drag elements to reorder among siblings. Live sibling shifting shows where the element will land. Works on flex, grid, and block layouts.
+- **Drag to reparent** — Drag elements outside their parent to move them into a different container. Visual drop indicator shows the insertion point.
+- **Resize by dragging** — Drag edges or corners to resize elements.
+- **Reposition** — Drag absolute/fixed elements to move them. Snap guides show alignment with parent edges, centers, and siblings.
+- **Inline text editing** — Double-click to edit text content. Enter for line breaks, click outside to save.
+- **Delete elements** — Delete or Backspace removes the selected element.
+- **Arrow key reorder** — Up/Down/Left/Right to reorder siblings within their container.
+
+### Visual Feedback
+
+- **Sibling outlines** — Hover a parent of the selected element to see dotted outlines on all siblings, revealing the layout structure.
+- **Spacing measurements** — Hold Alt/Option while hovering to see distances between elements.
+- **Snap guides** — Alignment lines with markers appear when repositioning or resizing near edges, centers, or sibling boundaries.
+- **Selection badge** — Shows element dimensions below the selection box.
+- **Parent indicator** — Dotted outline on the parent when a child is selected.
+
+### Property Controls
 
 Controls appear based on the selected element:
 
 | Element type | Controls |
 |---|---|
-| Any element | padding, margin, border-radius, background, opacity, shadow |
-| Text | font-size, weight, line-height, letter-spacing, color, alignment |
+| Any element | padding, margin, border-radius, background, opacity, shadow, filters |
+| Text | font-size, weight, line-height, letter-spacing, color, alignment, font family |
 | Flex container | direction, gap, align, justify, wrap |
 | Grid container | columns, rows, gap |
 | Image | object-fit, aspect-ratio, border-radius |
@@ -62,11 +80,38 @@ When you select an element, Retune shows its CSS classes as clickable tags. Pick
 
 ### Styling Approach Detection
 
-Retune analyzes your stylesheets at runtime to detect whether you're using utility CSS (Tailwind, UnoCSS, etc.) or semantic CSS (CSS Modules, plain CSS). This context helps your AI agent write changes in the right format. No hardcoded framework patterns — it works by analyzing rule complexity in `document.styleSheets`.
+Retune analyzes your stylesheets at runtime to detect whether you're using utility CSS (Tailwind, UnoCSS, etc.) or semantic CSS (CSS Modules, plain CSS). This context helps your AI agent write changes in the right format.
+
+### Design Token Resolution
+
+When you change a value, Retune finds matching design tokens (CSS variables, utility classes, semantic tokens) and suggests the best match. Your AI agent uses the token instead of a raw value.
 
 ### Scrub-to-Adjust
 
 Click and drag on any numeric value to scrub it up or down. Hold Shift for 10x increments, Alt for 0.1x precision.
+
+### Dark Mode
+
+Full dark mode support for the Retune overlay. Toggle in Settings or follow system preference.
+
+### Keyboard Shortcuts
+
+| Action | Mac | Windows |
+|---|---|---|
+| Toggle edit mode | ⌥D | Alt+D |
+| Undo | ⌘Z | Ctrl+Z |
+| Redo | ⌘⇧Z | Ctrl+Shift+Z |
+| Select child | Enter | Enter |
+| Select parent | ⇧Enter | Shift+Enter |
+| Next sibling | Tab | Tab |
+| Previous sibling | ⇧Tab | Shift+Tab |
+| Reorder | ↑↓←→ | ↑↓←→ |
+| Delete | ⌫ | Delete |
+| Measure spacing | ⌥+Hover | Alt+Hover |
+
+### Elements Tab
+
+Tree view of the DOM with drag-to-reorder and drag-to-reparent. Shows React component names, reflects visual order after reorder.
 
 ## AI Integration (MCP Server)
 
@@ -138,4 +183,4 @@ npm run dev    # Watch mode
 
 ## License
 
-MIT
+[PolyForm Shield 1.0.0](LICENSE)
