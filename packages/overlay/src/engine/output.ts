@@ -45,16 +45,26 @@ export function describeSelectorScope(selector: string): string | null {
   // Strip pseudo-state first for scope analysis
   const { base } = parsePseudoState(selector);
 
-  // Class-based selectors: start with "." (may include combinators like ".card .title")
-  if (base.startsWith(".")) {
+  // Ancestor-scoped selectors: contain descendant combinator (space between class parts)
+  // e.g. ".message-row--unread .message-row__subject"
+  const noParen = base.replace(/\([^)]*\)/g, ""); // ignore spaces inside pseudo-functions
+  const hasDescendant = /\.[a-zA-Z][\w-]*\s+\.[a-zA-Z]/.test(noParen);
+  const hasChild = /\.[a-zA-Z][\w-]*\s*>\s*\.[a-zA-Z]/.test(noParen);
+
+  if (base.startsWith(".") || base.startsWith(":") || base.startsWith("[")) {
     try {
       const count = document.querySelectorAll(base).length;
+      const countStr = count > 0 ? `, ${count} element${count > 1 ? "s" : ""}` : "";
+      if (hasDescendant || hasChild) {
+        return `ancestor-scoped${countStr}`;
+      }
       if (count > 0) {
-        return `class-scoped, ${count} element${count > 1 ? "s" : ""}`;
+        return `class-scoped${countStr}`;
       }
     } catch {
       // Invalid selector for querySelectorAll — fall through
     }
+    if (hasDescendant || hasChild) return "ancestor-scoped";
     return "class-scoped";
   }
 
@@ -165,18 +175,32 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     : "";
   lines.push(`**Selector:** \`${baseSelector}\`${selectorSuffix}`);
 
-  // For compound selectors (.btn.btn-ghost), break down the class chain
+  // For compound/ancestor selectors, break down the class chain
   // so the AI knows which classes to look for in the source code
-  const compoundClasses = baseSelector.match(/\.[a-zA-Z0-9_-]+/g);
-  if (compoundClasses && compoundClasses.length > 1) {
-    const classBreakdown = compoundClasses.map(c => {
-      const cls = c.slice(1); // strip leading dot
-      try {
-        const count = document.querySelectorAll(c).length;
-        return `\`.${cls}\` (${count})`;
-      } catch { return `\`.${cls}\``; }
-    });
-    lines.push(`**Target classes:** ${classBreakdown.join(" → ")} — apply changes where all these classes are present`);
+  const noParen = baseSelector.replace(/\([^)]*\)/g, "");
+  const isAncestorSelector = /\.[a-zA-Z][\w-]*\s+\.[a-zA-Z]/.test(noParen) || /\.[a-zA-Z][\w-]*\s*>\s*\.[a-zA-Z]/.test(noParen);
+
+  if (isAncestorSelector) {
+    // Ancestor compound: ".parent .child" — split into ancestor and element parts
+    const parts = baseSelector.split(/\s+(?=[.#\[:])/).filter(Boolean);
+    if (parts.length >= 2) {
+      const ancestorPart = parts.slice(0, -1).join(" ");
+      const elementPart = parts[parts.length - 1];
+      lines.push(`**Ancestor context:** \`${ancestorPart}\` — change only applies inside this ancestor`);
+      lines.push(`**Target element:** \`${elementPart}\` — the element being styled`);
+    }
+  } else {
+    const compoundClasses = baseSelector.match(/\.[a-zA-Z0-9_-]+/g);
+    if (compoundClasses && compoundClasses.length > 1) {
+      const classBreakdown = compoundClasses.map(c => {
+        const cls = c.slice(1); // strip leading dot
+        try {
+          const count = document.querySelectorAll(c).length;
+          return `\`.${cls}\` (${count})`;
+        } catch { return `\`.${cls}\``; }
+      });
+      lines.push(`**Target classes:** ${classBreakdown.join(" → ")} — apply changes where all these classes are present`);
+    }
   }
 
   // Element ID

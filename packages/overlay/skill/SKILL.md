@@ -128,6 +128,20 @@ When competing rules appear in the resolution context:
 
 When the output includes a **Target classes** line (e.g., `.btn` (8) → `.btn-ghost` (2)), the user scoped their changes to a compound selector. Apply the change to the CSS rule matching that compound selector, not just the base class.
 
+### Ancestor Compound Selectors
+
+When the selector includes a descendant combinator (space) or child combinator (`>`), the user scoped their change to a specific ancestor context. For example:
+
+- `.message-row--unread .message-row__subject` — change applies only to subjects inside unread rows
+- `[data-state="open"] .accordion-content` — change applies only when the accordion is open
+- `.theme-dark .card__title` — change applies only in dark mode
+
+Find or create the CSS rule matching the full ancestor compound selector. Do NOT apply the change to the child class alone (e.g., don't edit `.message-row__subject` when the scope is `.message-row--unread .message-row__subject`).
+
+If the rule doesn't exist yet, create it near the base rule for the child class.
+
+### Blast Radius
+
 The selector annotation tells you the blast radius:
 
 - **class-scoped, N elements** — Your change affects N elements. If the user intended to change only this one, consider adding a more specific selector or class.
