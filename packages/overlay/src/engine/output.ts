@@ -93,6 +93,12 @@ function getTokenMap(): TokenMap {
 export function formatChanges(changes: ElementChange[], fidelity: Fidelity): string {
   if (changes.length === 0) return "No changes recorded.";
 
+  // Separate bulk instances from primary changes
+  const bulkCount = changes.filter(c => c.changes.some(p => p.property === "__bulkOf")).length;
+  const primaryChanges = changes.filter(c => !c.changes.some(p => p.property === "__bulkOf"));
+  // Use primary changes for output; add bulk count to structural actions
+  changes = primaryChanges;
+
   const tokenMap = getTokenMap();
   const lines: string[] = [];
 
@@ -125,14 +131,14 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
     lines.push("");
   }
 
-  // Each element change
-  const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap));
+  // Each element change — pass bulk instance count so structural actions can note it
+  const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap, bulkCount));
   lines.push(sections.join("\n---\n\n"));
 
   return lines.join("\n");
 }
 
-function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap: TokenMap): string {
+function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap: TokenMap, bulkInstanceCount = 0): string {
   const lines: string[] = [];
 
   // Element identification
@@ -269,7 +275,11 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     lines.push("");
     lines.push("### Action: Reparent Element");
     lines.push("");
-    lines.push("Move this element from its current parent to a new parent container.");
+    if (bulkInstanceCount > 0) {
+      lines.push(`Move this element from its current parent to a new parent container. **This is a component-level change affecting ${bulkInstanceCount + 1} instances** — apply the change to the component JSX template, not individual instances.`);
+    } else {
+      lines.push("Move this element from its current parent to a new parent container.");
+    }
     lines.push(`**From:** \`${fromSelector}\``);
     lines.push(`**To:** \`${toSelector}\` (as child at position ${toIndex})`);
     lines.push("");
@@ -282,7 +292,11 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     lines.push("");
     lines.push("### Action: Reorder Element");
     lines.push("");
-    lines.push(`Moved from position ${reorderChange.from} to position ${reorderChange.to} within its parent container.`);
+    if (bulkInstanceCount > 0) {
+      lines.push(`Moved from position ${reorderChange.from} to position ${reorderChange.to} within its parent container. **This is a component-level change affecting ${bulkInstanceCount + 1} instances** — reorder the children in the component JSX template, not individual instances.`);
+    } else {
+      lines.push(`Moved from position ${reorderChange.from} to position ${reorderChange.to} within its parent container.`);
+    }
     lines.push("");
   }
 

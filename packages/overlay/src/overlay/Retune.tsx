@@ -379,6 +379,7 @@ function RetuneInner(props: RetuneConfig) {
     observer: MutationObserver;
   };
   const reparentDOMRef = useRef<ReparentDOMEntry[]>([]);
+  const reparentBatchSizeRef = useRef<number[]>([]); // tracks how many DOM entries per reparent operation
 
   const tabPillFirstRender = useRef(true);
 
@@ -1058,7 +1059,10 @@ function RetuneInner(props: RetuneConfig) {
   const syncTrackerState = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
-    setChangeCount(tracker.getPendingChanges().length);
+    // Exclude bulk instances from change count (they're consolidated in the output)
+    const pending = tracker.getPendingChanges();
+    const primaryCount = pending.filter(c => !c.changes.some(p => p.property === "__bulkOf")).length;
+    setChangeCount(primaryCount);
     setCanUndo(tracker.canUndo);
     setCanRedo(tracker.canRedo);
     tracker.persist();
@@ -1602,22 +1606,25 @@ function RetuneInner(props: RetuneConfig) {
       return;
     }
 
-    // If this undo group contains a __reparent, move element back to original parent
+    // If this undo group contains a __reparent, move element(s) back to original parent(s)
     if (entries.some(e => e.property === "__reparent")) {
-      const lastEntry = reparentDOMRef.current.pop();
-      if (lastEntry) {
-        lastEntry.observer.disconnect();
+      const batchSize = reparentBatchSizeRef.current.pop() || 1;
+      const undoneElements: Element[] = [];
+      for (let i = 0; i < batchSize; i++) {
+        const entry = reparentDOMRef.current.pop();
+        if (!entry) break;
+        entry.observer.disconnect();
         try {
-          // Move element back to original parent at original position
-          if (lastEntry.oldNextSibling && lastEntry.oldNextSibling.parentElement === lastEntry.oldParent) {
-            lastEntry.oldParent.insertBefore(lastEntry.element, lastEntry.oldNextSibling);
+          if (entry.oldNextSibling && entry.oldNextSibling.parentElement === entry.oldParent) {
+            entry.oldParent.insertBefore(entry.element, entry.oldNextSibling);
           } else {
-            lastEntry.oldParent.appendChild(lastEntry.element);
+            entry.oldParent.appendChild(entry.element);
           }
         } catch {}
+        undoneElements.push(entry.element);
       }
       // Update reparent entries for tree visual preview
-      setReparentEntries(prev => prev.filter(r => r.element !== lastEntry?.element));
+      setReparentEntries(prev => prev.filter(r => !undoneElements.includes(r.element)));
       syncTrackerStateRef.current();
       refreshSelectedElementRef.current();
       pickerRef.current?.refreshSelection();
@@ -1983,6 +1990,35 @@ function RetuneInner(props: RetuneConfig) {
       }));
       bulkUndoEntries.push(undoEntry);
 
+      // Record in change tracker for persistence — find each child whose position changed
+      const tracker = trackerRef.current;
+      if (tracker) {
+        for (let i = 0; i < otherChildren.length; i++) {
+          const child = otherChildren[i];
+          const cls = Array.from(child.classList).filter(cl => !isHashedClass(cl));
+          const childSel = cls.length > 0 ? `.${cls[0]}` : child.tagName.toLowerCase();
+          const targetIdx = childSelectors.indexOf(childSel);
+          if (targetIdx !== -1 && targetIdx !== i) {
+            const bulkSelector = getSelector(child);
+            tracker.track(
+              bulkSelector, child.tagName.toLowerCase(),
+              child.textContent?.slice(0, 40) || null,
+              Array.from(child.classList), [],
+              { "__reorder": String(i) }, null,
+              undefined, null, child.id || null,
+              null, null, null, "", null, { x: 0, y: 0, width: 0, height: 0 },
+            );
+            tracker.ensureOriginalValue(bulkSelector, "__reorder", String(i));
+            tracker.recordChange(bulkSelector, "__reorder", String(targetIdx));
+            // Mark as bulk instance so output formatter consolidates
+            tracker.ensureOriginalValue(bulkSelector, "__bulkOf", "");
+            tracker.recordChange(bulkSelector, "__bulkOf", "reorder");
+            break; // one entry per parent is enough for restoration
+          }
+        }
+        tracker.persist();
+      }
+
       if (mode === "order") {
         // Build target order from child selectors
         // For each child in the primary's new order, find matching child in this parent
@@ -2053,6 +2089,161 @@ function RetuneInner(props: RetuneConfig) {
     }
 
     return bulkUndoEntries;
+  }
+
+  /**
+   * After reparenting an element in one instance, propagate the same structural
+   * move to all other matching instances (if the active scope says so).
+   *
+   * For each other instance: find the matching child (by class), find the matching
+   * new parent (by class relative to the instance root), and perform the DOM move.
+   */
+  function applyBulkReparent(
+    primaryElement: HTMLElement,
+    primaryOldParent: Element,
+    primaryNewParent: Element,
+    insertIndex: number,
+  ): void {
+    // Check if active scope has count > 1
+    const activeLevel = scopeLevelsRef.current[activeLevelIndexRef.current];
+    if (!activeLevel?.selector || activeLevel.count <= 1) return;
+
+    // Get the element's first semantic class for matching across instances
+    const elementClasses = Array.from(primaryElement.classList).filter(c => !isHashedClass(c));
+    if (elementClasses.length === 0) return;
+    const elementClassName = elementClasses[0];
+
+    // Get the old parent's shared selector to find matching parent instances
+    const oldParentShared = getSharedSelector(primaryOldParent);
+    if (!oldParentShared || oldParentShared.count <= 1) return;
+
+    // Guard: data-driven children shouldn't bulk reparent
+    if (detectChildrenType(primaryOldParent) === "array") return;
+
+    // Get the new parent's first semantic class for matching
+    const newParentClasses = Array.from(primaryNewParent.classList).filter(c => !isHashedClass(c));
+    if (newParentClasses.length === 0) return;
+    const newParentClassName = newParentClasses[0];
+
+    // Find the "instance root" — the nearest shared ancestor above the old parent
+    // This is the repeating unit (e.g., .message-row) that contains both old and new parents
+    const oldParentParent = primaryOldParent.parentElement;
+    if (!oldParentParent) return;
+    const instanceRootShared = getSharedSelector(oldParentParent);
+    const instanceRootSelector = instanceRootShared?.selector;
+
+    // Find all instance roots (excluding the primary)
+    let otherInstanceRoots: Element[];
+    if (instanceRootSelector && instanceRootShared!.count > 1) {
+      try {
+        otherInstanceRoots = Array.from(document.querySelectorAll(instanceRootSelector))
+          .filter(r => r !== oldParentParent && r.isConnected);
+      } catch { return; }
+    } else {
+      // Fallback: find other old parents and use their parentElement as instance root
+      try {
+        otherInstanceRoots = Array.from(document.querySelectorAll(oldParentShared.selector))
+          .filter(p => p !== primaryOldParent && p.isConnected)
+          .map(p => p.parentElement!)
+          .filter(Boolean);
+      } catch { return; }
+    }
+
+    for (const instanceRoot of otherInstanceRoots) {
+      // Find matching old parent within this instance
+      const matchingOldParent = instanceRoot.querySelector(oldParentShared.selector);
+      if (!matchingOldParent) continue;
+
+      // Find the matching child as a direct child of the old parent
+      const matchingChild = Array.from(matchingOldParent.children).find(c =>
+        c.classList.contains(elementClassName)
+      ) as HTMLElement | undefined;
+      if (!matchingChild) continue;
+
+      // Find the matching new parent — could be the instance root itself or a descendant
+      const newParentEscaped = `.${CSS.escape(newParentClassName)}`;
+      const matchingNewParent = instanceRoot.matches(newParentEscaped)
+        ? instanceRoot
+        : instanceRoot.querySelector(newParentEscaped);
+      if (!matchingNewParent || matchingNewParent === matchingOldParent) continue;
+
+      // Record in change tracker for persistence across refresh
+      const tracker = trackerRef.current;
+      if (tracker) {
+        const bulkSelector = getSelector(matchingChild);
+        const bulkOldParentSelector = getSelector(matchingOldParent);
+        const bulkNewParentSelector = getSelector(matchingNewParent);
+        const bulkOldIndex = Array.from(matchingOldParent.children).indexOf(matchingChild);
+        tracker.track(
+          bulkSelector, matchingChild.tagName.toLowerCase(), matchingChild.textContent?.slice(0, 40) || null,
+          Array.from(matchingChild.classList), [], { "__reparent": `${bulkOldParentSelector}@${bulkOldIndex}` },
+          null, undefined, null, matchingChild.id || null,
+          null, null, null, "", null, { x: 0, y: 0, width: 0, height: 0 },
+        );
+        tracker.ensureOriginalValue(bulkSelector, "__reparent", `${bulkOldParentSelector}@${bulkOldIndex}`);
+        tracker.recordChange(bulkSelector, "__reparent", `${bulkNewParentSelector}@${insertIndex}`);
+        // Mark as bulk instance so output formatter consolidates
+        tracker.ensureOriginalValue(bulkSelector, "__bulkOf", "");
+        tracker.recordChange(bulkSelector, "__bulkOf", "reparent");
+      }
+
+      // Perform the DOM move
+      const oldNextSibling = matchingChild.nextElementSibling;
+      const newChildren = Array.from(matchingNewParent.children);
+      const refChild = insertIndex < newChildren.length ? newChildren[insertIndex] : null;
+      if (refChild) {
+        matchingNewParent.insertBefore(matchingChild, refChild);
+      } else {
+        matchingNewParent.appendChild(matchingChild);
+      }
+
+      // MutationObserver safety net (same pattern as primary)
+      const movedEl = matchingChild;
+      const capturedOldParent = matchingOldParent;
+      const capturedNewParent = matchingNewParent;
+      const observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          if (m.type !== "childList") continue;
+          if (m.target === capturedOldParent) {
+            for (const added of m.addedNodes) {
+              if (!(added instanceof Element)) continue;
+              if (added !== movedEl &&
+                  added.tagName === movedEl.tagName &&
+                  added.className === movedEl.className &&
+                  added.textContent === movedEl.textContent) {
+                try { capturedOldParent.removeChild(added); } catch {}
+              }
+            }
+          }
+          if (m.target === capturedNewParent) {
+            for (const removed of m.removedNodes) {
+              if (removed === movedEl && !movedEl.parentElement) {
+                try {
+                  const cur = Array.from(capturedNewParent.children);
+                  const ref = insertIndex < cur.length ? cur[insertIndex] : null;
+                  if (ref) capturedNewParent.insertBefore(movedEl, ref);
+                  else capturedNewParent.appendChild(movedEl);
+                } catch {}
+              }
+            }
+          }
+        }
+      });
+      observer.observe(matchingOldParent, { childList: true });
+      observer.observe(matchingNewParent, { childList: true });
+
+      // Store for undo
+      reparentDOMRef.current.push({
+        element: matchingChild, oldParent: matchingOldParent,
+        oldNextSibling, newParent: matchingNewParent, observer,
+      });
+
+      // Update tree visual preview
+      setReparentEntries(prev => [
+        ...prev.filter(r => r.element !== matchingChild),
+        { element: matchingChild, newParent: matchingNewParent, insertIndex },
+      ]);
+    }
   }
 
   /**
@@ -2293,6 +2484,9 @@ function RetuneInner(props: RetuneConfig) {
     const oldParent = el.parentElement;
     if (!oldParent || oldParent === newParent) return;
 
+    // Track how many reparent entries exist before this operation (for bulk undo)
+    const reparentCountBefore = reparentDOMRef.current.length;
+
     const elementSelector = getSelector(el);
     const oldParentSelector = getSelector(oldParent);
     const newParentSelector = getSelector(newParent);
@@ -2379,6 +2573,13 @@ function RetuneInner(props: RetuneConfig) {
 
     // Update tree visual preview
     setReparentEntries(prev => [...prev.filter(r => r.element !== element), { element, newParent, insertIndex }]);
+
+    // Propagate to matching instances if scope says so
+    applyBulkReparent(el, oldParent, newParent, insertIndex);
+
+    // Store how many reparent entries this operation created (for bulk undo)
+    const reparentCountAfter = reparentDOMRef.current.length;
+    reparentBatchSizeRef.current.push(reparentCountAfter - reparentCountBefore);
 
     syncTrackerStateRef.current();
     refreshSelectedElementRef.current();
