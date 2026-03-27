@@ -78,7 +78,7 @@ function getDirectComponentName(element: Element): string | null {
  * - If children have different source line numbers, they're static JSX
  * - If most children have explicit (non-null) keys, that's a .map() signal
  */
-function detectChildrenType(container: Element): "array" | "static" {
+export function detectChildrenType(container: Element): "array" | "static" {
   const children = Array.from(container.children);
   if (children.length < 2) return "static";
 

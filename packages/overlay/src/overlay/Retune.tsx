@@ -23,7 +23,8 @@ import { ChangeTracker } from "../engine/change-tracker";
 import { formatChanges, collapseShorthands, type Fidelity } from "../engine/output";
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
-import { getSelector, getSelectorCandidates, getAncestorScopes, scoreNamePattern, isHashedClass, type SelectorCandidate, type AncestorScope } from "../selector/identifier";
+import { getSelector, getSelectorCandidates, getAncestorScopes, getSharedSelector, scoreNamePattern, isHashedClass, type SelectorCandidate, type AncestorScope } from "../selector/identifier";
+import { detectChildrenType } from "../drag/detect";
 import { getPseudoStateStyles, getStyleSources, getScopedStyles, type ForcedState, type StyleSource } from "../inspector/styles";
 import { PropertyPanel } from "./PropertyPanel";
 import { ElementTree, type ReparentEntry } from "./ElementTree";
@@ -1908,6 +1909,153 @@ function RetuneInner(props: RetuneConfig) {
   }
 
   /**
+   * After reordering children in one parent, propagate the same visual order
+   * to all other structurally similar parents (if the active scope says so).
+   *
+   * Uses CSS `order` for flex/grid parents and translate for block parents.
+   * Returns the list of additional parents modified (for undo tracking).
+   */
+  function applyBulkReorder(
+    primaryParent: Element,
+    newVisualOrder: HTMLElement[],
+  ): ReorderUndoEntry[] {
+    // Check if active scope has count > 1
+    const activeLevel = scopeLevelsRef.current[activeLevelIndexRef.current];
+    if (!activeLevel?.selector || activeLevel.count <= 1) return [];
+
+    // Get the parent's shared selector
+    const parentShared = getSharedSelector(primaryParent);
+    if (!parentShared || parentShared.count <= 1) return [];
+
+    // Find all matching parents
+    let otherParents: Element[];
+    try {
+      otherParents = Array.from(document.querySelectorAll(parentShared.selector))
+        .filter(p => p !== primaryParent && p.isConnected);
+    } catch { return []; }
+
+    if (otherParents.length === 0) return [];
+
+    // Guard: check if the primary parent's children are data-driven (array type)
+    if (detectChildrenType(primaryParent) === "array") return [];
+
+    // Build a class-based child order map from the primary parent's new visual order
+    // e.g., [".message-row__labels", ".message-row__top", ".message-row__subject", ".message-row__preview"]
+    const childSelectors = newVisualOrder.map(child => {
+      const classes = Array.from(child.classList).filter(c => !isHashedClass(c));
+      if (classes.length > 0) return `.${classes[0]}`;
+      return child.tagName.toLowerCase();
+    });
+
+    // Check children are distinguishable (not all the same selector)
+    const uniqueSelectors = new Set(childSelectors);
+    if (uniqueSelectors.size < childSelectors.length * 0.5) return []; // too many duplicates
+
+    const bulkUndoEntries: ReorderUndoEntry[] = [];
+
+    for (const otherParent of otherParents) {
+      const otherChildren = Array.from(otherParent.children) as HTMLElement[];
+      if (otherChildren.length < 2) continue;
+
+      // Structural fingerprint check: do children match reasonably?
+      const otherChildSelectors = otherChildren.map(child => {
+        const classes = Array.from(child.classList).filter(c => !isHashedClass(c));
+        if (classes.length > 0) return `.${classes[0]}`;
+        return child.tagName.toLowerCase();
+      });
+
+      // Check overlap: at least 50% of child selectors should match
+      const primarySet = new Set(childSelectors);
+      const matchCount = otherChildSelectors.filter(s => primarySet.has(s)).length;
+      if (matchCount < Math.min(childSelectors.length, otherChildSelectors.length) * 0.5) continue;
+
+      // Determine mode for this parent
+      const display = getComputedStyle(otherParent).display;
+      const isFlex = display === "flex" || display === "inline-flex";
+      const isGrid = display === "grid" || display === "inline-grid";
+      const mode = (isFlex || isGrid) ? "order" : "translate";
+
+      // Save undo state
+      const undoEntry: ReorderUndoEntry = otherChildren.map(c => ({
+        element: c,
+        prevOrder: c.style.order,
+        prevTranslate: c.style.translate || "",
+      }));
+      bulkUndoEntries.push(undoEntry);
+
+      if (mode === "order") {
+        // Build target order from child selectors
+        // For each child in the primary's new order, find matching child in this parent
+        let orderIdx = 0;
+        const assigned = new Set<HTMLElement>();
+        for (const selector of childSelectors) {
+          const match = otherChildren.find(c => {
+            if (assigned.has(c)) return false;
+            const classes = Array.from(c.classList).filter(cl => !isHashedClass(cl));
+            const childSel = classes.length > 0 ? `.${classes[0]}` : c.tagName.toLowerCase();
+            return childSel === selector;
+          });
+          if (match) {
+            match.style.order = String(orderIdx);
+            assigned.add(match);
+          }
+          orderIdx++;
+        }
+        // Assign remaining children (not matched) after the matched ones
+        for (const child of otherChildren) {
+          if (!assigned.has(child)) {
+            child.style.order = String(orderIdx++);
+          }
+        }
+
+        // Track mode for undo
+        if (!reorderModeRef.current.has(otherParent)) {
+          reorderModeRef.current.set(otherParent, "order");
+        }
+        if (!reorderOriginalOrderRef.current.has(otherParent)) {
+          const originals = new Map<Element, string>();
+          for (const child of otherChildren) {
+            originals.set(child, undoEntry.find(u => u.element === child)?.prevOrder || "");
+          }
+          reorderOriginalOrderRef.current.set(otherParent, originals);
+        }
+      } else {
+        // Translate mode: use ensureOriginalRects (snapshots once) + build desired order
+        ensureOriginalRects(otherParent);
+
+        // Build desired order by matching child selectors
+        const desiredOrder: HTMLElement[] = [];
+        const assigned = new Set<HTMLElement>();
+        for (const selector of childSelectors) {
+          const match = otherChildren.find(c => {
+            if (assigned.has(c)) return false;
+            const classes = Array.from(c.classList).filter(cl => !isHashedClass(cl));
+            const childSel = classes.length > 0 ? `.${classes[0]}` : c.tagName.toLowerCase();
+            return childSel === selector;
+          });
+          if (match) {
+            desiredOrder.push(match);
+            assigned.add(match);
+          }
+        }
+        // Append unmatched children at the end
+        for (const child of otherChildren) {
+          if (!assigned.has(child)) desiredOrder.push(child);
+        }
+
+        // Store desired order and apply translates using the shared infrastructure
+        reorderVisualOrderRef.current.set(otherParent, desiredOrder);
+        if (!reorderModeRef.current.has(otherParent)) {
+          reorderModeRef.current.set(otherParent, "translate");
+        }
+        applyTranslateOrder(otherParent);
+      }
+    }
+
+    return bulkUndoEntries;
+  }
+
+  /**
    * Walk up from an element to find the nearest ancestor that has siblings to reorder with.
    * Returns the proxy element (the ancestor that will be reordered) and its parent,
    * or null if no reorderable ancestor is found.
@@ -1998,11 +2146,13 @@ function RetuneInner(props: RetuneConfig) {
     reorderStackRef.current.push(undoEntry);
     reorderRedoStackRef.current = [];
 
+    let newVisualOrder: HTMLElement[];
     if (mode === "order") {
       // Swap CSS order values
       const temp = proxy.style.order;
       proxy.style.order = neighbor.style.order;
       neighbor.style.order = temp;
+      newVisualOrder = getVisualOrder(parent);
     } else {
       // Swap in the desired visual order array, then recompute all translates
       const desired = reorderVisualOrderRef.current.get(parent);
@@ -2013,6 +2163,17 @@ function RetuneInner(props: RetuneConfig) {
           [desired[idx], desired[neighborIdx]] = [desired[neighborIdx], desired[idx]];
           applyTranslateOrder(parent);
         }
+        newVisualOrder = [...desired];
+      } else {
+        newVisualOrder = children;
+      }
+    }
+
+    // Propagate to all matching parents if scope says so
+    const bulkUndo = applyBulkReorder(parent, newVisualOrder);
+    if (bulkUndo.length > 0) {
+      for (const entry of bulkUndo) {
+        undoEntry.push(...entry);
       }
     }
 
@@ -2083,6 +2244,7 @@ function RetuneInner(props: RetuneConfig) {
     reorderStackRef.current.push(undoEntry);
     reorderRedoStackRef.current = [];
 
+    let newVisualOrder: HTMLElement[];
     if (mode === "order") {
       // Splice visual order array and reassign all order values
       const visualOrder = getVisualOrder(parent);
@@ -2091,6 +2253,7 @@ function RetuneInner(props: RetuneConfig) {
       for (let i = 0; i < visualOrder.length; i++) {
         visualOrder[i].style.order = String(i);
       }
+      newVisualOrder = visualOrder;
     } else {
       // Splice in desired order array and recompute translates
       const desired = reorderVisualOrderRef.current.get(parent);
@@ -2098,6 +2261,18 @@ function RetuneInner(props: RetuneConfig) {
         const [moved] = desired.splice(fromIndex, 1);
         desired.splice(toIndex > fromIndex ? toIndex - 1 : toIndex, 0, moved);
         applyTranslateOrder(parent);
+        newVisualOrder = [...desired];
+      } else {
+        newVisualOrder = children;
+      }
+    }
+
+    // Propagate to all matching parents if scope says so
+    const bulkUndo = applyBulkReorder(parent, newVisualOrder);
+    if (bulkUndo.length > 0) {
+      // Merge bulk undo entries into the existing undo entry
+      for (const entry of bulkUndo) {
+        undoEntry.push(...entry);
       }
     }
 
