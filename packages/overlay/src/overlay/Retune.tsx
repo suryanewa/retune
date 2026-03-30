@@ -432,16 +432,14 @@ function CommentPopover({
   const autoResize = useCallback(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = "0";
+    el.style.height = "auto";
     el.style.height = el.scrollHeight + "px";
   }, []);
 
   useEffect(() => {
-    setTimeout(() => {
-      inputRef.current?.focus();
-      autoResize();
-    }, 50);
-  }, [autoResize]);
+    // Focus after animation completes to avoid height flash
+    setTimeout(() => inputRef.current?.focus(), 200);
+  }, []);
 
   const handleSubmit = () => {
     const trimmed = text.trim();
