@@ -441,6 +441,8 @@ function CommentPopover({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleSubmit();
@@ -449,14 +451,35 @@ function CommentPopover({
       e.preventDefault();
       onCancel();
     }
-    e.stopPropagation();
   };
 
-  // Position: offset slightly from the marker
+  // Position: offset from marker, clamped to viewport
+  const popoverWidth = 280;
+  const popoverHeight = 140; // approximate
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = position.x + 16;
+  let top = position.y - 8;
+
+  // Flip left if overflowing right edge
+  if (left + popoverWidth > vw - 12) {
+    left = position.x - popoverWidth - 16;
+  }
+  // Clamp left
+  if (left < 12) left = 12;
+
+  // Flip up if overflowing bottom edge
+  if (top + popoverHeight > vh - 12) {
+    top = position.y - popoverHeight - 8;
+  }
+  // Clamp top
+  if (top < 12) top = 12;
+
   const style: React.CSSProperties = {
     position: "fixed",
-    left: position.x + 16,
-    top: position.y - 8,
+    left,
+    top,
     zIndex: 2147483647,
   };
 
@@ -1434,11 +1457,28 @@ function RetuneInner(props: RetuneConfig) {
       }
     };
 
+    // Escape in comment mode: dismiss popover if open, otherwise switch to edit mode
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (popoverOpenRef.current) {
+        popoverOpenRef.current = false;
+        setCommentDraft(null);
+        setActiveCommentId(null);
+      } else {
+        setMode("edit");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
     document.addEventListener("pointerdown", handlePointerDown, true);
     document.addEventListener("pointermove", handlePointerMove, true);
     document.addEventListener("pointerup", handlePointerUp, true);
 
     return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("pointermove", handlePointerMove, true);
       document.removeEventListener("pointerup", handlePointerUp, true);

@@ -2567,6 +2567,8 @@ export function createPicker(
     if (!active) return;
     if (e.key === "Escape") {
       if (shadowRoot.querySelector(".retune-floating-dialog")) return;
+      if (shadowRoot.querySelector(".retune-comment-popover")) return;
+      if (commentMode) return; // In comment mode, Escape exits comment mode (handled by Retune.tsx)
       e.preventDefault();
       e.stopPropagation();
       callbacks.onCancel();
