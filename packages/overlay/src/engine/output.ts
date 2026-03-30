@@ -14,6 +14,7 @@ import { type TokenMap, scanDesignTokens, summarizeTokenSystem } from "../inspec
 import { camelToKebab, truncate } from "../utils";
 import { getVariableRegistry } from "../variables/registry";
 import { enrichPropertyChanges } from "./candidates";
+import type { Comment } from "./comment-store";
 
 export type Fidelity = "minimal" | "standard" | "full";
 
@@ -91,8 +92,8 @@ function getTokenMap(): TokenMap {
   return cachedTokenMap;
 }
 
-export function formatChanges(changes: ElementChange[], fidelity: Fidelity): string {
-  if (changes.length === 0) return "No changes recorded.";
+export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comments?: Comment[]): string {
+  if (changes.length === 0 && (!comments || comments.length === 0)) return "No changes recorded.";
 
   // Separate bulk instances from primary changes
   const bulkCount = changes.filter(c => c.changes.some(p => p.property === "__bulkOf")).length;
@@ -133,8 +134,44 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
   }
 
   // Each element change — pass bulk instance count so structural actions can note it
-  const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap, bulkCount));
-  lines.push(sections.join("\n---\n\n"));
+  if (changes.length > 0) {
+    const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap, bulkCount));
+    lines.push(sections.join("\n---\n\n"));
+  }
+
+  // Comments section
+  if (comments && comments.length > 0) {
+    if (changes.length > 0) {
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+    lines.push(`# Comments (${comments.length})`);
+    lines.push("");
+    for (const comment of comments) {
+      if (comment.type === "element" && comment.elementInfo) {
+        const info = comment.elementInfo;
+        lines.push(`## Comment on \`<${info.tagName}>\`${info.textContent ? ` "${truncate(info.textContent, 60)}"` : ""}`);
+        if (info.componentName) {
+          lines.push(`**Component:** ${info.componentName}`);
+        }
+        if (comment.selector) {
+          lines.push(`**Selector:** \`${comment.selector}\``);
+        }
+        if (info.classes.length > 0) {
+          lines.push(`**Classes:** \`${info.classes.join(" ")}\``);
+        }
+      } else if (comment.type === "area" && comment.area) {
+        const a = comment.area;
+        lines.push(`## Comment on area (${Math.round(a.x)}, ${Math.round(a.y)}) ${Math.round(a.width)}×${Math.round(a.height)}px`);
+      } else {
+        lines.push(`## Comment`);
+      }
+      lines.push("");
+      lines.push(comment.text);
+      lines.push("");
+    }
+  }
 
   return lines.join("\n");
 }

@@ -119,6 +119,29 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
+    "retune_get_comments",
+    "Get all comments/annotations left by the user on elements or areas. Comments describe intent, feedback, or instructions that complement visual changes. Each comment includes the target element's selector/component info or area bounding box.",
+    {
+      clear: z.boolean().optional()
+        .describe("Whether to clear comments after retrieval. Default: false."),
+    },
+    async ({ clear }) => {
+      try {
+        const comments = await bridge.request("getComments");
+        if (!comments || comments.length === 0) {
+          return { content: [{ type: "text", text: "No comments." }] };
+        }
+        if (clear) {
+          await bridge.request("clearComments");
+        }
+        return { content: [{ type: "text", text: JSON.stringify(comments, null, 2) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text", text: `Error: ${err.message}` }] };
+      }
+    }
+  );
+
+  server.tool(
     "retune_status",
     "Check the status of the Retune overlay connection.",
     {},

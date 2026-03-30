@@ -20,6 +20,7 @@ import { PreviewBridge } from "../ui/preview-bridge";
 import { PreviewBridgeContext } from "../ui/preview-bridge-context";
 import { LivePreviewEngine } from "../engine/live-preview";
 import { ChangeTracker } from "../engine/change-tracker";
+import { CommentStore, type Comment } from "../engine/comment-store";
 import { formatChanges, collapseShorthands, type Fidelity } from "../engine/output";
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
@@ -36,6 +37,8 @@ import { IconCrossMedium } from "@central-icons-react/round-outlined-radius-2-st
 import { IconBroom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBroom";
 import { IconCheckCircle2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCheckCircle2";
 import { IconSettingsGear2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSettingsGear2";
+import { IconBubbleWide } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBubbleWide";
+import { IconCursor1 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursor1";
 import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
@@ -289,10 +292,99 @@ export function Retune(props: RetuneConfig = {}) {
   return <RetuneInner {...props} />;
 }
 
+// ── Comment Popover ──
+
+function CommentPopover({
+  position,
+  initialText,
+  onSubmit,
+  onCancel,
+  onDelete,
+}: {
+  position: { x: number; y: number };
+  initialText: string;
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+}) {
+  const [text, setText] = useState(initialText);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isEdit = !!onDelete;
+
+  useEffect(() => {
+    // Focus on mount
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }, []);
+
+  const handleSubmit = () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+    }
+    e.stopPropagation();
+  };
+
+  // Position: offset slightly from the marker
+  const style: React.CSSProperties = {
+    position: "fixed",
+    left: position.x + 16,
+    top: position.y - 8,
+    zIndex: 2147483645,
+  };
+
+  return (
+    <div
+      className="retune-comment-popover"
+      style={style}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <textarea
+        ref={inputRef}
+        className="retune-comment-textarea"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Add a comment..."
+        rows={3}
+      />
+      <div className="retune-comment-actions">
+        {isEdit && (
+          <button className="retune-comment-delete-btn" onClick={onDelete}>
+            Delete
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <button className="retune-comment-cancel-btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button
+          className="retune-comment-submit-btn"
+          onClick={handleSubmit}
+          disabled={!text.trim()}
+        >
+          {isEdit ? "Save" : "Comment"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RetuneInner(props: RetuneConfig) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
   const [active, setActive] = useState(false);
+  const [mode, setMode] = useState<"edit" | "comment">("edit");
   const [selectedElement, setSelectedElement] = useState<InspectedElement | null>(null);
   const [changeCount, setChangeCount] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
@@ -409,6 +501,17 @@ function RetuneInner(props: RetuneConfig) {
   const pickerRef = useRef<ReturnType<typeof createPicker> | null>(null);
   const previewRef = useRef<LivePreviewEngine | null>(null);
   const trackerRef = useRef<ChangeTracker | null>(null);
+  const commentStoreRef = useRef(new CommentStore());
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentCount, setCommentCount] = useState(0);
+  const [activeCommentId, setActiveCommentId] = useState<number | null>(null);
+  const [commentDraft, setCommentDraft] = useState<{
+    position: { x: number; y: number };
+    type: "element" | "area";
+    selector?: string;
+    area?: { x: number; y: number; width: number; height: number };
+    elementInfo?: Comment["elementInfo"];
+  } | null>(null);
   const previewBridgeRef = useRef(new PreviewBridge());
   const bridgeRef = useRef<BridgeClient | null>(null);
   const selectedElementRef = useRef<InspectedElement | null>(null);
@@ -464,7 +567,14 @@ function RetuneInner(props: RetuneConfig) {
           }));
         }
         case "getFormattedChanges":
-          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current);
+          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current, commentStoreRef.current.getAll());
+        case "getComments":
+          return commentStoreRef.current.getAll();
+        case "clearComments":
+          commentStoreRef.current.clear();
+          setComments([]);
+          setCommentCount(0);
+          return;
         case "clearChanges": {
           // MCP clear = agent already applied changes to source.
           // Don't restore DOM mutations — just clear the stacks and tracking data.
@@ -694,6 +804,13 @@ function RetuneInner(props: RetuneConfig) {
       setChangeCount(restored.filter(c => !c.changes.some(p => p.property === "__bulkOf")).length);
       setCanUndo(tracker.canUndo);
       setCanRedo(tracker.canRedo);
+    }
+
+    // Restore persisted comments
+    const cStore = commentStoreRef.current;
+    if (cStore.restore()) {
+      setComments(cStore.getAll());
+      setCommentCount(cStore.count);
     }
 
     const picker = createPicker(mount.root, {
@@ -1069,6 +1186,155 @@ function RetuneInner(props: RetuneConfig) {
     tracker.persist();
   }, []);
   syncTrackerStateRef.current = syncTrackerState;
+
+  const syncCommentState = useCallback(() => {
+    const store = commentStoreRef.current;
+    setComments(store.getAll());
+    setCommentCount(store.count);
+  }, []);
+
+  // Quick element info helpers for comment mode (lightweight, no full inspection)
+  const getQuickSelector = useCallback((el: Element): string => {
+    if (el.id) return "#" + CSS.escape(el.id);
+    const cls = Array.from(el.classList).filter(c => !c.startsWith("_") && !/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(c));
+    if (cls.length > 0) return "." + cls.map(c => CSS.escape(c)).join(".");
+    return el.tagName.toLowerCase();
+  }, []);
+
+  const getQuickComponentName = useCallback((el: Element): string | null => {
+    const key = Object.keys(el).find(k => k.startsWith("__reactFiber$"));
+    if (!key) return null;
+    let fiber = (el as any)[key]?.return;
+    while (fiber) {
+      if (typeof fiber.type === "function" || typeof fiber.type === "object") {
+        const n = fiber.type?.displayName || fiber.type?.name;
+        if (n && n.length > 2 && !n.startsWith("_") && !/^(Fragment|Suspense|StrictMode|Provider|Consumer|Context)/.test(n)) return n;
+      }
+      fiber = fiber.return;
+    }
+    return null;
+  }, []);
+
+  // Suspend/resume picker when switching between edit and comment mode
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  useEffect(() => {
+    if (!active) return;
+    if (mode === "comment") {
+      pickerRef.current?.suspend();
+    } else {
+      pickerRef.current?.resume();
+    }
+  }, [mode, active]);
+
+  // Comment mode: handle clicks and drags to create comments
+  const commentDragRef = useRef<{
+    startX: number; startY: number; dragging: boolean;
+    areaEl: HTMLDivElement | null;
+  } | null>(null);
+  const popoverOpenRef = useRef(false);
+  useEffect(() => {
+    popoverOpenRef.current = !!(commentDraft || activeCommentId);
+  }, [commentDraft, activeCommentId]);
+
+  useEffect(() => {
+    if (!active || mode !== "comment") return;
+    const root = mountRef.current?.root;
+    if (!root) return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      // If popover is open, don't create new comments
+      if (popoverOpenRef.current) return;
+      // Check composedPath to handle shadow DOM — clicks on overlay elements should be ignored
+      const path = e.composedPath();
+      for (let i = 0; i < path.length; i++) {
+        const node = path[i];
+        if (node instanceof HTMLElement) {
+          if (node.hasAttribute("data-retune-host")) return;
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const areaEl = document.createElement("div");
+      areaEl.style.cssText = `position:fixed;border:2px dashed var(--retune-blue-10, #3b82f6);background:rgba(59,130,246,0.06);pointer-events:none;z-index:2147483640;display:none;`;
+      document.body.appendChild(areaEl);
+      commentDragRef.current = { startX: e.clientX, startY: e.clientY, dragging: false, areaEl };
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const drag = commentDragRef.current;
+      if (!drag) return;
+      const dx = Math.abs(e.clientX - drag.startX);
+      const dy = Math.abs(e.clientY - drag.startY);
+      if (dx > 5 || dy > 5) {
+        drag.dragging = true;
+        if (drag.areaEl) {
+          drag.areaEl.style.display = "block";
+          drag.areaEl.style.left = Math.min(e.clientX, drag.startX) + "px";
+          drag.areaEl.style.top = Math.min(e.clientY, drag.startY) + "px";
+          drag.areaEl.style.width = dx + "px";
+          drag.areaEl.style.height = dy + "px";
+        }
+      }
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      const drag = commentDragRef.current;
+      if (!drag) return;
+      commentDragRef.current = null;
+
+      if (drag.dragging) {
+        // Area selection
+        const area = {
+          x: Math.min(e.clientX, drag.startX),
+          y: Math.min(e.clientY, drag.startY),
+          width: Math.abs(e.clientX - drag.startX),
+          height: Math.abs(e.clientY - drag.startY),
+        };
+        if (drag.areaEl) drag.areaEl.remove();
+        if (area.width > 10 && area.height > 10) {
+          setCommentDraft({
+            position: { x: e.clientX, y: e.clientY },
+            type: "area",
+            area,
+          });
+        }
+      } else {
+        // Single click — target element under cursor
+        if (drag.areaEl) drag.areaEl.remove();
+        const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+        if (target && !target.closest?.("[data-retune-host]")) {
+          const selector = getQuickSelector(target);
+          const componentName = getQuickComponentName(target);
+          setCommentDraft({
+            position: { x: e.clientX, y: e.clientY },
+            type: "element",
+            selector,
+            elementInfo: {
+              tagName: target.tagName.toLowerCase(),
+              componentName,
+              componentPath: [],
+              classes: Array.from(target.classList),
+              textContent: (target.textContent || "").slice(0, 80).trim() || null,
+            },
+          });
+        }
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("pointermove", handlePointerMove, true);
+    document.addEventListener("pointerup", handlePointerUp, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("pointermove", handlePointerMove, true);
+      document.removeEventListener("pointerup", handlePointerUp, true);
+      if (commentDragRef.current?.areaEl) {
+        commentDragRef.current.areaEl.remove();
+      }
+    };
+  }, [active, mode]);
 
   // Flag to skip ownedProperties update in refreshSelectedElement when it was just set directly
   const skipOwnedUpdateRef = useRef(false);
@@ -2938,7 +3204,7 @@ function RetuneInner(props: RetuneConfig) {
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
-    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity));
+    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity, commentStoreRef.current.getAll()));
     setCopied(true);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
@@ -2953,7 +3219,7 @@ function RetuneInner(props: RetuneConfig) {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
       getFormattedChanges: (f?: Fidelity) =>
-        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current),
+        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current, commentStoreRef.current.getAll()),
       clearChanges: () => {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
@@ -3022,16 +3288,34 @@ function RetuneInner(props: RetuneConfig) {
           </button>
         </Tooltip>
 
-        {/* Expanded: edit count + actions */}
+        {/* Expanded: mode switcher + actions */}
         <div className="retune-toolbar-expanded">
-          {changeCount > 0 && (
-            <div className="retune-edit-count">{changeCount}</div>
+          <Tooltip content="Edit mode" side="top">
+            <button
+              className={`retune-toolbar-btn${mode === "edit" ? " active" : ""}`}
+              onClick={() => { setMode("edit"); setCommentDraft(null); setActiveCommentId(null); }}
+            >
+              <IconCursor1 size={20} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Comment mode" side="top">
+            <button
+              className={`retune-toolbar-btn${mode === "comment" ? " active" : ""}`}
+              onClick={() => { setMode("comment"); setSelectedElement(null); }}
+            >
+              <IconBubbleWide size={20} />
+              {commentCount > 0 && <span className="retune-comment-count">{commentCount}</span>}
+            </button>
+          </Tooltip>
+          <div className="retune-toolbar-divider" />
+          {(changeCount > 0 || commentCount > 0) && (
+            <div className="retune-edit-count">{changeCount + commentCount}</div>
           )}
           <Tooltip content="Copy changes" shortcut="⌘C" side="top">
             <button
-              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleCopy}
-              disabled={changeCount === 0}
+              disabled={changeCount === 0 && commentCount === 0}
             >
               <span className="retune-icon-swap">
                 <span className={`retune-icon-swap-icon ${copied ? "out" : "in"}`}>
@@ -3086,7 +3370,7 @@ function RetuneInner(props: RetuneConfig) {
       </div>
 
       {/* Design panel */}
-      <AnimatedPanel visible={!!(active && selectedElement && !settingsOpen && !toolbarDragging)}>
+      <AnimatedPanel visible={!!(active && selectedElement && !settingsOpen && !toolbarDragging && mode === "edit")}>
         <div className={`retune-panel ${side}`}>
           <div className="retune-tab-bar" ref={tabBarRef}>
             <div className="retune-tab-pill" ref={tabPillRef} />
@@ -3340,6 +3624,78 @@ function RetuneInner(props: RetuneConfig) {
           revision={changeRevision}
         />
       )}
+
+      {/* Comment markers (visible in both modes) */}
+      {active && comments.map((c, idx) => (
+        <div
+          key={c.id}
+          className={`retune-comment-marker${mode === "comment" ? " interactive" : ""}`}
+          style={{ left: c.position.x, top: c.position.y }}
+          onClick={mode === "comment" ? (e) => {
+            e.stopPropagation();
+            setActiveCommentId(c.id);
+            setCommentDraft(null);
+          } : undefined}
+        >
+          {idx + 1}
+        </div>
+      ))}
+
+      {/* Area outlines for area comments */}
+      {active && comments.filter(c => c.type === "area" && c.area).map(c => (
+        <div
+          key={`area-${c.id}`}
+          className="retune-comment-area-outline"
+          style={{
+            left: c.area!.x,
+            top: c.area!.y,
+            width: c.area!.width,
+            height: c.area!.height,
+          }}
+        />
+      ))}
+
+      {/* Comment popover for new comment draft */}
+      {active && mode === "comment" && commentDraft && !activeCommentId && (
+        <CommentPopover
+          position={commentDraft.position}
+          initialText=""
+          onSubmit={(text) => {
+            const store = commentStoreRef.current;
+            store.add(text, commentDraft.position, commentDraft.type, {
+              selector: commentDraft.selector,
+              area: commentDraft.area,
+              elementInfo: commentDraft.elementInfo,
+            });
+            syncCommentState();
+            setCommentDraft(null);
+          }}
+          onCancel={() => setCommentDraft(null)}
+        />
+      )}
+
+      {/* Comment popover for editing existing comment */}
+      {active && mode === "comment" && activeCommentId && (() => {
+        const c = commentStoreRef.current.get(activeCommentId);
+        if (!c) return null;
+        return (
+          <CommentPopover
+            position={c.position}
+            initialText={c.text}
+            onSubmit={(text) => {
+              commentStoreRef.current.update(activeCommentId, text);
+              syncCommentState();
+              setActiveCommentId(null);
+            }}
+            onCancel={() => setActiveCommentId(null)}
+            onDelete={() => {
+              commentStoreRef.current.delete(activeCommentId);
+              syncCommentState();
+              setActiveCommentId(null);
+            }}
+          />
+        );
+      })()}
     </TooltipPortalContext.Provider>
     </PreviewBridgeContext.Provider>,
     portalTarget
