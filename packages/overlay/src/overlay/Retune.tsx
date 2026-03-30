@@ -339,13 +339,15 @@ function CommentPopover({
     position: "fixed",
     left: position.x + 16,
     top: position.y - 8,
-    zIndex: 2147483645,
+    zIndex: 2147483647,
   };
 
   return (
     <div
       className="retune-comment-popover"
       style={style}
+      onPointerDownCapture={(e) => e.stopPropagation()}
+      onClickCapture={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
@@ -360,17 +362,17 @@ function CommentPopover({
       />
       <div className="retune-comment-actions">
         {isEdit && (
-          <button className="retune-comment-delete-btn" onClick={onDelete}>
+          <button className="retune-comment-delete-btn" onPointerUp={onDelete}>
             Delete
           </button>
         )}
         <div style={{ flex: 1 }} />
-        <button className="retune-comment-cancel-btn" onClick={onCancel}>
+        <button className="retune-comment-cancel-btn" onPointerUp={onCancel}>
           Cancel
         </button>
         <button
           className="retune-comment-submit-btn"
-          onClick={handleSubmit}
+          onPointerUp={handleSubmit}
           disabled={!text.trim()}
         >
           {isEdit ? "Save" : "Comment"}
@@ -816,6 +818,30 @@ function RetuneInner(props: RetuneConfig) {
     const picker = createPicker(mount.root, {
       onHover: () => {},
       onSelect: (element) => {
+        // In comment mode, create a comment instead of selecting for editing
+        if (modeRef.current === "comment") {
+          if (popoverOpenRef.current) return;
+          const rect = element.getBoundingClientRect();
+          const selector = getQuickSelector(element);
+          const componentName = getQuickComponentName(element);
+          const draft = {
+            position: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+            type: "element" as const,
+            selector,
+            elementInfo: {
+              tagName: element.tagName.toLowerCase(),
+              componentName,
+              componentPath: [],
+              classes: Array.from(element.classList),
+              textContent: (element.textContent || "").slice(0, 80).trim() || null,
+            },
+          };
+          popoverOpenRef.current = true;
+          setCommentDraft(draft);
+          // Hide selection UI (handles, badge) — we only need hover in comment mode
+          pickerRef.current?.clearSelection();
+          return;
+        }
         const inspected = inspectElement(element);
         // Clear forced pseudo-state when selecting a new element
         if (forcedStateRef.current) {
@@ -1215,16 +1241,13 @@ function RetuneInner(props: RetuneConfig) {
     return null;
   }, []);
 
-  // Suspend/resume picker when switching between edit and comment mode
   const modeRef = useRef(mode);
   modeRef.current = mode;
+
+  // Sync comment mode to picker
   useEffect(() => {
     if (!active) return;
-    if (mode === "comment") {
-      pickerRef.current?.suspend();
-    } else {
-      pickerRef.current?.resume();
-    }
+    pickerRef.current?.setCommentMode(mode === "comment");
   }, [mode, active]);
 
   // Comment mode: handle clicks and drags to create comments
@@ -1233,28 +1256,17 @@ function RetuneInner(props: RetuneConfig) {
     areaEl: HTMLDivElement | null;
   } | null>(null);
   const popoverOpenRef = useRef(false);
-  useEffect(() => {
-    popoverOpenRef.current = !!(commentDraft || activeCommentId);
-  }, [commentDraft, activeCommentId]);
 
+  // Comment mode: area drag selection (element clicks are handled by picker's onSelect)
   useEffect(() => {
     if (!active || mode !== "comment") return;
-    const root = mountRef.current?.root;
-    if (!root) return;
 
     const handlePointerDown = (e: PointerEvent) => {
-      // If popover is open, don't create new comments
       if (popoverOpenRef.current) return;
-      // Check composedPath to handle shadow DOM — clicks on overlay elements should be ignored
       const path = e.composedPath();
       for (let i = 0; i < path.length; i++) {
-        const node = path[i];
-        if (node instanceof HTMLElement) {
-          if (node.hasAttribute("data-retune-host")) return;
-        }
+        if (path[i] instanceof HTMLElement && (path[i] as HTMLElement).hasAttribute("data-retune-host")) return;
       }
-      e.preventDefault();
-      e.stopPropagation();
       const areaEl = document.createElement("div");
       areaEl.style.cssText = `position:fixed;border:2px dashed var(--retune-blue-10, #3b82f6);background:rgba(59,130,246,0.06);pointer-events:none;z-index:2147483640;display:none;`;
       document.body.appendChild(areaEl);
@@ -1283,42 +1295,24 @@ function RetuneInner(props: RetuneConfig) {
       if (!drag) return;
       commentDragRef.current = null;
 
-      if (drag.dragging) {
-        // Area selection
+      if (drag.dragging && drag.areaEl) {
         const area = {
           x: Math.min(e.clientX, drag.startX),
           y: Math.min(e.clientY, drag.startY),
           width: Math.abs(e.clientX - drag.startX),
           height: Math.abs(e.clientY - drag.startY),
         };
-        if (drag.areaEl) drag.areaEl.remove();
+        drag.areaEl.remove();
         if (area.width > 10 && area.height > 10) {
+          popoverOpenRef.current = true;
           setCommentDraft({
             position: { x: e.clientX, y: e.clientY },
             type: "area",
             area,
           });
         }
-      } else {
-        // Single click — target element under cursor
-        if (drag.areaEl) drag.areaEl.remove();
-        const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
-        if (target && !target.closest?.("[data-retune-host]")) {
-          const selector = getQuickSelector(target);
-          const componentName = getQuickComponentName(target);
-          setCommentDraft({
-            position: { x: e.clientX, y: e.clientY },
-            type: "element",
-            selector,
-            elementInfo: {
-              tagName: target.tagName.toLowerCase(),
-              componentName,
-              componentPath: [],
-              classes: Array.from(target.classList),
-              textContent: (target.textContent || "").slice(0, 80).trim() || null,
-            },
-          });
-        }
+      } else if (drag.areaEl) {
+        drag.areaEl.remove();
       }
     };
 
@@ -1330,9 +1324,7 @@ function RetuneInner(props: RetuneConfig) {
       document.removeEventListener("pointerdown", handlePointerDown, true);
       document.removeEventListener("pointermove", handlePointerMove, true);
       document.removeEventListener("pointerup", handlePointerUp, true);
-      if (commentDragRef.current?.areaEl) {
-        commentDragRef.current.areaEl.remove();
-      }
+      if (commentDragRef.current?.areaEl) commentDragRef.current.areaEl.remove();
     };
   }, [active, mode]);
 
@@ -3293,7 +3285,7 @@ function RetuneInner(props: RetuneConfig) {
           <Tooltip content="Edit mode" side="top">
             <button
               className={`retune-toolbar-btn${mode === "edit" ? " active" : ""}`}
-              onClick={() => { setMode("edit"); setCommentDraft(null); setActiveCommentId(null); }}
+              onClick={() => { setMode("edit"); setCommentDraft(null); setActiveCommentId(null); popoverOpenRef.current = false; }}
             >
               <IconCursor1 size={20} />
             </button>
@@ -3304,7 +3296,6 @@ function RetuneInner(props: RetuneConfig) {
               onClick={() => { setMode("comment"); setSelectedElement(null); }}
             >
               <IconBubbleWide size={20} />
-              {commentCount > 0 && <span className="retune-comment-count">{commentCount}</span>}
             </button>
           </Tooltip>
           <div className="retune-toolbar-divider" />
@@ -3633,6 +3624,7 @@ function RetuneInner(props: RetuneConfig) {
           style={{ left: c.position.x, top: c.position.y }}
           onClick={mode === "comment" ? (e) => {
             e.stopPropagation();
+            popoverOpenRef.current = true;
             setActiveCommentId(c.id);
             setCommentDraft(null);
           } : undefined}
@@ -3668,9 +3660,10 @@ function RetuneInner(props: RetuneConfig) {
               elementInfo: commentDraft.elementInfo,
             });
             syncCommentState();
+            popoverOpenRef.current = false;
             setCommentDraft(null);
           }}
-          onCancel={() => setCommentDraft(null)}
+          onCancel={() => { popoverOpenRef.current = false; setCommentDraft(null); }}
         />
       )}
 
@@ -3685,12 +3678,14 @@ function RetuneInner(props: RetuneConfig) {
             onSubmit={(text) => {
               commentStoreRef.current.update(activeCommentId, text);
               syncCommentState();
+              popoverOpenRef.current = false;
               setActiveCommentId(null);
             }}
-            onCancel={() => setActiveCommentId(null)}
+            onCancel={() => { popoverOpenRef.current = false; setActiveCommentId(null); }}
             onDelete={() => {
               commentStoreRef.current.delete(activeCommentId);
               syncCommentState();
+              popoverOpenRef.current = false;
               setActiveCommentId(null);
             }}
           />

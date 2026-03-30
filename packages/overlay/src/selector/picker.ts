@@ -2518,6 +2518,14 @@ export function createPicker(
     if (elementStack.length === 0) return;
     const el = elementStack[stackIndex];
 
+    if (commentMode) {
+      // In comment mode: just call onSelect (no selection UI)
+      hideHighlight();
+      hoveredElement = null;
+      callbacks.onSelect(el);
+      return;
+    }
+
     selectedElement = el;
     selectionLabelHidden = false;
     if (resizeObserver) {
@@ -2692,5 +2700,13 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights };
+  let commentMode = false;
+  function setCommentMode(enabled: boolean) {
+    commentMode = enabled;
+    if (enabled) {
+      clearSelection();
+    }
+  }
+
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode };
 }
