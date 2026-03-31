@@ -1409,9 +1409,12 @@ function RetuneInner(props: RetuneConfig) {
   useEffect(() => {
     if (!active) return;
     const handleModeKey = (e: KeyboardEvent) => {
-      // Skip if typing in an input/textarea
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      // Skip if popover is open (user is typing a comment)
+      if (popoverOpenRef.current) return;
+      // Skip if typing in an input/textarea (check composedPath for shadow DOM)
+      const actualTarget = e.composedPath()[0] as HTMLElement | undefined;
+      const tag = actualTarget?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || actualTarget?.isContentEditable) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "v" || e.key === "V") {
         e.preventDefault();
@@ -3822,7 +3825,10 @@ function RetuneInner(props: RetuneConfig) {
             setCommentDraft(null);
           }}
         >
-          {idx + 1}
+          <span className="retune-comment-marker-num">{idx + 1}</span>
+          {activeCommentId !== c.id && (
+            <span className="retune-comment-marker-preview">{c.text}</span>
+          )}
         </div>
       ))}
 
