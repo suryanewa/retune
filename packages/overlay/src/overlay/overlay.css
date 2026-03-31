@@ -3293,11 +3293,10 @@
   line-height: 1;
 }
 .retune-toolbar-btn.active {
-  background: var(--retune-blue);
-  color: var(--retune-always-white);
+  background: var(--retune-surface-hover);
 }
 .retune-toolbar-btn.active:hover {
-  background: var(--retune-blue);
+  background: var(--retune-surface-hover);
 }
 .retune-toolbar-divider {
   width: 1px;
