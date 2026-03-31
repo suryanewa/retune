@@ -856,6 +856,10 @@ function RetuneInner(props: RetuneConfig) {
           }
           p.clearAll();
           t.clear();
+          // Clear comments
+          commentStoreRef.current.clear();
+          setComments([]);
+          setCommentCount(0);
           // Deselect — DOM nodes may have been restructured by React reconciliation
           // after the source code change, making the old selection reference unreliable
           setSelectedElement(null);
@@ -3338,6 +3342,9 @@ function RetuneInner(props: RetuneConfig) {
     if (forcedStateRef.current) clearForcedInlineStyles();
     preview.clearAll();
     tracker.clear();
+    // Clear comments
+    commentStoreRef.current.clear();
+    syncCommentState();
     // Reset compound selector state
     // Reset to default scope level (narrowest class level)
     const levels = scopeLevelsRef.current;
@@ -3611,9 +3618,9 @@ function RetuneInner(props: RetuneConfig) {
           </Tooltip>
           <Tooltip content="Reset all" side="top">
             <button
-              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleReset}
-              disabled={changeCount === 0}
+              disabled={changeCount === 0 && commentCount === 0}
             >
               <IconBroom size={20} />
             </button>
