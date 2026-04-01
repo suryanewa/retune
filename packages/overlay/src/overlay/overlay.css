@@ -3228,7 +3228,7 @@ input, textarea, [contenteditable] {
   z-index: 2147483647;
   pointer-events: auto;
   transform-origin: top left;
-  animation: retune-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) 30ms both;
+  animation: retune-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) 30ms backwards;
 }
 @keyframes retune-popover-in {
   from {

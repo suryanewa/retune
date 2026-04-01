@@ -694,10 +694,13 @@ function CommentPopover({
     el.style.height = el.scrollHeight + "px";
   }, []);
 
+  const popoverElRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setTimeout(() => {
       inputRef.current?.focus();
       autoResize();
+      // Kill entrance animation after it completes so it doesn't replay on class changes
+      if (popoverElRef.current) popoverElRef.current.style.animation = "none";
     }, 200);
   }, [autoResize]);
 
@@ -752,6 +755,7 @@ function CommentPopover({
 
   return (
     <div
+      ref={popoverElRef}
       className="retune-comment-popover"
       style={style}
       onPointerDownCapture={(e) => e.stopPropagation()}
@@ -1715,16 +1719,17 @@ function RetuneInner(props: RetuneConfig) {
   const shakePopover = useCallback(() => {
     const el = mountRef.current?.root.querySelector(".retune-comment-popover") as HTMLElement | null;
     if (!el) return;
-    el.classList.remove("shaking");
-    el.offsetHeight; // force reflow
+    if (el.classList.contains("shaking")) return;
     el.classList.add("shaking");
-    const onEnd = () => { el.classList.remove("shaking"); el.removeEventListener("animationend", onEnd); };
+    const onEnd = () => {
+      el.classList.remove("shaking");
+      el.removeEventListener("animationend", onEnd);
+    };
     el.addEventListener("animationend", onEnd);
   }, []);
   /** Returns true if the popover has unsaved changes and should block. Triggers shake if blocking. */
   const shouldBlockForPopover = useCallback(() => {
     if (!popoverOpenRef.current) return false;
-    // Don't dismiss a popover that was just created by area drag
     if (areaDragJustEndedRef.current) return true;
     const isDirty = popoverTextRef.current !== popoverInitialTextRef.current;
     if (isDirty) {
@@ -1778,13 +1783,9 @@ function RetuneInner(props: RetuneConfig) {
       // Skip if click is inside the overlay (popover, toolbar, markers)
       const path = e.composedPath();
       for (let i = 0; i < path.length; i++) {
-        if (path[i] instanceof HTMLElement && (path[i] as HTMLElement).hasAttribute("data-retune-host")) {
-          console.log("[area drag] skipped - inside overlay");
-          return;
-        }
+        if (path[i] instanceof HTMLElement && (path[i] as HTMLElement).hasAttribute("data-retune-host")) return;
       }
-      if (shouldBlockForPopoverRef.current()) { console.log("[area drag] blocked by popover"); return; }
-      console.log("[area drag] pointerdown started");
+      if (shouldBlockForPopoverRef.current()) return;
       e.preventDefault();
       const areaEl = document.createElement("div");
       areaEl.style.cssText = `position:fixed;border:1px dashed #0D99FF;pointer-events:none;z-index:2147483640;display:none;`;
@@ -1811,7 +1812,6 @@ function RetuneInner(props: RetuneConfig) {
 
     const handlePointerUp = (e: PointerEvent) => {
       const drag = commentDragRef.current;
-      console.log("[area drag] pointerup", { hasDrag: !!drag, dragging: drag?.dragging });
       if (!drag) return;
       commentDragRef.current = null;
 
@@ -1823,9 +1823,7 @@ function RetuneInner(props: RetuneConfig) {
           height: Math.abs(e.clientY - drag.startY),
         };
         drag.areaEl.remove();
-        console.log("[area drag] area dimensions:", area.width, area.height);
         if (area.width > 10 && area.height > 10) {
-          console.log("[area drag] creating draft");
           // Query elements within the selected area
           const containedElements: Array<{ tagName: string; selector: string; componentName: string | null; textContent: string | null }> = [];
           const step = 20;
@@ -4245,7 +4243,6 @@ function RetuneInner(props: RetuneConfig) {
       ))}
 
       {/* Area outlines for area comments */}
-      {active && (() => { if (comments.length) console.log("[retune] comments:", JSON.stringify(comments.map(c => ({ id: c.id, type: c.type, hasArea: !!c.area, area: c.area })))); return null; })()}
       {active && comments.filter(c => c.type === "area" && c.area).map(c => (
         <AreaOutline
           key={`area-${c.id}`}
