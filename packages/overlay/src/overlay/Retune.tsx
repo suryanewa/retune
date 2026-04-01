@@ -37,7 +37,6 @@ import { IconCrossMedium } from "@central-icons-react/round-outlined-radius-2-st
 import { IconBroom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBroom";
 import { IconCheckCircle2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCheckCircle2";
 import { IconSettingsGear2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSettingsGear2";
-import { IconBubbleWide } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBubbleWide";
 import { IconCursor1 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursor1";
 import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
@@ -292,7 +291,47 @@ export function Retune(props: RetuneConfig = {}) {
   return <RetuneInner {...props} />;
 }
 
+// ── Comment Icon (custom) ──
+
+function IconComment({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <path d="M3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10C17 13.866 13.866 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z" stroke="currentColor" strokeWidth="1.25" />
+    </svg>
+  );
+}
+
 // ── Comment Marker (JS-driven hover expansion) ──
+
+function useCommentPosition(c: Comment): { x: number; y: number } {
+  // Position stored as viewport coords at click time.
+  // On scroll, re-query element and use its current rect + anchorOffset.
+  const [pos, setPos] = useState(c.position);
+
+  useEffect(() => {
+    function onScroll() {
+      if (c.type === "element" && c.selector && c.anchorOffset) {
+        try {
+          const el = document.querySelector(c.selector);
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            setPos({ x: rect.left + c.anchorOffset.x, y: rect.top + c.anchorOffset.y });
+            return;
+          }
+        } catch {}
+      }
+    }
+    // Capture phase catches scroll on any element (nested containers)
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [c.selector, c.anchorOffset, c.type]);
+
+  return pos;
+}
 
 function CommentMarker({ comment: c, index, isPopoverOpen, onOpen }: {
   comment: Comment;
@@ -304,6 +343,7 @@ function CommentMarker({ comment: c, index, isPopoverOpen, onOpen }: {
   const previewRef = useRef<HTMLSpanElement>(null);
   const popoverOpenRef2 = useRef(isPopoverOpen);
   popoverOpenRef2.current = isPopoverOpen;
+  const pos = useCommentPosition(c);
 
   useEffect(() => {
     const marker = markerRef.current;
@@ -314,14 +354,13 @@ function CommentMarker({ comment: c, index, isPopoverOpen, onOpen }: {
       const preview = previewRef.current;
       if (!preview) return;
 
-      // Measure text width with a temporary inline span (avoids -webkit-box layout issues)
       const measurer = document.createElement("span");
       measurer.style.cssText = `position:absolute;visibility:hidden;font-size:12px;line-height:1.4;font-family:inherit;white-space:nowrap;`;
       measurer.textContent = c.text;
       marker.appendChild(measurer);
       const textW = measurer.offsetWidth;
       measurer.remove();
-      const targetW = Math.min(textW + 24, 200); // text width + horizontal padding
+      const targetW = Math.min(textW + 24, 200);
       const targetH = preview.offsetHeight + 10;
 
       marker.style.width = targetW + "px";
@@ -343,7 +382,7 @@ function CommentMarker({ comment: c, index, isPopoverOpen, onOpen }: {
       marker.removeEventListener("mouseenter", onEnter);
       marker.removeEventListener("mouseleave", onLeave);
     };
-  }, []);
+  }, [c.text]);
 
   // Collapse marker when popover opens
   useEffect(() => {
@@ -361,7 +400,7 @@ function CommentMarker({ comment: c, index, isPopoverOpen, onOpen }: {
     <div
       ref={markerRef}
       className={`retune-comment-marker interactive${isPopoverOpen ? " popover-open" : ""}`}
-      style={{ left: c.position.x, top: c.position.y }}
+      style={{ left: pos.x, top: pos.y }}
       onPointerUp={(e) => { e.stopPropagation(); onOpen(); }}
     >
       <span className="retune-comment-marker-num">{index + 1}</span>
@@ -739,7 +778,9 @@ function RetuneInner(props: RetuneConfig) {
     position: { x: number; y: number };
     type: "element" | "area";
     selector?: string;
+    anchorOffset?: { x: number; y: number };
     area?: { x: number; y: number; width: number; height: number };
+    areaScroll?: { x: number; y: number };
     elementInfo?: Comment["elementInfo"];
   } | null>(null);
   const previewBridgeRef = useRef(new PreviewBridge());
@@ -1064,10 +1105,12 @@ function RetuneInner(props: RetuneConfig) {
             ancestor = ancestor.parentElement;
           }
           const fullSelector = selectorPath.join(" > ");
+          const rect = element.getBoundingClientRect();
           const draft = {
             position: { x: cursor.x, y: cursor.y },
             type: "element" as const,
             selector: fullSelector,
+            anchorOffset: { x: cursor.x - rect.left, y: cursor.y - rect.top },
             elementInfo: {
               tagName: element.tagName.toLowerCase(),
               componentName,
@@ -1462,9 +1505,28 @@ function RetuneInner(props: RetuneConfig) {
   // Quick element info helpers for comment mode (lightweight, no full inspection)
   const getQuickSelector = useCallback((el: Element): string => {
     if (el.id) return "#" + CSS.escape(el.id);
+    let base: string;
     const cls = Array.from(el.classList).filter(c => !c.startsWith("_") && !/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(c));
-    if (cls.length > 0) return "." + cls.map(c => CSS.escape(c)).join(".");
-    return el.tagName.toLowerCase();
+    if (cls.length > 0) {
+      base = "." + cls.map(c => CSS.escape(c)).join(".");
+    } else {
+      base = el.tagName.toLowerCase();
+    }
+    // Add :nth-child if siblings share the same selector
+    const parent = el.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(s => {
+        if (s === el) return true;
+        if (s.id || el.id) return false;
+        if (cls.length > 0) return cls.every(c => s.classList.contains(c));
+        return s.tagName === el.tagName;
+      });
+      if (siblings.length > 1) {
+        const idx = Array.from(parent.children).indexOf(el) + 1;
+        base += `:nth-child(${idx})`;
+      }
+    }
+    return base;
   }, []);
 
   const getQuickComponentName = useCallback((el: Element): string | null => {
@@ -1585,6 +1647,7 @@ function RetuneInner(props: RetuneConfig) {
             position: { x: e.clientX, y: e.clientY },
             type: "area",
             area,
+            areaScroll: { x: window.scrollX, y: window.scrollY },
           });
         }
       } else if (drag.areaEl) {
@@ -3597,7 +3660,7 @@ function RetuneInner(props: RetuneConfig) {
               className={`retune-toolbar-btn${mode === "comment" ? " active" : ""}`}
               onClick={() => { setMode("comment"); setSelectedElement(null); }}
             >
-              <IconBubbleWide size={20} />
+              <IconComment size={20} />
             </button>
           </Tooltip>
           <Tooltip content="Copy changes" shortcut="⌘C" side="top">
@@ -3946,7 +4009,9 @@ function RetuneInner(props: RetuneConfig) {
             const store = commentStoreRef.current;
             store.add(text, commentDraft.position, commentDraft.type, {
               selector: commentDraft.selector,
+              anchorOffset: commentDraft.anchorOffset,
               area: commentDraft.area,
+              areaScroll: commentDraft.areaScroll,
               elementInfo: commentDraft.elementInfo,
             });
             syncCommentState();

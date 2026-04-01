@@ -16,8 +16,12 @@ export interface Comment {
   type: "element" | "area";
   /** For element comments: CSS selector of the target */
   selector?: string;
-  /** For area comments: bounding box of the selected region */
+  /** For element comments: click offset relative to the element's top-left */
+  anchorOffset?: { x: number; y: number };
+  /** For area comments: bounding box of the selected region, stored as page coordinates */
   area?: { x: number; y: number; width: number; height: number };
+  /** For area comments: scroll position at creation time */
+  areaScroll?: { x: number; y: number };
   /** Element context (captured at comment creation time) */
   elementInfo?: {
     tagName: string;
@@ -44,7 +48,9 @@ export class CommentStore {
     type: "element" | "area",
     opts?: {
       selector?: string;
+      anchorOffset?: { x: number; y: number };
       area?: { x: number; y: number; width: number; height: number };
+      areaScroll?: { x: number; y: number };
       elementInfo?: Comment["elementInfo"];
     },
   ): Comment {
@@ -54,7 +60,9 @@ export class CommentStore {
       position,
       type,
       selector: opts?.selector,
+      anchorOffset: opts?.anchorOffset,
       area: opts?.area,
+      areaScroll: opts?.areaScroll,
       elementInfo: opts?.elementInfo,
       timestamp: Date.now(),
     };
