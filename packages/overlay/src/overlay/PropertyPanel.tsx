@@ -900,9 +900,12 @@ export function PropertyPanel({
             <div className="retune-row">
               <SelectInput
                 prop="__state"
-                value={forcedState ?? "none"}
-                options={["none", ":hover", ":focus", ":active"]}
-                onChange={(_, val) => onForcedStateChange(val === "none" ? null : val as ForcedState)}
+                value={forcedState ? ({ ":hover": "Hover", ":focus": "Focus", ":active": "Active" } as Record<string, string>)[forcedState] ?? "None" : "None"}
+                options={["None", "Hover", "Focus", "Active"]}
+                onChange={(_, val) => {
+                  const map: Record<string, string | null> = { None: null, Hover: ":hover", Focus: ":focus", Active: ":active" };
+                  onForcedStateChange(map[val] as ForcedState | null);
+                }}
               />
             </div>
           </RowGroup>
