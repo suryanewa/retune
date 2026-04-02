@@ -12,13 +12,26 @@ import { ChangeIndicator } from "./change-indicator";
 interface ComponentSectionProps {
   selectedElement: InspectedElement;
   onRefresh?: () => void;
-  /** Called when a prop value changes — parent records in tracker */
   onPropChange?: (propName: string, newValue: unknown) => void;
-  /** Set of prop names that have been changed from original */
   changedProps?: Set<string>;
-  /** Called to reset a prop to its original value */
   onPropReset?: (propName: string) => void;
 }
+
+export const MANIFEST_PROMPT = `Generate a retune.manifest.json file in the project root. This manifest describes the project's React components and design tokens so that Retune's visual editor can show accurate controls.
+
+For each React component in the project, include:
+- All props with their types (boolean, string, number, enum)
+- For enum props, list all allowed values
+- Default values where defined
+- For props that map to CSS classes, include a class_map (e.g., size: "sm" → class "btn--sm")
+- Conditional props with "when" conditions (e.g., href only when as="a")
+
+For design tokens, include:
+- Colors, spacing, radii, typography from CSS custom properties
+- Tailwind config theme values if present
+- For each token: the resolved value, CSS variable name, and Tailwind utility if applicable
+
+Follow the schema at node_modules/retune/manifest.schema.json.`;
 
 function getValueType(value: unknown): "boolean" | "number" | "string" | "function" | "object" | "null" {
   if (value === null || value === undefined) return "null";
