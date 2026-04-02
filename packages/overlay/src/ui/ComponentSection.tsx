@@ -1,13 +1,15 @@
 /**
  * Component Section — displays React component props and state
- * in the property panel using the same RowGroup/retune-row pattern.
+ * in a 2-column grid layout within the property panel.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { InspectedElement } from "../types";
-import { setReactState, setReactProp } from "../selector/identifier";
-import { Section, RowGroup } from "./section";
+import { setReactState } from "../selector/identifier";
+import { Section } from "./section";
 import { ChangeIndicator } from "./change-indicator";
+import { SegmentedControl } from "./segmented-control";
+import { SelectInput } from "./select-input";
 
 interface ComponentSectionProps {
   selectedElement: InspectedElement;
@@ -15,6 +17,9 @@ interface ComponentSectionProps {
   onPropChange?: (propName: string, newValue: unknown) => void;
   changedProps?: Set<string>;
   onPropReset?: (propName: string) => void;
+  manifest?: Record<string, any> | null;
+  /** Monotonic counter — bump to revert all DOM prop previews (e.g. on "clear changes") */
+  resetRevision?: number;
 }
 
 export const MANIFEST_PROMPT = `Generate a retune.manifest.json file in the project root. This manifest describes the project's React components and design tokens so that Retune's visual editor can show accurate controls.
@@ -71,18 +76,128 @@ function inferStateLabel(value: unknown, index: number): string {
   return `state ${index + 1}`;
 }
 
-export function ComponentSection({ selectedElement, onRefresh, onPropChange, changedProps, onPropReset }: ComponentSectionProps) {
+/** Look up manifest enum info for a component prop */
+function getManifestEnum(manifest: Record<string, any> | null | undefined, componentName: string | null, propName: string): string[] | null {
+  if (!manifest?.components || !componentName) return null;
+  const comp = manifest.components[componentName];
+  if (!comp?.props) return null;
+  const propDef = comp.props[propName];
+  if (propDef?.type === "enum" && Array.isArray(propDef.values) && propDef.values.length > 0) {
+    return propDef.values;
+  }
+  return null;
+}
+
+/** Look up manifest class_map for a component prop */
+function getManifestClassMap(manifest: Record<string, any> | null | undefined, componentName: string | null, propName: string): Record<string, string> | null {
+  if (!manifest?.components || !componentName) return null;
+  const comp = manifest.components[componentName];
+  const propDef = comp?.props?.[propName];
+  if (propDef?.class_map && typeof propDef.class_map === "object") {
+    return propDef.class_map;
+  }
+  return null;
+}
+
+/** Get original prop value from reactProps or manifest default */
+function getOriginalValue(reactProps: Record<string, unknown> | null, manifest: Record<string, any> | null | undefined, componentName: string | null, propName: string): unknown {
+  if (reactProps && propName in reactProps) return reactProps[propName];
+  if (manifest?.components && componentName) {
+    const propDef = manifest.components[componentName]?.props?.[propName];
+    if (propDef?.default !== undefined) return propDef.default;
+  }
+  return undefined;
+}
+
+/** Apply DOM-level preview for a prop change */
+function applyDomPreview(
+  element: Element,
+  propName: string,
+  oldValue: unknown,
+  newValue: unknown,
+  classMap: Record<string, string> | null,
+) {
+  // Enum with class_map: swap CSS classes directly
+  if (classMap) {
+    const oldClass = classMap[String(oldValue)];
+    const newClass = classMap[String(newValue)];
+    if (oldClass) element.classList.remove(oldClass);
+    if (newClass) element.classList.add(newClass);
+    return;
+  }
+  // String prop on a text-only element: update textContent
+  if (typeof newValue === "string" && element.children.length === 0) {
+    element.textContent = newValue;
+  }
+}
+
+export function ComponentSection({ selectedElement, onRefresh, onPropChange, changedProps, onPropReset, manifest, resetRevision }: ComponentSectionProps) {
   const { reactComponents, reactProps, reactState, sourceFile } = selectedElement;
   const componentName = reactComponents[0] || null;
 
-  if (!componentName && !reactProps && !reactState) return null;
+  // Build prop/state lists early so we can bail if there's nothing to show
+  const propEntries: Array<[string, unknown]> = [];
+  const skip = new Set(["children", "ref", "key", "className", "style", "params", "searchParams"]);
+  const seen = new Set<string>();
+  if (reactProps) {
+    for (const key of Object.keys(reactProps)) {
+      if (skip.has(key) || key.startsWith("__") || key.startsWith("data-")) continue;
+      try { propEntries.push([key, reactProps[key]]); seen.add(key); } catch {}
+    }
+  }
+  if (manifest?.components && componentName) {
+    const comp = manifest.components[componentName];
+    if (comp?.props) {
+      for (const [key, def] of Object.entries<any>(comp.props)) {
+        if (seen.has(key) || skip.has(key)) continue;
+        if (def.default !== undefined) {
+          propEntries.push([key, def.default]);
+        }
+      }
+    }
+  }
+  const editableState = reactState?.filter(h => h.hasDispatch) || [];
+
+  // Only show section when there are actual props or state to display
+  if (propEntries.length === 0 && editableState.length === 0) return null;
+
+  // Track current previewed values so reset can revert correctly
+  const previewedRef = useRef<Record<string, unknown>>({});
+  const lastResetRevRef = useRef(resetRevision ?? 0);
+
+  // Revert all DOM prop previews when resetRevision bumps (global "clear changes")
+  if (resetRevision !== undefined && resetRevision !== lastResetRevRef.current) {
+    lastResetRevRef.current = resetRevision;
+    for (const [propName, currentValue] of Object.entries(previewedRef.current)) {
+      const originalValue = getOriginalValue(reactProps, manifest, componentName, propName);
+      if (originalValue !== undefined) {
+        const classMap = getManifestClassMap(manifest, componentName, propName);
+        applyDomPreview(selectedElement.element, propName, currentValue, originalValue, classMap);
+      }
+    }
+    previewedRef.current = {};
+  }
 
   const handlePropChange = useCallback((propName: string, newValue: unknown) => {
-    if (setReactProp(selectedElement.element, propName, newValue)) {
-      onPropChange?.(propName, newValue);
-      setTimeout(() => onRefresh?.(), 50);
+    const oldValue = previewedRef.current[propName] ?? getOriginalValue(reactProps, manifest, componentName, propName);
+    // Apply DOM preview first so scope levels can read updated classes
+    const classMap = getManifestClassMap(manifest, componentName, propName);
+    applyDomPreview(selectedElement.element, propName, oldValue, newValue, classMap);
+    previewedRef.current[propName] = newValue;
+    onPropChange?.(propName, newValue);
+  }, [selectedElement.element, reactProps, manifest, componentName, onPropChange]);
+
+  const handlePropReset = useCallback((propName: string) => {
+    const currentValue = previewedRef.current[propName];
+    const originalValue = getOriginalValue(reactProps, manifest, componentName, propName);
+    if (currentValue !== undefined && originalValue !== undefined) {
+      const classMap = getManifestClassMap(manifest, componentName, propName);
+      applyDomPreview(selectedElement.element, propName, currentValue, originalValue, classMap);
     }
-  }, [selectedElement.element, onRefresh, onPropChange]);
+    delete previewedRef.current[propName];
+    // Notify after DOM revert so scope levels read updated classes
+    onPropReset?.(propName);
+  }, [selectedElement.element, reactProps, manifest, componentName, onPropReset]);
 
   const handleStateChange = useCallback((hookIndex: number, newValue: unknown) => {
     if (setReactState(selectedElement.element, hookIndex, newValue)) {
@@ -90,42 +205,84 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
     }
   }, [selectedElement.element, onRefresh]);
 
-  // Filter props safely
-  const propEntries: Array<[string, unknown]> = [];
-  if (reactProps) {
-    const skip = new Set(["children", "ref", "key", "className", "style", "params", "searchParams"]);
-    for (const key of Object.keys(reactProps)) {
-      if (skip.has(key) || key.startsWith("__") || key.startsWith("data-")) continue;
-      try { propEntries.push([key, reactProps[key]]); } catch {}
+  // propEntries and editableState already computed above the early return
+
+  // Resolve manifest state names (ordered keys map to editable state order)
+  const manifestStateNames: string[] = [];
+  if (manifest?.components && componentName) {
+    const compState = manifest.components[componentName]?.state;
+    if (compState) manifestStateNames.push(...Object.keys(compState));
+  }
+
+  // Stabilize inferred labels (no-manifest fallback) — compute once from initial values
+  const inferredLabelsRef = useRef<Map<number, string>>(new Map());
+  for (const hook of editableState) {
+    if (!inferredLabelsRef.current.has(hook.index)) {
+      inferredLabelsRef.current.set(hook.index, inferStateLabel(hook.value, hook.index));
     }
   }
 
-  const editableState = reactState?.filter(h => h.hasDispatch) || [];
+  function getStateLabel(hook: { index: number; value: unknown }, editableIndex: number): string {
+    // Manifest names map by position among editable state hooks, not by raw hook index
+    const manifestName = manifestStateNames[editableIndex];
+    if (manifestName) {
+      return manifestName.charAt(0).toUpperCase() + manifestName.slice(1).replace(/([A-Z])/g, " $1").trim();
+    }
+    return inferredLabelsRef.current.get(hook.index) || `state ${hook.index + 1}`;
+  }
+
+  const allEntries: Array<{ key: string; label: string; value: unknown; type: "prop" | "state"; enumValues?: string[] | null; hookIndex?: number }> = [];
+  for (const [key, value] of propEntries) {
+    allEntries.push({ key, label: key.charAt(0).toUpperCase() + key.slice(1), value, type: "prop", enumValues: getManifestEnum(manifest, componentName, key) });
+  }
+  for (let i = 0; i < editableState.length; i++) {
+    const hook = editableState[i];
+    allEntries.push({ key: `s-${hook.index}`, label: getStateLabel(hook, i), value: hook.value, type: "state", hookIndex: hook.index });
+  }
 
   return (
     <Section label={componentName || "Component"} action={
       sourceFile ? <span className="retune-component-source">{sourceFile.fileName.split("/").pop()}:{sourceFile.lineNumber}</span> : undefined
     }>
-      {propEntries.map(([key, value]) => (
-        <RowGroup key={key} label={key.charAt(0).toUpperCase() + key.slice(1)}>
-          <div className="retune-row">
-            <ValueInput
-              value={value}
-              onChange={(v) => handlePropChange(key, v)}
-              isChanged={changedProps?.has(key)}
-              onReset={() => onPropReset?.(key)}
-            />
-          </div>
-        </RowGroup>
-      ))}
+      <div className="retune-component-grid">
+        {allEntries.map((entry) => {
+          const valueType = getValueType(entry.value);
+          const isToggle = valueType === "boolean";
+          const isChanged = entry.type === "prop" ? changedProps?.has(entry.key) : false;
 
-      {editableState.map((hook) => (
-        <RowGroup key={`s-${hook.index}`} label={inferStateLabel(hook.value, hook.index)}>
-          <div className="retune-row">
-            <ValueInput value={hook.value} onChange={(v) => handleStateChange(hook.index, v)} />
-          </div>
-        </RowGroup>
-      ))}
+          return (
+            <div key={entry.key} className="retune-component-field">
+              <span className="retune-component-field-label">{entry.label}</span>
+              {entry.type === "prop" && entry.enumValues ? (
+                <SelectInput
+                  prop={entry.key}
+                  value={String(previewedRef.current[entry.key] ?? entry.value ?? "")}
+                  options={entry.enumValues}
+                  onChange={(_prop, v) => handlePropChange(entry.key, v)}
+                  isChanged={isChanged}
+                  onReset={() => handlePropReset(entry.key)}
+                />
+              ) : isToggle ? (
+                <SegmentedControl
+                  options={[{ value: "true", label: "On" }, { value: "false", label: "Off" }]}
+                  value={entry.value ? "true" : "false"}
+                  onChange={(v) => {
+                    const boolVal = v === "true";
+                    entry.type === "prop" ? handlePropChange(entry.key, boolVal) : handleStateChange(entry.hookIndex!, boolVal);
+                  }}
+                />
+              ) : (
+                <ValueInput
+                  value={entry.value}
+                  onChange={(v) => entry.type === "prop" ? handlePropChange(entry.key, v) : handleStateChange(entry.hookIndex!, v)}
+                  isChanged={isChanged}
+                  onReset={entry.type === "prop" ? () => handlePropReset(entry.key) : undefined}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
     </Section>
   );
 }
@@ -139,24 +296,11 @@ function ValueInput({ value, onChange, isChanged, onReset }: {
 }) {
   const type = getValueType(value);
   const [localValue, setLocalValue] = useState(String(value ?? ""));
+  const focusedRef = useRef(false);
 
   const strValue = String(value ?? "");
-  if (strValue !== localValue && document.activeElement?.classList.contains("retune-prop-input") === false) {
+  if (strValue !== localValue && !focusedRef.current) {
     setLocalValue(strValue);
-  }
-
-  if (type === "boolean") {
-    return (
-      <div className="retune-prop">
-        <ChangeIndicator isChanged={isChanged ?? false} onReset={onReset ?? (() => {})} />
-        <button
-          className={`retune-component-toggle${value ? " on" : ""}`}
-          onClick={() => onChange(!value)}
-        >
-          <span className="retune-component-toggle-thumb" />
-        </button>
-      </div>
-    );
   }
 
   if (type === "function") {
@@ -183,6 +327,14 @@ function ValueInput({ value, onChange, isChanged, onReset }: {
         style={{ paddingLeft: 12 }}
         type={type === "number" ? "number" : "text"}
         value={localValue}
+        onFocus={() => { focusedRef.current = true; }}
+        onBlur={() => {
+          focusedRef.current = false;
+          if (type === "number") {
+            const num = parseFloat(localValue);
+            if (!isNaN(num)) onChange(num);
+          }
+        }}
         onChange={(e) => {
           setLocalValue(e.target.value);
           if (type === "number") {
@@ -190,12 +342,6 @@ function ValueInput({ value, onChange, isChanged, onReset }: {
             if (!isNaN(num)) onChange(num);
           } else {
             onChange(e.target.value);
-          }
-        }}
-        onBlur={() => {
-          if (type === "number") {
-            const num = parseFloat(localValue);
-            if (!isNaN(num)) onChange(num);
           }
         }}
         onKeyDown={(e) => {

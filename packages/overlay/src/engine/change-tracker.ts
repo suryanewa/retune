@@ -104,6 +104,13 @@ export class ChangeTracker {
         nearbySiblings,
         position,
       });
+    } else if (reactProps) {
+      // Backfill reactProps if element was tracked before props were available
+      const entry = this.tracked.get(selector)!;
+      if (!entry.originalProps) {
+        entry.originalProps = { ...reactProps };
+        entry.currentProps = { ...reactProps };
+      }
     }
   }
 

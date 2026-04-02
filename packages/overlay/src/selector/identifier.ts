@@ -959,25 +959,33 @@ export function setReactProp(element: Element, propName: string, newValue: unkno
   }
   if (!componentFiber) return false;
 
-  // Mutate pendingProps
+  // Try React DevTools hook first — works for all components including stateless
+  const hook = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+  if (hook?.renderers) {
+    for (const renderer of hook.renderers.values()) {
+      if (renderer.overrideProps) {
+        renderer.overrideProps(componentFiber, [propName], newValue);
+        return true;
+      }
+    }
+  }
+
+  // Fallback: mutate pendingProps + dispatch
   componentFiber.pendingProps = { ...componentFiber.memoizedProps, [propName]: newValue };
   if (componentFiber.alternate) {
     componentFiber.alternate.pendingProps = componentFiber.pendingProps;
   }
 
-  // Trigger re-render by dispatching on any available state hook
-  let hook = componentFiber.memoizedState;
-  while (hook) {
-    if (hook.queue?.dispatch) {
-      // Dispatch current value with new reference to force re-render
-      const current = hook.memoizedState;
-      hook.queue.dispatch(typeof current === "object" && current !== null ? { ...current } : current);
+  let stateHook = componentFiber.memoizedState;
+  while (stateHook) {
+    if (stateHook.queue?.dispatch) {
+      const current = stateHook.memoizedState;
+      stateHook.queue.dispatch(typeof current === "object" && current !== null ? { ...current } : current);
       return true;
     }
-    hook = hook.next;
+    stateHook = stateHook.next;
   }
 
-  // No state hook found — try walking up to find a parent with state
   let parent = componentFiber.return;
   while (parent) {
     let parentHook = parent.memoizedState;

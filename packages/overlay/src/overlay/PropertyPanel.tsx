@@ -728,7 +728,7 @@ export function PropertyPanel({
   return (
     <>
       {/* Element */}
-      <Section label={element.tagName.toLowerCase()}>
+      <Section label={element.reactComponents?.[0] ? "Scope" : element.tagName.toLowerCase()}>
         {scopeLevels.length > 1 && onScopeLevelChange && (() => {
           const prevLevelRef = useRef(activeLevelIndex);
           const fieldRef = useRef<HTMLDivElement>(null);

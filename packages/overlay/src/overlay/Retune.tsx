@@ -826,11 +826,13 @@ function RetuneInner(props: RetuneConfig) {
   const [copied, setCopied] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
+  const [resetRevision, setResetRevision] = useState(0);
   // Properties owned by CSS rules matching the active scope selector (undefined = show all)
   const [ownedProperties, setOwnedProperties] = useState<Set<string> | undefined>(undefined);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
   const manifestLoadedRef = useRef(false);
+  const manifestCheckedRef = useRef(false);
   const [manifest, setManifest] = useState<Record<string, any> | null>(null);
   const [manifestBannerDismissed, setManifestBannerDismissed] = useState(false);
   const manifestCheckingRef = useRef(false);
@@ -849,6 +851,7 @@ function RetuneInner(props: RetuneConfig) {
       }
     } catch {}
     manifestCheckingRef.current = false;
+    manifestCheckedRef.current = true;
   }, []);
   const [updateDismissed, setUpdateDismissed] = useState(false);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3658,6 +3661,7 @@ function RetuneInner(props: RetuneConfig) {
     activeLevelIndexRef.current = defaultIdx;
     syncTrackerState();
     setChangeRevision((r) => r + 1);
+    setResetRevision((r) => r + 1);
     // Re-track the currently selected element so future changes are recorded
     const el = selectedElementRef.current;
     if (el) {
@@ -4004,7 +4008,7 @@ function RetuneInner(props: RetuneConfig) {
               <>
               {/* Manifest banner — shows when component selected but no manifest */}
               <PanelBanner
-                visible={!!selectedElement.reactProps && !manifestLoadedRef.current && !manifestBannerDismissed}
+                visible={!!selectedElement.reactProps && manifestCheckedRef.current && !manifestLoadedRef.current && !manifestBannerDismissed}
                 title="Know your components"
                 body="See every variant, size, and state your components support and switch between them."
                 copyLabel="Copy prompt"
@@ -4022,13 +4026,35 @@ function RetuneInner(props: RetuneConfig) {
               />
               <ComponentSection
                 selectedElement={selectedElement}
+                manifest={manifest}
+                resetRevision={resetRevision}
                 onRefresh={() => refreshSelectedElementRef.current()}
                 onPropChange={(propName, newValue) => {
                   const tracker = trackerRef.current;
                   if (!tracker) return;
-                  tracker.recordPropChange(selectedElement.selector, propName, newValue);
+                  const el = selectedElement;
+                  // Ensure element is tracked with reactProps so prop changes can be recorded
+                  tracker.track(
+                    el.selector, el.tagName, el.textContent, el.classes,
+                    el.reactComponents, el.computedStyles, el.sourceFile,
+                    el.stylingApproach, el.inlineStyles, el.elementId,
+                    el.accessibleName, el.parentContext, el.childSummary,
+                    el.domPath, el.nearbySiblings, el.position,
+                    el.reactProps,
+                  );
+                  tracker.recordPropChange(el.selector, propName, newValue);
                   syncTrackerState();
                   setChangeRevision(r => r + 1);
+                  // Recompute scope levels if class_map changed element classes
+                  const comp = manifest?.components?.[el.reactComponents[0]];
+                  if (comp?.props?.[propName]?.class_map) {
+                    const candidates = getSelectorCandidates(el.element);
+                    setSelectorCandidates(candidates);
+                    const ancestors = getAncestorScopes(el.element);
+                    const levels = buildScopeLevels(candidates, el.element, ancestors);
+                    setScopeLevels(levels);
+                    scopeLevelsRef.current = levels;
+                  }
                 }}
                 changedProps={(() => {
                   const tracker = trackerRef.current;
@@ -4043,12 +4069,18 @@ function RetuneInner(props: RetuneConfig) {
                 onPropReset={(propName) => {
                   const tracker = trackerRef.current;
                   if (!tracker) return;
-                  const original = tracker.resetProp(selectedElement.selector, propName);
-                  if (original !== undefined) {
-                    setReactProp(selectedElement.element, propName, original);
-                    syncTrackerState();
-                    setChangeRevision(r => r + 1);
-                    setTimeout(() => refreshSelectedElementRef.current(), 50);
+                  tracker.resetProp(selectedElement.selector, propName);
+                  syncTrackerState();
+                  setChangeRevision(r => r + 1);
+                  // Recompute scope levels if class_map changed
+                  const comp = manifest?.components?.[selectedElement.reactComponents[0]];
+                  if (comp?.props?.[propName]?.class_map) {
+                    const candidates = getSelectorCandidates(selectedElement.element);
+                    setSelectorCandidates(candidates);
+                    const ancestors = getAncestorScopes(selectedElement.element);
+                    const levels = buildScopeLevels(candidates, selectedElement.element, ancestors);
+                    setScopeLevels(levels);
+                    scopeLevelsRef.current = levels;
                   }
                 }}
               />
