@@ -366,9 +366,14 @@ function CommentMarker({ comment: c, index, isPopoverOpen, isAreaResize, onAreaR
       const targetW = Math.min(textW + 24, 200);
       const targetH = preview.offsetHeight + 10;
 
+      const markerLeft = parseFloat(marker.style.left) || 0;
+      const maxLeft = window.innerWidth - targetW - 12;
+      const clampedLeft = Math.min(markerLeft, maxLeft);
+      const offsetX = markerLeft - clampedLeft + 4;
+
       marker.style.width = targetW + "px";
       marker.style.height = targetH + "px";
-      marker.style.transform = `translate(-4px, -${targetH}px)`;
+      marker.style.transform = `translate(-${offsetX}px, -${targetH}px)`;
       marker.classList.add("expanded");
     };
 
