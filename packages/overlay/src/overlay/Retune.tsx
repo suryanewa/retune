@@ -833,24 +833,34 @@ function RetuneInner(props: RetuneConfig) {
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
   const manifestLoadedRef = useRef(false);
   const manifestCheckedRef = useRef(false);
+  const manifestDataRef = useRef<Record<string, any> | null>(null);
   const [manifest, setManifest] = useState<Record<string, any> | null>(null);
   const [manifestBannerDismissed, setManifestBannerDismissed] = useState(false);
-  const manifestCheckingRef = useRef(false);
+
+  // Sync ref → state on every render (handles StrictMode where setManifest may target stale instance)
+  if (manifestDataRef.current && !manifest) {
+    setManifest(manifestDataRef.current);
+  }
 
   const tryLoadManifest = useCallback(async () => {
-    if (manifestLoadedRef.current || manifestCheckingRef.current) return;
-    manifestCheckingRef.current = true;
+    if (manifestLoadedRef.current) return;
+    manifestLoadedRef.current = true; // Prevent concurrent fetches
     try {
       const res = await fetch("/retune.manifest.json", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         if (data && (data.components || data.tokens)) {
-          manifestLoadedRef.current = true;
+          manifestDataRef.current = data;
           setManifest(data);
+        } else {
+          manifestLoadedRef.current = false; // Allow retry
         }
+      } else {
+        manifestLoadedRef.current = false;
       }
-    } catch {}
-    manifestCheckingRef.current = false;
+    } catch {
+      manifestLoadedRef.current = false;
+    }
     manifestCheckedRef.current = true;
   }, []);
   const [updateDismissed, setUpdateDismissed] = useState(false);
@@ -1625,12 +1635,14 @@ function RetuneInner(props: RetuneConfig) {
     forcedStateRef.current = null;
   }, []);
 
+  // Load manifest eagerly on mount so it's ready before user interacts
+  useEffect(() => { tryLoadManifest(); }, [tryLoadManifest]);
+
   const activateOverlay = useCallback(() => {
     setActive(true);
     pickerRef.current?.activate();
     previewRef.current?.attach();
-    tryLoadManifest();
-  }, [tryLoadManifest]);
+  }, []);
 
   const deactivateOverlay = useCallback(() => {
     if (forcedStateRef.current) clearForcedInlineStyles();

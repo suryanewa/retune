@@ -207,11 +207,15 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
 
   // propEntries and editableState already computed above the early return
 
-  // Resolve manifest state names (ordered keys map to editable state order)
-  const manifestStateNames: string[] = [];
+  // Resolve manifest state definitions (ordered keys map to editable state order)
+  const manifestStateDefs: Array<{ name: string; def: any }> = [];
   if (manifest?.components && componentName) {
     const compState = manifest.components[componentName]?.state;
-    if (compState) manifestStateNames.push(...Object.keys(compState));
+    if (compState) {
+      for (const [name, def] of Object.entries<any>(compState)) {
+        manifestStateDefs.push({ name, def });
+      }
+    }
   }
 
   // Stabilize inferred labels (no-manifest fallback) — compute once from initial values
@@ -223,12 +227,19 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
   }
 
   function getStateLabel(hook: { index: number; value: unknown }, editableIndex: number): string {
-    // Manifest names map by position among editable state hooks, not by raw hook index
-    const manifestName = manifestStateNames[editableIndex];
-    if (manifestName) {
-      return manifestName.charAt(0).toUpperCase() + manifestName.slice(1).replace(/([A-Z])/g, " $1").trim();
+    const manifestEntry = manifestStateDefs[editableIndex];
+    if (manifestEntry) {
+      return manifestEntry.name.charAt(0).toUpperCase() + manifestEntry.name.slice(1).replace(/([A-Z])/g, " $1").trim();
     }
     return inferredLabelsRef.current.get(hook.index) || `state ${hook.index + 1}`;
+  }
+
+  function getStateEnum(editableIndex: number): string[] | null {
+    const manifestEntry = manifestStateDefs[editableIndex];
+    if (manifestEntry?.def?.type === "enum" && Array.isArray(manifestEntry.def.values) && manifestEntry.def.values.length > 0) {
+      return manifestEntry.def.values;
+    }
+    return null;
   }
 
   const allEntries: Array<{ key: string; label: string; value: unknown; type: "prop" | "state"; enumValues?: string[] | null; hookIndex?: number }> = [];
@@ -237,7 +248,7 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
   }
   for (let i = 0; i < editableState.length; i++) {
     const hook = editableState[i];
-    allEntries.push({ key: `s-${hook.index}`, label: getStateLabel(hook, i), value: hook.value, type: "state", hookIndex: hook.index });
+    allEntries.push({ key: `s-${hook.index}`, label: getStateLabel(hook, i), value: hook.value, type: "state", enumValues: getStateEnum(i), hookIndex: hook.index });
   }
 
   return (
@@ -253,18 +264,18 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
           return (
             <div key={entry.key} className="retune-component-field">
               <span className="retune-component-field-label">{entry.label}</span>
-              {entry.type === "prop" && entry.enumValues ? (
+              {entry.enumValues ? (
                 <SelectInput
                   prop={entry.key}
                   value={String(previewedRef.current[entry.key] ?? entry.value ?? "")}
                   options={entry.enumValues}
-                  onChange={(_prop, v) => handlePropChange(entry.key, v)}
+                  onChange={(_prop, v) => entry.type === "prop" ? handlePropChange(entry.key, v) : handleStateChange(entry.hookIndex!, v)}
                   isChanged={isChanged}
                   onReset={() => handlePropReset(entry.key)}
                 />
               ) : isToggle ? (
                 <SegmentedControl
-                  options={[{ value: "true", label: "On" }, { value: "false", label: "Off" }]}
+                  options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
                   value={entry.value ? "true" : "false"}
                   onChange={(v) => {
                     const boolVal = v === "true";

@@ -67,7 +67,8 @@
       "props": {},
       "state": {
         "activeFolder": {
-          "type": "string",
+          "type": "enum",
+          "values": ["Inbox", "Drafts", "Starred", "Sent", "Archive", "Trash"],
           "default": "Inbox",
           "description": "Currently selected sidebar folder"
         },
