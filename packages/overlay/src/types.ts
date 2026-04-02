@@ -32,6 +32,13 @@ export interface InspectedElement {
   reactComponents: string[];
   /** React component props (from nearest component) */
   reactProps: Record<string, unknown> | null;
+  /** React component state hooks (useState/useReducer values) */
+  reactState: Array<{
+    index: number;
+    type: "state" | "reducer" | "ref" | "memo" | "callback" | "effect" | "unknown";
+    value: unknown;
+    hasDispatch: boolean;
+  }> | null;
   /** Source file location from React fiber */
   sourceFile: { fileName: string; lineNumber: number; columnNumber?: number } | null;
   /** Detected styling approach */
