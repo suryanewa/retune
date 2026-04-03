@@ -68,7 +68,26 @@ export function resolveVariablesForElement(
     }
   }
 
-  // ── 2. CSS variable detection ──
+  // ── 2. Manifest class-based token activation ──
+  // If manifest tokens have a "class" field, check if the element has that class
+  if (classes.length > 0) {
+    const { manifestClassLookup } = getCssVariables();
+    for (const cls of classes) {
+      const token = manifestClassLookup.get(cls);
+      if (!token) continue;
+      // Token is active — match against computed styles to find which property
+      const tokenValue = normalizeValue(Object.values(token.values)[0] || "");
+      for (const [prop, computed] of Object.entries(computedStyles)) {
+        const kebab = camelToKebab(prop);
+        if (matches.has(kebab)) continue;
+        if (normalizeValue(computed) === tokenValue) {
+          matches.set(kebab, { variable: token, property: kebab });
+        }
+      }
+    }
+  }
+
+  // ── 3. CSS variable detection ──
   // Check inline styles and matched stylesheet rules for var(--*) references
   resolveVarReferences(element, matches, scopeSelector);
 
@@ -343,7 +362,11 @@ export function isTailwindUtility(className: string): boolean {
 // ── CSS custom property categorization ──
 
 /** Cached CSS variable tokens (invalidated when stylesheet count changes) */
-let cssVarCache: { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } | null = null;
+let cssVarCache: {
+  tokens: DesignVariable[];
+  byCategory: Map<VariableCategory, DesignVariable[]>;
+  manifestClassLookup: Map<string, DesignVariable>;
+} | null = null;
 let cssVarSheetCount = -1;
 
 /** Force CSS variable token cache to rebuild on next call */
@@ -383,40 +406,100 @@ function categorizeTypographyToken(varName: string): VariableCategory | null {
   return "font-size"; // default for typography
 }
 
-/** Convert manifest tokens to DesignVariable entries and merge into existing results */
-function mergeManifestTokens(
+/** Get the set of VariableCategories covered by the manifest */
+function getManifestCategories(): Set<VariableCategory> {
+  const categories = new Set<VariableCategory>();
+  if (!_manifestTokens?.tokens) return categories;
+  for (const categoryKey of Object.keys(_manifestTokens.tokens)) {
+    const mapped = MANIFEST_CATEGORY_MAP[categoryKey];
+    if (mapped) {
+      categories.add(mapped);
+    } else if (categoryKey === "typography") {
+      // Typography covers multiple categories
+      categories.add("font-size");
+      categories.add("font-weight");
+      categories.add("line-height");
+      categories.add("letter-spacing");
+      categories.add("font-family");
+    }
+  }
+  return categories;
+}
+
+/** Process a single manifest token entry and add to results */
+function addManifestToken(
+  tokenDef: any,
+  categoryKey: string,
+  subGroupName: string | undefined,
   tokens: DesignVariable[],
   byCategory: Map<VariableCategory, DesignVariable[]>,
+  manifestClassLookup: Map<string, DesignVariable>,
   seen: Set<string>,
 ): void {
+  if (!tokenDef || typeof tokenDef !== "object") return;
+  // Must have at least a value
+  if (!tokenDef.value && !tokenDef.variable && !tokenDef.class) return;
+
+  const varName = tokenDef.variable; // may be undefined for class-only tokens
+  const dedupeKey = varName || tokenDef.class || tokenDef.value;
+  if (seen.has(dedupeKey)) return;
+  seen.add(dedupeKey);
+
+  // Skip framework internals
+  if (varName && FRAMEWORK_INTERNAL_PREFIXES.some(p => varName.startsWith(p))) return;
+
+  // Determine category
+  let category: VariableCategory | null = MANIFEST_CATEGORY_MAP[categoryKey] ?? null;
+  if (categoryKey === "typography") {
+    const nameHint = varName || tokenDef.class || "";
+    category = categorizeTypographyToken(nameHint);
+  }
+  if (!category) return;
+
+  const className = varName ? `var(${varName})` : tokenDef.class || "";
+  const ut: DesignVariable = {
+    className,
+    values: varName
+      ? { [varName]: normalizeColorValue(String(tokenDef.value)) }
+      : { _value: normalizeColorValue(String(tokenDef.value)) },
+    manifestGroup: subGroupName,
+    manifestClass: tokenDef.class || undefined,
+  };
+
+  tokens.push(ut);
+  if (!byCategory.has(category)) byCategory.set(category, []);
+  byCategory.get(category)!.push(ut);
+
+  // Build class lookup for active state detection
+  if (tokenDef.class) {
+    manifestClassLookup.set(tokenDef.class, ut);
+  }
+}
+
+/** Add all manifest tokens — handles nested color sub-groups */
+function addManifestTokens(
+  tokens: DesignVariable[],
+  byCategory: Map<VariableCategory, DesignVariable[]>,
+  manifestClassLookup: Map<string, DesignVariable>,
+): void {
   if (!_manifestTokens?.tokens) return;
+  const seen = new Set<string>();
 
   for (const [categoryKey, tokenGroup] of Object.entries<any>(_manifestTokens.tokens)) {
     if (!tokenGroup || typeof tokenGroup !== "object") continue;
 
-    for (const [tokenName, tokenDef] of Object.entries<any>(tokenGroup)) {
-      if (!tokenDef?.variable) continue;
-      const varName = tokenDef.variable; // e.g. "--spacing-4"
-      if (seen.has(varName)) continue; // Already discovered from stylesheet
-      seen.add(varName);
-
-      // Skip framework internals
-      if (FRAMEWORK_INTERNAL_PREFIXES.some(p => varName.startsWith(p))) continue;
-
-      // Determine category
-      let category: VariableCategory | null = MANIFEST_CATEGORY_MAP[categoryKey] ?? null;
-      if (categoryKey === "typography") {
-        category = categorizeTypographyToken(varName);
+    for (const [key, entry] of Object.entries<any>(tokenGroup)) {
+      // Check if this is a direct token (has value/variable/class) or a sub-group (nested object)
+      if (entry && typeof entry === "object" && (entry.value !== undefined || entry.variable || entry.class)) {
+        // Direct token entry
+        addManifestToken(entry, categoryKey, undefined, tokens, byCategory, manifestClassLookup, seen);
+      } else if (entry && typeof entry === "object") {
+        // Sub-group (e.g., colors.brand -> { color-brand: {...} })
+        const subGroupName = key;
+        for (const [, subEntry] of Object.entries<any>(entry)) {
+          addManifestToken(subEntry, categoryKey, subGroupName, tokens, byCategory, manifestClassLookup, seen);
+        }
       }
-      if (!category) continue;
-
-      const ut: DesignVariable = {
-        className: `var(${varName})`,
-        values: { [varName]: normalizeColorValue(tokenDef.value) },
-      };
-      tokens.push(ut);
-      if (!byCategory.has(category)) byCategory.set(category, []);
-      byCategory.get(category)!.push(ut);
     }
   }
 }
@@ -559,27 +642,36 @@ function categorizeFromUsage(
 }
 
 /** Get CSS custom properties as DesignVariable format, grouped by category */
-function getCssVariables(): { tokens: DesignVariable[]; byCategory: Map<VariableCategory, DesignVariable[]> } {
+function getCssVariables(): {
+  tokens: DesignVariable[];
+  byCategory: Map<VariableCategory, DesignVariable[]>;
+  manifestClassLookup: Map<string, DesignVariable>;
+} {
   const sheetCount = typeof document !== "undefined" ? document.styleSheets.length : 0;
   if (cssVarCache && cssVarSheetCount === sheetCount) return cssVarCache;
 
-  const tokenMap = scanDesignTokens();
-  const usageMap = buildVariableUsageMap();
   const tokens: DesignVariable[] = [];
   const byCategory = new Map<VariableCategory, DesignVariable[]>();
+  const manifestClassLookup = new Map<string, DesignVariable>();
+
+  // Determine which categories the manifest covers — scanner skips these
+  const manifestCategories = getManifestCategories();
+
+  // Scanner-discovered tokens (only for categories NOT covered by manifest)
+  const tokenMap = scanDesignTokens();
+  const usageMap = buildVariableUsageMap();
   const seen = new Set<string>();
 
   for (const dt of tokenMap.tokens) {
-    // Deduplicate by variable name
     if (seen.has(dt.name)) continue;
     seen.add(dt.name);
-
-    // Filter framework internals
     if (FRAMEWORK_INTERNAL_PREFIXES.some(p => dt.name.startsWith(p))) continue;
 
-    // Usage-based first (definitive), name/value pattern fallback second
     const category = categorizeFromUsage(dt.name, usageMap) ?? categorizeVariable(dt);
     if (!category) continue;
+
+    // Skip if manifest covers this category — manifest tokens take priority
+    if (manifestCategories.has(category)) continue;
 
     const ut: DesignVariable = {
       className: `var(${dt.name})`,
@@ -590,10 +682,10 @@ function getCssVariables(): { tokens: DesignVariable[]; byCategory: Map<Variable
     byCategory.get(category)!.push(ut);
   }
 
-  // Merge manifest tokens (fills gaps from cross-origin sheets, provides explicit categorization)
-  mergeManifestTokens(tokens, byCategory, seen);
+  // Manifest tokens — authoritative source for their categories
+  addManifestTokens(tokens, byCategory, manifestClassLookup);
 
-  cssVarCache = { tokens, byCategory };
+  cssVarCache = { tokens, byCategory, manifestClassLookup };
   cssVarSheetCount = sheetCount;
 
   return cssVarCache;

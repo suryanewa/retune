@@ -54,6 +54,7 @@ Rules:
 - For Tailwind projects: extract tokens from tailwind.config.js theme values. The "class" field should be the base utility (e.g., "bg-blue-500" for colors used as backgrounds, "p-4" for spacing used as padding). For color tokens that can be used for multiple properties (text, bg, border), use the most common class prefix.
 - For projects with CSS custom properties: use the actual variable names from the stylesheets
 - For projects with SCSS/Less variables: convert to -- format for "variable" field
+- Do NOT deduplicate tokens that resolve to the same value. Different variables may serve different purposes, belong to different teams, or have different overrides in other contexts (e.g., dark mode). Include ALL defined tokens.
 
 Color sub-groups:
 The "colors" category MUST use nested groups. Group colors by their design system organization:
