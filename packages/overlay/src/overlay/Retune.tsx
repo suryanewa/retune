@@ -27,6 +27,7 @@ import { inspectElement, matchesHotkey } from "../ui/helpers";
 import { getSelector, getSelectorCandidates, getAncestorScopes, getSharedSelector, scoreNamePattern, isHashedClass, setReactProp, type SelectorCandidate, type AncestorScope } from "../selector/identifier";
 import { detectChildrenType } from "../drag/detect";
 import { getPseudoStateStyles, getStyleSources, getScopedStyles, type ForcedState, type StyleSource } from "../inspector/styles";
+import { setManifestTokens } from "../variables";
 import { PropertyPanel } from "./PropertyPanel";
 import { ComponentSection, MANIFEST_PROMPT as MANIFEST_PROMPT_TEXT } from "../ui/ComponentSection";
 import { PanelBanner } from "../ui/PanelBanner";
@@ -875,6 +876,7 @@ function RetuneInner(props: RetuneConfig) {
         if (data && (data.components || data.tokens)) {
           manifestDataRef.current = data;
           setManifest(data);
+          if (data.tokens) setManifestTokens(data);
         } else {
           manifestLoadedRef.current = false; // Allow retry
         }

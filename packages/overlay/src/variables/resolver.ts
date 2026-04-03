@@ -352,6 +352,75 @@ export function invalidateCssVariables(): void {
   cssVarSheetCount = -1;
 }
 
+/** Manifest token store — set from the overlay when manifest loads */
+let _manifestTokens: Record<string, any> | null = null;
+
+/** Set the manifest for token enrichment. Call when manifest loads or updates. */
+export function setManifestTokens(manifest: Record<string, any> | null): void {
+  _manifestTokens = manifest;
+  // Invalidate cache so next getCssVariables() merges manifest tokens
+  cssVarCache = null;
+  cssVarSheetCount = -1;
+}
+
+/** Map manifest token categories to VariableCategory */
+const MANIFEST_CATEGORY_MAP: Record<string, VariableCategory> = {
+  spacing: "spacing",
+  sizes: "sizing",
+  colors: "colors",
+  radii: "border-radius",
+  borderWidths: "border-width",
+  shadows: "box-shadow",
+};
+
+/** Sub-categorize typography tokens by variable name pattern */
+function categorizeTypographyToken(varName: string): VariableCategory | null {
+  if (/font-weight|font_weight/.test(varName)) return "font-weight";
+  if (/leading|line-height|line_height/.test(varName)) return "line-height";
+  if (/tracking|letter-spacing|letter_spacing/.test(varName)) return "letter-spacing";
+  if (/font-family|font_family|font-heading|font-body|font-mono/.test(varName)) return "font-family";
+  if (/font|text|size/.test(varName)) return "font-size";
+  return "font-size"; // default for typography
+}
+
+/** Convert manifest tokens to DesignVariable entries and merge into existing results */
+function mergeManifestTokens(
+  tokens: DesignVariable[],
+  byCategory: Map<VariableCategory, DesignVariable[]>,
+  seen: Set<string>,
+): void {
+  if (!_manifestTokens?.tokens) return;
+
+  for (const [categoryKey, tokenGroup] of Object.entries<any>(_manifestTokens.tokens)) {
+    if (!tokenGroup || typeof tokenGroup !== "object") continue;
+
+    for (const [tokenName, tokenDef] of Object.entries<any>(tokenGroup)) {
+      if (!tokenDef?.variable) continue;
+      const varName = tokenDef.variable; // e.g. "--spacing-4"
+      if (seen.has(varName)) continue; // Already discovered from stylesheet
+      seen.add(varName);
+
+      // Skip framework internals
+      if (FRAMEWORK_INTERNAL_PREFIXES.some(p => varName.startsWith(p))) continue;
+
+      // Determine category
+      let category: VariableCategory | null = MANIFEST_CATEGORY_MAP[categoryKey] ?? null;
+      if (categoryKey === "typography") {
+        category = categorizeTypographyToken(varName);
+      }
+      if (!category) continue;
+
+      const ut: DesignVariable = {
+        className: `var(${varName})`,
+        values: { [varName]: normalizeColorValue(tokenDef.value) },
+      };
+      tokens.push(ut);
+      if (!byCategory.has(category)) byCategory.set(category, []);
+      byCategory.get(category)!.push(ut);
+    }
+  }
+}
+
 /** Pattern-based category detection for CSS custom property names */
 const VAR_CATEGORY_PATTERNS: Array<{ pattern: RegExp; category: VariableCategory }> = [
   { pattern: /^--(spacing|space|gap|pad|margin)/i, category: "spacing" },
@@ -520,6 +589,9 @@ function getCssVariables(): { tokens: DesignVariable[]; byCategory: Map<Variable
     if (!byCategory.has(category)) byCategory.set(category, []);
     byCategory.get(category)!.push(ut);
   }
+
+  // Merge manifest tokens (fills gaps from cross-origin sheets, provides explicit categorization)
+  mergeManifestTokens(tokens, byCategory, seen);
 
   cssVarCache = { tokens, byCategory };
   cssVarSheetCount = sheetCount;
