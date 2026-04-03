@@ -1,5 +1,4 @@
 {
-  "$schema": "../node_modules/retune/manifest.schema.json",
   "components": {
     "Avatar": {
       "props": {
@@ -96,6 +95,56 @@
     }
   },
   "tokens": {
+    "colors": {
+      "brand": {
+        "color-brand": { "value": "#2563eb", "variable": "--color-brand" },
+        "color-brand-light": { "value": "#60a5fa", "variable": "--color-brand-light" },
+        "color-brand-dark": { "value": "#1d4ed8", "variable": "--color-brand-dark" }
+      },
+      "accent": {
+        "color-accent": { "value": "#8b5cf6", "variable": "--color-accent" }
+      },
+      "text": {
+        "color-text": { "value": "#1c1917", "variable": "--color-text" },
+        "color-text-muted": { "value": "#78716c", "variable": "--color-text-muted" },
+        "color-text-subtle": { "value": "#a8a29e", "variable": "--color-text-subtle" }
+      },
+      "background": {
+        "color-bg": { "value": "#ffffff", "variable": "--color-bg" },
+        "color-bg-subtle": { "value": "#fafaf9", "variable": "--color-bg-subtle" },
+        "color-bg-muted": { "value": "#f5f5f4", "variable": "--color-bg-muted" },
+        "color-bg-hover": { "value": "#e7e5e4", "variable": "--color-bg-hover" }
+      },
+      "border": {
+        "color-border": { "value": "#e7e5e4", "variable": "--color-border" },
+        "color-border-strong": { "value": "#d6d3d1", "variable": "--color-border-strong" }
+      },
+      "status": {
+        "color-success": { "value": "#16a34a", "variable": "--color-success" },
+        "color-danger": { "value": "#dc2626", "variable": "--color-danger" },
+        "color-warning": { "value": "#d97706", "variable": "--color-warning" }
+      },
+      "spectrum-blue": {
+        "spectrum-blue-5": { "value": "59 130 246", "variable": "--spectrum-blue-5" },
+        "spectrum-blue-8": { "value": "30 64 175", "variable": "--spectrum-blue-8" }
+      },
+      "spectrum-other": {
+        "spectrum-red-5": { "value": "239 68 68", "variable": "--spectrum-red-5" },
+        "spectrum-green-5": { "value": "34 197 94", "variable": "--spectrum-green-5" },
+        "spectrum-amber-5": { "value": "245 158 11", "variable": "--spectrum-amber-5" },
+        "spectrum-purple-5": { "value": "168 85 247", "variable": "--spectrum-purple-5" },
+        "spectrum-gray-3": { "value": "212 212 216", "variable": "--spectrum-gray-3" },
+        "spectrum-gray-10": { "value": "63 63 70", "variable": "--spectrum-gray-10" }
+      },
+      "foreground": {
+        "foreground-primary": { "value": "28 25 23", "variable": "--foreground-primary" },
+        "foreground-secondary": { "value": "120 113 108", "variable": "--foreground-secondary" }
+      },
+      "background-rgb": {
+        "background-primary": { "value": "255 255 255", "variable": "--background-primary" },
+        "background-subtle": { "value": "250 250 249", "variable": "--background-subtle" }
+      }
+    },
     "spacing": {
       "spacing-1": { "value": "4px", "variable": "--spacing-1" },
       "spacing-2": { "value": "8px", "variable": "--spacing-2" },
@@ -105,29 +154,11 @@
       "spacing-8": { "value": "32px", "variable": "--spacing-8" },
       "spacing-12": { "value": "48px", "variable": "--spacing-12" }
     },
-    "sizes": {
+    "sizing": {
       "size-sm": { "value": "24px", "variable": "--size-sm" },
       "size-md": { "value": "32px", "variable": "--size-md" },
       "size-lg": { "value": "48px", "variable": "--size-lg" },
       "size-xl": { "value": "64px", "variable": "--size-xl" }
-    },
-    "colors": {
-      "color-brand": { "value": "#2563eb", "variable": "--color-brand" },
-      "color-brand-light": { "value": "#60a5fa", "variable": "--color-brand-light" },
-      "color-brand-dark": { "value": "#1d4ed8", "variable": "--color-brand-dark" },
-      "color-accent": { "value": "#8b5cf6", "variable": "--color-accent" },
-      "color-text": { "value": "#1c1917", "variable": "--color-text" },
-      "color-text-muted": { "value": "#78716c", "variable": "--color-text-muted" },
-      "color-text-subtle": { "value": "#a8a29e", "variable": "--color-text-subtle" },
-      "color-bg": { "value": "#ffffff", "variable": "--color-bg" },
-      "color-bg-subtle": { "value": "#fafaf9", "variable": "--color-bg-subtle" },
-      "color-bg-muted": { "value": "#f5f5f4", "variable": "--color-bg-muted" },
-      "color-bg-hover": { "value": "#e7e5e4", "variable": "--color-bg-hover" },
-      "color-border": { "value": "#e7e5e4", "variable": "--color-border" },
-      "color-border-strong": { "value": "#d6d3d1", "variable": "--color-border-strong" },
-      "color-success": { "value": "#16a34a", "variable": "--color-success" },
-      "color-danger": { "value": "#dc2626", "variable": "--color-danger" },
-      "color-warning": { "value": "#d97706", "variable": "--color-warning" }
     },
     "radii": {
       "radius-sm": { "value": "4px", "variable": "--radius-sm" },
@@ -157,6 +188,9 @@
       "font-weight-medium": { "value": "500", "variable": "--font-weight-medium" },
       "font-weight-semibold": { "value": "600", "variable": "--font-weight-semibold" },
       "font-weight-bold": { "value": "700", "variable": "--font-weight-bold" },
+      "font-heading": { "value": "\"Inter\", -apple-system, sans-serif", "variable": "--font-heading" },
+      "font-body": { "value": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", system-ui, sans-serif", "variable": "--font-body" },
+      "font-mono": { "value": "\"SF Mono\", \"Fira Code\", monospace", "variable": "--font-mono" },
       "leading-tight": { "value": "1.25", "variable": "--leading-tight" },
       "leading-normal": { "value": "1.5", "variable": "--leading-normal" },
       "leading-relaxed": { "value": "1.75", "variable": "--leading-relaxed" },

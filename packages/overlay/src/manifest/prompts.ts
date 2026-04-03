@@ -40,7 +40,7 @@ Include a "tokens" object with these EXACT category keys. Only use these categor
 - "typography" -- font-size, font-weight, line-height, letter-spacing, font-family values
 
 Each token entry has:
-- "value" -- a single resolvable CSS value (e.g., "#2563eb", "16px", "1.5rem"). NOT descriptions or compound values.
+- "value" -- the token's value exactly as defined. Use the actual value from the source (CSS variable, Tailwind config, SCSS variable). All color formats are valid: hex (#2563eb), rgb (rgb(59, 130, 246)), space-separated RGB (59 130 246), rgba, hsl, hsla, oklch, named colors (currentColor, transparent). All unit formats are valid: px, rem, em, %, unitless numbers. Do NOT skip tokens because of their value format. Do NOT transform values -- use them as-is.
 - "variable" -- CSS custom property name starting with -- (if the project uses CSS custom properties for this token)
 - "class" -- utility class name that applies this token (if the project uses utility classes like Tailwind)
 

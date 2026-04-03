@@ -307,7 +307,7 @@ The manifest has two sections:
 **tokens** -- Design tokens organized by category: `colors`, `spacing`, `sizing`, `radii`, `borderWidths`, `shadows`, `typography`.
 
 Each token has:
-- `"value"` -- resolvable CSS value (e.g., `"#2563eb"`, `"1rem"`)
+- `"value"` -- the token's value exactly as defined. All formats valid: hex, rgb, space-separated RGB (e.g., `"59 130 246"`), rgba, hsl, oklch, named colors, px, rem, em, unitless. Do not skip or transform values.
 - `"variable"` -- CSS custom property name starting with `--` (when the project uses CSS variables)
 - `"class"` -- utility class name (when the project uses Tailwind or similar utility classes)
 
