@@ -207,8 +207,26 @@ function buildParentScopeLevel(element: Element): ScopeLevel | null {
  *  Each level accumulates classes into a compound selector.
  *  Falls back to parent-scoped selectors when no semantic classes exist.
  *  Ancestor scopes are inserted between class scopes and "This instance". */
-function buildScopeLevels(candidates: SelectorCandidate[], element: Element, ancestorScopes: AncestorScope[] = []): ScopeLevel[] {
-  const meaningful = candidates.filter(c => c.verdict === "semantic");
+/** Extract class→{propName, value} from all manifest class_maps */
+function getManifestClassInfo(manifest: Record<string, any> | null): Map<string, { propName: string; value: string; componentName: string }> {
+  const map = new Map<string, { propName: string; value: string; componentName: string }>();
+  if (!manifest?.components) return map;
+  for (const [compName, comp] of Object.entries<any>(manifest.components)) {
+    if (!comp?.props) continue;
+    for (const [propName, propDef] of Object.entries<any>(comp.props)) {
+      if (!propDef?.class_map) continue;
+      for (const [value, className] of Object.entries<string>(propDef.class_map)) {
+        map.set(className, { propName, value, componentName: compName });
+      }
+    }
+  }
+  return map;
+}
+
+function buildScopeLevels(candidates: SelectorCandidate[], element: Element, ancestorScopes: AncestorScope[] = [], manifest?: Record<string, any> | null): ScopeLevel[] {
+  // Boost manifest class_map classes to semantic
+  const manifestClasses = getManifestClassInfo(manifest ?? null);
+  const meaningful = candidates.filter(c => c.verdict === "semantic" || manifestClasses.has(c.selector.replace(/^\./, '')));
   if (meaningful.length === 0) {
     // Strategy 1: compound class fingerprint (utility-class elements)
     const fingerprint = buildCompoundFingerprint(element);
@@ -243,7 +261,12 @@ function buildScopeLevels(candidates: SelectorCandidate[], element: Element, anc
     const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
     let count: number;
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
-    levels.push({ label: humanizeScopeLabel(className, prevClassName), selector: compound, count, kind: "class" });
+    // Use manifest prop value for label when available (e.g., "tag-blue" → "Blue" from color prop)
+    const manifestInfo = manifestClasses.get(className);
+    const label = manifestInfo
+      ? humanizeSegment(manifestInfo.value)
+      : humanizeScopeLabel(className, prevClassName);
+    levels.push({ label, selector: compound, count, kind: "class" });
   }
   appendAncestorLevels(levels, ancestorScopes);
   levels.push({ label: "This instance", selector: null, count: 1, kind: "element" });
@@ -1021,7 +1044,7 @@ function RetuneInner(props: RetuneConfig) {
           }));
         }
         case "getFormattedChanges":
-          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current, commentStoreRef.current.getAll());
+          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current);
         case "getComments":
           return commentStoreRef.current.getAll();
         case "clearComments":
@@ -1321,7 +1344,7 @@ function RetuneInner(props: RetuneConfig) {
         setSelectorCandidates(candidates);
         // Build scope levels with ancestor scopes and default to the narrowest class level
         const ancestors = getAncestorScopes(element);
-        const levels = buildScopeLevels(candidates, element, ancestors);
+        const levels = buildScopeLevels(candidates, element, ancestors, manifestDataRef.current);
         setScopeLevels(levels);
         scopeLevelsRef.current = levels;
         const defaultIndex = levels.length >= 2 ? levels.length - 2 : 0;
@@ -3813,7 +3836,7 @@ function RetuneInner(props: RetuneConfig) {
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
-    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity, commentStoreRef.current.getAll()));
+    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity, commentStoreRef.current.getAll(), manifestDataRef.current));
     setCopied(true);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
@@ -3828,7 +3851,7 @@ function RetuneInner(props: RetuneConfig) {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
       getFormattedChanges: (f?: Fidelity) =>
-        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current, commentStoreRef.current.getAll()),
+        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current),
       clearChanges: () => {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
@@ -4063,7 +4086,7 @@ function RetuneInner(props: RetuneConfig) {
                     const candidates = getSelectorCandidates(el.element);
                     setSelectorCandidates(candidates);
                     const ancestors = getAncestorScopes(el.element);
-                    const levels = buildScopeLevels(candidates, el.element, ancestors);
+                    const levels = buildScopeLevels(candidates, el.element, ancestors, manifestDataRef.current);
                     setScopeLevels(levels);
                     scopeLevelsRef.current = levels;
                   }
@@ -4090,7 +4113,7 @@ function RetuneInner(props: RetuneConfig) {
                     const candidates = getSelectorCandidates(selectedElement.element);
                     setSelectorCandidates(candidates);
                     const ancestors = getAncestorScopes(selectedElement.element);
-                    const levels = buildScopeLevels(candidates, selectedElement.element, ancestors);
+                    const levels = buildScopeLevels(candidates, selectedElement.element, ancestors, manifestDataRef.current);
                     setScopeLevels(levels);
                     scopeLevelsRef.current = levels;
                   }

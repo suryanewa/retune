@@ -92,7 +92,7 @@ function getTokenMap(): TokenMap {
   return cachedTokenMap;
 }
 
-export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comments?: Comment[]): string {
+export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comments?: Comment[], manifest?: Record<string, any> | null): string {
   if (changes.length === 0 && (!comments || comments.length === 0)) return "No changes recorded.";
 
   // Separate bulk instances from primary changes
@@ -135,6 +135,15 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comm
   if (registry.framework === "tailwind") {
     lines.push("> **Framework:** Tailwind CSS detected. Apply all changes using Tailwind utility classes — do NOT use inline styles or raw CSS values. When a class swap is suggested, replace the old class with the new one in the JSX/HTML.");
     lines.push("");
+  }
+
+  // Manifest context — gives AI agent knowledge of the project's component system
+  if (manifest?.components && fidelity !== "minimal") {
+    const componentNames = Object.keys(manifest.components);
+    if (componentNames.length > 0) {
+      lines.push(`> **Manifest:** ${componentNames.length} components defined (${componentNames.join(", ")}). Prop types, enum values, and class mappings are available in \`retune.manifest.json\`.`);
+      lines.push("");
+    }
   }
 
   // Each element change — only show section if there are changes
