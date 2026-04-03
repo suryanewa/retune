@@ -331,6 +331,20 @@ export default function MailApp() {
       )}
 
 
+      {/* ── Media Test Elements ── */}
+      <div style={{ position: "fixed", bottom: 160, left: 16, display: "flex", gap: 12, alignItems: "flex-end", zIndex: 40 }}>
+        <img
+          src="https://picsum.photos/seed/retune/200/150"
+          alt="Sample landscape"
+          className="media-test-img"
+          style={{ width: 120, height: 90, objectFit: "cover", borderRadius: "var(--radius-md)" }}
+        />
+        <svg width="48" height="48" viewBox="0 0 48 48" className="media-test-svg" style={{ flexShrink: 0 }}>
+          <circle cx="24" cy="24" r="20" fill="var(--color-brand)" stroke="var(--color-brand-dark)" strokeWidth="2" />
+          <path d="M20 16 L34 24 L20 32Z" fill="var(--color-bg)" />
+        </svg>
+      </div>
+
       {/* ── Alert Banner ── */}
       <div className="alert alert-warning alert-dismissible">
         <span className="alert__icon" aria-hidden="true" />

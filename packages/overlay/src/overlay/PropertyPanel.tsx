@@ -355,6 +355,11 @@ export function PropertyPanel({
   const showOffsets = positionType === "absolute" || positionType === "fixed" || positionType === "relative";
   const isSticky = positionType === "sticky";
   const hasVerticalAlign = isText || ["IMG", "INPUT", "SELECT", "TEXTAREA"].includes(element.tagName) || isFlex || isGrid;
+  const isImage = element.tagName === "IMG" || element.tagName === "PICTURE" || element.tagName === "CANVAS";
+  const isVideo = element.tagName === "VIDEO";
+  const isSvg = element.tagName === "SVG" || element.tagName === "svg";
+  const isMedia = isImage || isVideo;
+  const hasBackgroundImage = s.backgroundImage && s.backgroundImage !== "none" && !s.backgroundImage.startsWith("linear-gradient") && !s.backgroundImage.startsWith("radial-gradient");
 
   // Detect if element is a child of a flex/grid container
   const parentDisplay = element.element?.parentElement
@@ -397,6 +402,8 @@ export function PropertyPanel({
   const [radiusExpanded, setRadiusExpanded] = useState(false);
   const [typoExpanded, setTypoExpanded] = useState(false);
   const [sizeExtras, setSizeExtras] = useState<Set<SizeExtra>>(new Set());
+  const [aspectLocked, setAspectLocked] = useState(false);
+  const aspectRatioRef = useRef<number>(1); // width / height ratio, captured when lock is toggled
   const [sizeMenuOpen, setSizeMenuOpen] = useState(false);
   const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -1333,6 +1340,14 @@ export function PropertyPanel({
                 else {
                   if (isFlexChild) handleSizingModeChange("width", "fixed");
                   onPropertyChange(prop, val);
+                  // Aspect ratio lock: adjust height proportionally
+                  if (aspectLocked) {
+                    const newW = parseFloat(val);
+                    if (!isNaN(newW) && aspectRatioRef.current > 0) {
+                      const newH = Math.round(newW / aspectRatioRef.current);
+                      requestAnimationFrame(() => onPropertyChange("height", `${newH}px`));
+                    }
+                  }
                 }
               }}
               {...changeProps("width")}
@@ -1349,11 +1364,44 @@ export function PropertyPanel({
                 else {
                   if (isFlexChild) handleSizingModeChange("height", "fixed");
                   onPropertyChange(prop, val);
+                  // Aspect ratio lock: adjust width proportionally
+                  if (aspectLocked) {
+                    const newH = parseFloat(val);
+                    if (!isNaN(newH) && aspectRatioRef.current > 0) {
+                      const newW = Math.round(newH * aspectRatioRef.current);
+                      requestAnimationFrame(() => onPropertyChange("width", `${newW}px`));
+                    }
+                  }
                 }
               }}
               {...changeProps("height")}
             />
           </Field>
+          <Tooltip content={aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"} side="top">
+          <button
+            className={`retune-split-btn${aspectLocked ? " active" : ""}`}
+            onClick={() => {
+              if (!aspectLocked && element.element) {
+                const rect = element.element.getBoundingClientRect();
+                if (rect.height > 0) aspectRatioRef.current = rect.width / rect.height;
+                element.element.setAttribute("data-retune-aspect-locked", "true");
+              } else if (element.element) {
+                element.element.removeAttribute("data-retune-aspect-locked");
+              }
+              setAspectLocked(v => !v);
+            }}
+          >
+            {aspectLocked ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M12 4C14.2091 4 16 5.79086 16 8V10H16.125C17.1605 10 18 10.8395 18 11.875V17.125C18 18.1605 17.1605 19 16.125 19H7.875C6.83947 19 6 18.1605 6 17.125V11.875C6 10.8395 6.83947 10 7.875 10H8V8C8 5.79086 9.79086 4 12 4ZM7.875 11C7.39175 11 7 11.3918 7 11.875V17.125C7 17.6082 7.39175 18 7.875 18H16.125C16.6082 18 17 17.6082 17 17.125V11.875C17 11.3918 16.6082 11 16.125 11H7.875ZM15 8C15 6.34315 13.6569 5 12 5C10.3431 5 9 6.34315 9 8V10H15V8Z" fill="currentColor" fillOpacity="0.9" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M16.125 10C17.1605 10 18 10.8395 18 11.875V17.125C18 18.1605 17.1605 19 16.125 19H7.875C6.83947 19 6 18.1605 6 17.125V11.875C6 10.8395 6.83947 10 7.875 10H8V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V7.5C16 7.77614 15.7761 8 15.5 8C15.2239 8 15 7.77614 15 7.5V7C15 5.34315 13.6569 4 12 4C10.3431 4 9 5.34315 9 7V10H16.125ZM7.875 11C7.39175 11 7 11.3918 7 11.875V17.125C7 17.6082 7.39175 18 7.875 18H16.125C16.6082 18 17 17.6082 17 17.125V11.875C17 11.3918 16.6082 11 16.125 11H7.875Z" fill="currentColor" fillOpacity="0.9" />
+              </svg>
+            )}
+          </button>
+          </Tooltip>
         </Row>
         {visibleSizeExtras.has("min") && (
           <div className="retune-section-row">
@@ -1677,6 +1725,215 @@ export function PropertyPanel({
           </Section>
         );
       })()}
+
+      {/* SVG Colors */}
+      {(isSvg || (element.element?.closest("svg") != null)) && (s.fill || s.stroke) && (
+        <Section label="SVG">
+          {s.fill && s.fill !== "none" && (
+            <RowGroup label="Fill">
+              <div className="retune-row">
+                <ColorInput prop="fill" value={s.fill} onChange={onPropertyChange} {...variableProps("fill")} {...changeProps("fill")} />
+              </div>
+            </RowGroup>
+          )}
+          {s.stroke && s.stroke !== "none" && (
+            <RowGroup label="Stroke">
+              <div className="retune-row">
+                <ColorInput prop="stroke" value={s.stroke} onChange={onPropertyChange} {...variableProps("stroke")} {...changeProps("stroke")} />
+              </div>
+            </RowGroup>
+          )}
+          {s.strokeWidth && s.strokeWidth !== "0" && (
+            <RowGroup label="Width">
+              <div className="retune-row">
+                <NumberInput
+                  label=""
+                  prop="strokeWidth"
+                  value={s.strokeWidth}
+                  onChange={onPropertyChange}
+                  min={0}
+                  step={0.5}
+                  {...variableProps("strokeWidth")}
+                  {...changeProps("strokeWidth")}
+                />
+              </div>
+            </RowGroup>
+          )}
+        </Section>
+      )}
+
+      {/* Image / Media */}
+      {isMedia && (
+        <Section label="Image">
+          <Row>
+            <Field label="Fit">
+              <SelectInput
+                prop="objectFit"
+                value={s.objectFit || "fill"}
+                options={["fill", "contain", "cover", "none", "scale-down"]}
+                onChange={onPropertyChange}
+                {...variableProps("objectFit")}
+                {...changeProps("objectFit")}
+              />
+            </Field>
+            <Field label="Position">
+              <ComboInput
+                prop="objectPosition"
+                value={s.objectPosition || "50% 50%"}
+                options={[
+                  { value: "center", label: "Center" },
+                  { value: "top", label: "Top" },
+                  { value: "bottom", label: "Bottom" },
+                  { value: "left", label: "Left" },
+                  { value: "right", label: "Right" },
+                  { value: "top left", label: "Top Left" },
+                  { value: "top right", label: "Top Right" },
+                  { value: "bottom left", label: "Bottom Left" },
+                  { value: "bottom right", label: "Bottom Right" },
+                ]}
+                onChange={onPropertyChange}
+                {...variableProps("objectPosition")}
+                {...changeProps("objectPosition")}
+              />
+            </Field>
+          </Row>
+          {isImage && element.element && (
+            <Row>
+              <Field label="Loading">
+                <SegmentedControl
+                  options={[{ value: "lazy", label: "Lazy" }, { value: "eager", label: "Eager" }]}
+                  value={(element.element as HTMLImageElement).loading || "eager"}
+                  onChange={(v) => {
+                    if (element.element) {
+                      (element.element as HTMLImageElement).loading = v as "lazy" | "eager";
+                      onPropertyChange("loading", v);
+                    }
+                  }}
+                />
+              </Field>
+            </Row>
+          )}
+          {isImage && element.element && (
+            <RowGroup label="Alt">
+              <div className="retune-row">
+                <TextInput
+                  label=""
+                  prop="alt"
+                  value={(element.element as HTMLImageElement).alt || ""}
+                  onChange={(prop, value) => {
+                    if (element.element) {
+                      (element.element as HTMLImageElement).alt = value;
+                      onPropertyChange(prop, value);
+                    }
+                  }}
+                />
+              </div>
+            </RowGroup>
+          )}
+        </Section>
+      )}
+
+      {/* Video */}
+      {isVideo && element.element && (
+        <Section label="Video">
+          <RowGroup label="Autoplay">
+            <div className="retune-row">
+              <SegmentedControl
+                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                value={(element.element as HTMLVideoElement).autoplay ? "true" : "false"}
+                onChange={(v) => {
+                  (element.element as HTMLVideoElement).autoplay = v === "true";
+                  onPropertyChange("autoplay", v === "true" ? "true" : "false");
+                }}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Loop">
+            <div className="retune-row">
+              <SegmentedControl
+                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                value={(element.element as HTMLVideoElement).loop ? "true" : "false"}
+                onChange={(v) => {
+                  (element.element as HTMLVideoElement).loop = v === "true";
+                  onPropertyChange("loop", v === "true" ? "true" : "false");
+                }}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Muted">
+            <div className="retune-row">
+              <SegmentedControl
+                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                value={(element.element as HTMLVideoElement).muted ? "true" : "false"}
+                onChange={(v) => {
+                  (element.element as HTMLVideoElement).muted = v === "true";
+                  onPropertyChange("muted", v === "true" ? "true" : "false");
+                }}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Controls">
+            <div className="retune-row">
+              <SegmentedControl
+                options={[{ value: "true", label: "Show" }, { value: "false", label: "Hide" }]}
+                value={(element.element as HTMLVideoElement).controls ? "true" : "false"}
+                onChange={(v) => {
+                  (element.element as HTMLVideoElement).controls = v === "true";
+                  onPropertyChange("controls", v === "true" ? "true" : "false");
+                }}
+              />
+            </div>
+          </RowGroup>
+        </Section>
+      )}
+
+      {/* Background Image */}
+      {hasBackgroundImage && (
+        <Section label="Background Image">
+          <RowGroup label="Size">
+            <div className="retune-row">
+              <ComboInput
+                label=""
+                prop="backgroundSize"
+                value={s.backgroundSize || "auto"}
+                options={[
+                  { value: "cover", label: "Cover" },
+                  { value: "contain", label: "Contain" },
+                  { value: "auto", label: "Auto" },
+                  { value: "100% 100%", label: "Stretch" },
+                ]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundSize")}
+                {...changeProps("backgroundSize")}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Position">
+            <div className="retune-row">
+              <SelectInput
+                prop="backgroundPosition"
+                value={s.backgroundPosition || "center center"}
+                options={["center", "top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right"]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundPosition")}
+                {...changeProps("backgroundPosition")}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Repeat">
+            <div className="retune-row">
+              <SelectInput
+                prop="backgroundRepeat"
+                value={s.backgroundRepeat || "repeat"}
+                options={["no-repeat", "repeat", "repeat-x", "repeat-y", "space", "round"]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundRepeat")}
+                {...changeProps("backgroundRepeat")}
+              />
+            </div>
+          </RowGroup>
+        </Section>
+      )}
 
       {/* Border */}
       <Section
