@@ -196,7 +196,7 @@ input, textarea, [contenteditable] {
 }
 
 .retune-toolbar.collapsed:hover {
-  background: transparent;
+  background: var(--retune-surface);
 }
 
 .retune-toolbar.top.right { top: 16px; right: 16px; }
