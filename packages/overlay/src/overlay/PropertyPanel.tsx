@@ -1666,8 +1666,8 @@ export function PropertyPanel({
         </Row>
       </Section>
 
-      {/* Fill */}
-      {(() => {
+      {/* Fill (hidden for images/videos — not meaningful) */}
+      {!isMedia && (() => {
         const fillVarMatch = getVariableMatch("backgroundColor");
         const fillHasVariable = !!fillVarMatch;
 
@@ -1802,12 +1802,10 @@ export function PropertyPanel({
               <Field label="Loading">
                 <SegmentedControl
                   options={[{ value: "lazy", label: "Lazy" }, { value: "eager", label: "Eager" }]}
-                  value={(element.element as HTMLImageElement).loading || "eager"}
+                  value={((element.element as HTMLImageElement).loading === "lazy") ? "lazy" : "eager"}
                   onChange={(v) => {
-                    if (element.element) {
-                      (element.element as HTMLImageElement).loading = v as "lazy" | "eager";
-                      onPropertyChange("loading", v);
-                    }
+                    (element.element as HTMLImageElement).loading = v as "lazy" | "eager";
+                    onPropertyChange("loading", v);
                   }}
                 />
               </Field>
