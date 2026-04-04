@@ -1691,29 +1691,27 @@ export function PropertyPanel({
 
       {/* SVG Stroke — always visible for SVG child shapes */}
       {isSvgChild && (() => {
-        const hasStroke = s.stroke && s.stroke !== "none" && s.stroke !== "transparent";
+        const hasStrokeColor = s.stroke && s.stroke !== "none" && s.stroke !== "transparent";
         return (
           <Section label="Stroke" action={
-            hasStroke ? (
-              <Tooltip content="Remove stroke" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "none"); onPropertyChange("strokeWidth", "0"); }}><Minus /></button></Tooltip>
+            hasStrokeColor ? (
+              <Tooltip content="Remove stroke" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "none"); }}><Minus /></button></Tooltip>
             ) : (
-              <Tooltip content="Add stroke" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "#000000"); onPropertyChange("strokeWidth", "1"); }}><Plus /></button></Tooltip>
+              <Tooltip content="Add stroke color" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "#000000"); if (!s.strokeWidth || s.strokeWidth === "0") onPropertyChange("strokeWidth", "1"); }}><Plus /></button></Tooltip>
             )
           }>
-            {hasStroke && (
-              <>
-                <RowGroup label="Color">
-                  <div className="retune-row">
-                    <ColorInput prop="stroke" value={s.stroke} onChange={onPropertyChange} {...variableProps("stroke")} {...changeProps("stroke")} />
-                  </div>
-                </RowGroup>
-                <RowGroup label="Width">
-                  <div className="retune-row">
-                    <NumberInput label="" prop="strokeWidth" value={s.strokeWidth || "1"} onChange={onPropertyChange} min={0} step={0.5} {...variableProps("strokeWidth")} {...changeProps("strokeWidth")} />
-                  </div>
-                </RowGroup>
-              </>
+            {hasStrokeColor && (
+              <RowGroup label="Color">
+                <div className="retune-row">
+                  <ColorInput prop="stroke" value={s.stroke} onChange={onPropertyChange} {...variableProps("stroke")} {...changeProps("stroke")} />
+                </div>
+              </RowGroup>
             )}
+            <RowGroup label="Width">
+              <div className="retune-row">
+                <NumberInput label="" prop="strokeWidth" value={s.strokeWidth || "0"} onChange={onPropertyChange} min={0} step={0.5} {...variableProps("strokeWidth")} {...changeProps("strokeWidth")} />
+              </div>
+            </RowGroup>
           </Section>
         );
       })()}
