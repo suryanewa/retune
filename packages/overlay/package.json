@@ -1,6 +1,6 @@
 {
   "name": "retune",
-  "version": "0.7.0-dev",
+  "version": "0.7.0",
   "type": "module",
   "repository": {
     "type": "git",
