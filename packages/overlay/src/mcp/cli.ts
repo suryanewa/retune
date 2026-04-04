@@ -24,7 +24,8 @@ const port = parseInt(process.env.RETUNE_WS_PORT || "9223", 10);
 
 /** Auto-sync bundled skill file to installed location on startup */
 function syncSkill() {
-  const bundledPath = join(__dirname, "..", "..", "skill", "SKILL.md");
+  // dist/cli.js → ../skill/SKILL.md (package root)
+  const bundledPath = join(__dirname, "..", "skill", "SKILL.md");
   if (!existsSync(bundledPath)) return;
 
   const targets = [

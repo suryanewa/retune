@@ -46,7 +46,8 @@ export class Bridge {
         const { createRequire } = await import("module");
         const require = createRequire(import.meta.url);
         try {
-          const pkg = require("../../package.json");
+          // dist/bridge.js → ../package.json (package root)
+          const pkg = require("../package.json");
           this.currentVersion = pkg.version;
         } catch {
           this.currentVersion = "0.0.0";

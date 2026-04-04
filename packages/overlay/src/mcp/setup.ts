@@ -32,8 +32,8 @@ function warn(msg: string) {
 
 /** Find the skill directory (bundled with the npm package) */
 function findSkillSource(): string | null {
-  // In dist/: skill/ is at package root, so go up from dist/
-  const fromDist = join(__dirname, "..", "..", "skill", "SKILL.md");
+  // In dist/: dist/cli.js → ../skill/SKILL.md (package root)
+  const fromDist = join(__dirname, "..", "skill", "SKILL.md");
   if (existsSync(fromDist)) return dirname(fromDist);
 
   // During development: src/mcp/ → ../../skill/
@@ -152,15 +152,41 @@ function detectTools(): string[] {
   return tools;
 }
 
-/** Find the public directory for the project's framework */
+/** Find the public directory for the project's framework.
+ *  Checks cwd first, then common monorepo app directories. */
 function findPublicDir(): string | null {
-  const candidates = ["public", "static"];
-  for (const dir of candidates) {
-    const path = join(process.cwd(), dir);
-    if (existsSync(path) && statSync(path).isDirectory()) return path;
+  const cwd = process.cwd();
+
+  // Check if a framework config exists in cwd (indicates this IS the app root)
+  const frameworkConfigs = ["next.config.js", "next.config.ts", "next.config.mjs", "vite.config.ts", "vite.config.js", "remix.config.js"];
+  const isAppRoot = frameworkConfigs.some(f => existsSync(join(cwd, f)));
+
+  if (isAppRoot) {
+    // Direct app root -- check for public/static
+    for (const dir of ["public", "static"]) {
+      const path = join(cwd, dir);
+      if (existsSync(path) && statSync(path).isDirectory()) return path;
+    }
+    return join(cwd, "public");
   }
-  // Default to public/ (most common — Next.js, Vite, CRA, Remix)
-  return join(process.cwd(), "public");
+
+  // Monorepo -- look for common app subdirectories with framework configs
+  const appDirs = ["app", "client", "web", "frontend", "packages/app", "packages/web", "apps/web", "apps/client"];
+  for (const appDir of appDirs) {
+    const appPath = join(cwd, appDir);
+    if (!existsSync(appPath)) continue;
+    const hasConfig = frameworkConfigs.some(f => existsSync(join(appPath, f)));
+    if (hasConfig) {
+      for (const dir of ["public", "static"]) {
+        const path = join(appPath, dir);
+        if (existsSync(path) && statSync(path).isDirectory()) return path;
+      }
+      return join(appPath, "public");
+    }
+  }
+
+  // Fallback: cwd/public
+  return join(cwd, "public");
 }
 
 /** Scan CSS files for custom properties and extract tokens */
