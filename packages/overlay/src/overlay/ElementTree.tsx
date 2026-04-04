@@ -410,7 +410,7 @@ const TreeNode = memo(function TreeNode({
         ref={(node) => { if (node) treeNodeRefs.set(element, node); }}
         data-retune-tree-key={getStableKey(element)}
         className={`retune-tree-node${isSelected ? " selected" : ""}${isDescendantOfSelected ? " descendant-selected" : ""}`}
-        style={{ paddingLeft: 12 + depth * 16 }}
+        style={{ paddingLeft: 12 + depth * 20 }}
         onPointerDown={(e) => {
           // Let arrow clicks pass through
           if ((e.target as HTMLElement).closest(".retune-tree-arrow")) return;
@@ -587,7 +587,7 @@ export function ElementTree({ selectedElement, onSelect, onHover, visualOrderMap
     }
 
     // Indent to match the depth level of the siblings (same as tree node paddingLeft)
-    const indent = 12 + depth * 16;
+    const indent = 12 + depth * 20;
 
     indicator.style.display = "block";
     indicator.style.top = `${y}px`;

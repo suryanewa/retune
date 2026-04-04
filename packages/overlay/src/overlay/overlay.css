@@ -91,7 +91,7 @@
   --retune-always-black: #1c1917;
 
   /* ── Text ── */
-  --retune-text: var(--retune-black);
+  --retune-text: var(--retune-black-90);
   --retune-text-secondary: var(--retune-black-70);
   --retune-text-tertiary: var(--retune-black-50);
   --retune-text-disabled: var(--retune-black-25);
@@ -124,7 +124,7 @@
    ══════════════════════════════════════ */
 :host(.dark) {
   /* ── Text ── */
-  --retune-text: var(--retune-white);
+  --retune-text: var(--retune-white-90);
   --retune-text-secondary: var(--retune-white-70);
   --retune-text-tertiary: var(--retune-white-50);
   --retune-text-disabled: var(--retune-white-25);
@@ -676,8 +676,7 @@ input, textarea, [contenteditable] {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  height: 32px;
   padding-right: 12px;
   cursor: pointer;
   transition: background 0.1s;
@@ -724,9 +723,17 @@ input, textarea, [contenteditable] {
   justify-content: center;
   flex-shrink: 0;
   color: var(--retune-text-tertiary);
+  opacity: 0.5;
+}
+.retune-tree-node.selected .retune-tree-icon,
+.retune-tree-node:hover .retune-tree-icon {
+  opacity: 1;
 }
 .retune-tree-icon--component {
   color: var(--retune-blue-text);
+}
+:host(.dark) .retune-tree-node.selected .retune-tree-icon--component {
+  color: var(--retune-text);
 }
 
 .retune-tree-name {
@@ -743,6 +750,9 @@ input, textarea, [contenteditable] {
 .retune-tree-name--component {
   color: var(--retune-blue-text);
   font-weight: 500;
+}
+:host(.dark) .retune-tree-node.selected .retune-tree-name--component {
+  color: var(--retune-text);
 }
 
 .retune-tree-moved {
@@ -1186,7 +1196,7 @@ input, textarea, [contenteditable] {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
 }
 
@@ -1195,7 +1205,7 @@ input, textarea, [contenteditable] {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
   padding: 0 16px;
 }
@@ -1205,7 +1215,7 @@ input, textarea, [contenteditable] {
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
   display: flex;
   align-items: center;
@@ -3162,7 +3172,7 @@ input, textarea, [contenteditable] {
   font-size: 11px;
   font-weight: 450;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
 }
 .retune-component-field--toggle {
   flex-direction: row;
