@@ -1696,17 +1696,16 @@ export function PropertyPanel({
           <Section label="Stroke" action={
             hasStrokeColor ? (
               <Tooltip content="Remove stroke" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "none"); }}><Minus /></button></Tooltip>
-            ) : (
-              <Tooltip content="Add stroke color" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "#000000"); if (!s.strokeWidth || s.strokeWidth === "0") onPropertyChange("strokeWidth", "1"); }}><Plus /></button></Tooltip>
-            )
+            ) : null
           }>
-            {hasStrokeColor && (
-              <RowGroup label="Color">
-                <div className="retune-row">
-                  <ColorInput prop="stroke" value={s.stroke} onChange={onPropertyChange} {...variableProps("stroke")} {...changeProps("stroke")} />
-                </div>
-              </RowGroup>
-            )}
+            <RowGroup label="Color">
+              <div className="retune-row">
+                <ColorInput prop="stroke" value={hasStrokeColor ? s.stroke : "transparent"} onChange={(prop, val) => {
+                  onPropertyChange(prop, val);
+                  if (!s.strokeWidth || s.strokeWidth === "0") onPropertyChange("strokeWidth", "1");
+                }} {...variableProps("stroke")} {...changeProps("stroke")} />
+              </div>
+            </RowGroup>
             <RowGroup label="Width">
               <div className="retune-row">
                 <NumberInput label="" prop="strokeWidth" value={s.strokeWidth || "0"} onChange={onPropertyChange} min={0} step={0.5} {...variableProps("strokeWidth")} {...changeProps("strokeWidth")} />

@@ -1395,6 +1395,8 @@ input, textarea, [contenteditable] {
   width: 20px;
   height: 20px;
   border-radius: 2px;
+  position: relative;
+  overflow: hidden;
 }
 
 .retune-color-hex-input {
