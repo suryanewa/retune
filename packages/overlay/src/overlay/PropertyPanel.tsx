@@ -1779,7 +1779,7 @@ export function PropertyPanel({
 
       {/* Image / Media */}
       {isMedia && (
-        <Section label="Image">
+        <Section label={isVideo ? "Video" : "Image"}>
           <Row>
             <Field label="Fit">
               <SelectInput
@@ -1843,60 +1843,54 @@ export function PropertyPanel({
               </div>
             </RowGroup>
           )}
-        </Section>
-      )}
-
-      {/* Video */}
-      {isVideo && element.element && (
-        <Section label="Video">
-          <RowGroup label="Autoplay">
-            <div className="retune-row">
-              <SegmentedControl
-                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
-                value={(element.element as HTMLVideoElement).autoplay ? "true" : "false"}
-                onChange={(v) => {
-                  (element.element as HTMLVideoElement).autoplay = v === "true";
-                  onPropertyChange("autoplay", v === "true" ? "true" : "false");
-                }}
-              />
-            </div>
-          </RowGroup>
-          <RowGroup label="Loop">
-            <div className="retune-row">
-              <SegmentedControl
-                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
-                value={(element.element as HTMLVideoElement).loop ? "true" : "false"}
-                onChange={(v) => {
-                  (element.element as HTMLVideoElement).loop = v === "true";
-                  onPropertyChange("loop", v === "true" ? "true" : "false");
-                }}
-              />
-            </div>
-          </RowGroup>
-          <RowGroup label="Muted">
-            <div className="retune-row">
-              <SegmentedControl
-                options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
-                value={(element.element as HTMLVideoElement).muted ? "true" : "false"}
-                onChange={(v) => {
-                  (element.element as HTMLVideoElement).muted = v === "true";
-                  onPropertyChange("muted", v === "true" ? "true" : "false");
-                }}
-              />
-            </div>
-          </RowGroup>
-          <RowGroup label="Controls">
-            <div className="retune-row">
-              <SegmentedControl
-                options={[{ value: "true", label: "Show" }, { value: "false", label: "Hide" }]}
-                value={(element.element as HTMLVideoElement).controls ? "true" : "false"}
-                onChange={(v) => {
-                  (element.element as HTMLVideoElement).controls = v === "true";
-                  onPropertyChange("controls", v === "true" ? "true" : "false");
-                }}
-              />
-            </div>
-          </RowGroup>
+          {isVideo && element.element && (
+            <>
+              <Row>
+                <Field label="Autoplay">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).autoplay ? "true" : "false"}
+                    onChange={(v) => {
+                      (element.element as HTMLVideoElement).autoplay = v === "true";
+                      onPropertyChange("autoplay", v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+                <Field label="Loop">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).loop ? "true" : "false"}
+                    onChange={(v) => {
+                      (element.element as HTMLVideoElement).loop = v === "true";
+                      onPropertyChange("loop", v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Muted">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).muted ? "true" : "false"}
+                    onChange={(v) => {
+                      (element.element as HTMLVideoElement).muted = v === "true";
+                      onPropertyChange("muted", v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+                <Field label="Controls">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Show" }, { value: "false", label: "Hide" }]}
+                    value={(element.element as HTMLVideoElement).controls ? "true" : "false"}
+                    onChange={(v) => {
+                      (element.element as HTMLVideoElement).controls = v === "true";
+                      onPropertyChange("controls", v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+              </Row>
+            </>
+          )}
         </Section>
       )}
 

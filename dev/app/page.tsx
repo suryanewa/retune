@@ -343,6 +343,15 @@ export default function MailApp() {
           <circle cx="24" cy="24" r="20" fill="var(--color-brand)" stroke="var(--color-brand-dark)" strokeWidth="2" />
           <path d="M20 16 L34 24 L20 32Z" fill="var(--color-bg)" />
         </svg>
+        <video
+          width="160"
+          height="90"
+          poster="https://picsum.photos/seed/retune-video/160/90"
+          style={{ borderRadius: "var(--radius-md)", objectFit: "cover" }}
+          muted
+        >
+          <source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.webm" type="video/webm" />
+        </video>
       </div>
 
       {/* ── Alert Banner ── */}
