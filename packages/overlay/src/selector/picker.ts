@@ -15,6 +15,8 @@ export interface PickerCallbacks {
   onHover: (element: Element, rect: DOMRect) => void;
   onSelect: (element: Element) => void;
   onCancel: () => void;
+  /** If provided, called before processing a click. Return true to block the click entirely. */
+  shouldBlockClick?: () => boolean;
   onDoubleClick?: (element: Element) => void;
   onResize?: (element: Element, property: "width" | "height", value: string) => void;
   /** Called during resize drag for live preview (updates stylesheet without recording changes) */
@@ -83,6 +85,14 @@ export function createPicker(
   const selectionLabel = document.createElement("div");
   selectionLabel.setAttribute("data-retune-selection-label", "");
   shadowRoot.appendChild(selectionLabel);
+
+  // Aspect ratio lock indicator (diagonal dashed line inside selection box)
+  const aspectLine = document.createElement("div");
+  aspectLine.style.cssText = `
+    position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;overflow:hidden;
+  `;
+  aspectLine.innerHTML = `<svg width="100%" height="100%" style="position:absolute;top:0;left:0"><line x1="0" y1="0" x2="100%" y2="100%" stroke="#0D99FF" stroke-width="1" stroke-dasharray="1 3" stroke-linecap="round" opacity="0.6"/></svg>`;
+  selection.appendChild(aspectLine);
 
   // Parent indicator (dotted outline, no fill — shown during fill snap)
   const parentIndicator = document.createElement("div");
@@ -980,13 +990,31 @@ export function createPicker(
     let w = axes.dx !== 0 ? Math.max(MIN_SIZE, resizeDrag.startWidth + dx * axes.dx) : resizeDrag.startWidth;
     let h = axes.dy !== 0 ? Math.max(MIN_SIZE, resizeDrag.startHeight + dy * axes.dy) : resizeDrag.startHeight;
 
-    // Shift = aspect ratio lock (only for corners)
-    if (e.shiftKey && axes.dx !== 0 && axes.dy !== 0 && resizeDrag.startWidth > 0 && resizeDrag.startHeight > 0) {
+    // Aspect ratio lock (only for corners)
+    // Panel lock active: always locked (Shift to unlock)
+    // Images/video: locked by default, Shift to unlock
+    // Other elements: unlocked by default, Shift to lock
+    const isCorner = axes.dx !== 0 && axes.dy !== 0;
+    const isMediaElement = selectedElement && /^(IMG|VIDEO|PICTURE|CANVAS)$/i.test(selectedElement.tagName);
+    const panelLocked = selectedElement?.hasAttribute("data-retune-aspect-locked");
+    const defaultLocked = isMediaElement || panelLocked;
+    const shouldLock = resizeDrag.startWidth > 0 && resizeDrag.startHeight > 0
+      && (defaultLocked ? !e.shiftKey : (isCorner && e.shiftKey));
+    if (shouldLock) {
       const ratio = resizeDrag.startWidth / resizeDrag.startHeight;
-      if (w / ratio < h) h = w / ratio;
-      else w = h * ratio;
+      if (axes.dx !== 0 && axes.dy !== 0) {
+        // Corner: constrain to ratio
+        if (w / ratio < h) h = w / ratio;
+        else w = h * ratio;
+      } else if (axes.dx !== 0) {
+        // Horizontal edge: width changed, adjust height
+        h = w / ratio;
+      } else {
+        // Vertical edge: height changed, adjust width
+        w = h * ratio;
+      }
     }
-    return { width: Math.round(w), height: Math.round(h) };
+    return { width: Math.round(w), height: Math.round(h), locked: shouldLock };
   }
 
   function handleResizePointerMove(e: PointerEvent) {
@@ -995,17 +1023,23 @@ export function createPicker(
 
     const raw = computeResize(e);
     const axes = HANDLE_AXES[resizeDrag.handle];
+
+    // Show/hide aspect ratio lock indicator
+    aspectLine.style.display = raw.locked ? "block" : "none";
     const { width, height, guides, fillWidth, fillHeight } = snapResize(raw.width, raw.height, axes);
     resizeFillWidth = fillWidth;
     resizeFillHeight = fillHeight;
     const el = selectedElement as HTMLElement;
 
     // Update LivePreviewEngine stylesheet for all matching instances
-    if (axes.dx !== 0) callbacks.onResizePreview?.(selectedElement, "width", fillWidth ? "100%" : `${width}px`);
-    if (axes.dy !== 0) callbacks.onResizePreview?.(selectedElement, "height", fillHeight ? "100%" : `${height}px`);
+    // When aspect locked, both dimensions change even on edge drag
+    const updateWidth = axes.dx !== 0 || raw.locked;
+    const updateHeight = axes.dy !== 0 || raw.locked;
+    if (updateWidth) callbacks.onResizePreview?.(selectedElement, "width", fillWidth ? "100%" : `${width}px`);
+    if (updateHeight) callbacks.onResizePreview?.(selectedElement, "height", fillHeight ? "100%" : `${height}px`);
     // Also set inline !important on selected element to guarantee it wins
-    if (axes.dx !== 0) el.style.setProperty("width", fillWidth ? "100%" : `${width}px`, "important");
-    if (axes.dy !== 0) el.style.setProperty("height", fillHeight ? "100%" : `${height}px`, "important");
+    if (updateWidth) el.style.setProperty("width", fillWidth ? "100%" : `${width}px`, "important");
+    if (updateHeight) el.style.setProperty("height", fillHeight ? "100%" : `${height}px`, "important");
 
     // Update selection box and handles
     const newRect = selectedElement.getBoundingClientRect();
@@ -1036,10 +1070,12 @@ export function createPicker(
 
     hideSnapGuides();
     snapCache = null;
+    aspectLine.style.display = "none";
 
     // Report final values through callback (keeps inline styles — LivePreviewEngine overrides)
-    const widthChanged = axes.dx !== 0 && (fillWidth || Math.abs(width - resizeDrag.startWidth) > 0.5);
-    const heightChanged = axes.dy !== 0 && (fillHeight || Math.abs(height - resizeDrag.startHeight) > 0.5);
+    // When aspect locked, both dimensions may change even on edge drag
+    const widthChanged = (axes.dx !== 0 || raw.locked) && (fillWidth || Math.abs(width - resizeDrag.startWidth) > 0.5);
+    const heightChanged = (axes.dy !== 0 || raw.locked) && (fillHeight || Math.abs(height - resizeDrag.startHeight) > 0.5);
     if (widthChanged) {
       el.style.removeProperty("width");
       callbacks.onResize?.(selectedElement, "width", fillWidth ? "100%" : `${width}px`);
@@ -2476,16 +2512,20 @@ export function createPicker(
     const path = e.composedPath();
     const host = shadowRoot.host;
     if (path.includes(host)) return;
-    // Check 2: the click point lands on an overlay UI element inside the shadow root.
-    // This catches edge cases where composedPath may not include the host (e.g. the
-    // clicked element was re-rendered between pointerdown and click due to React state
-    // updates, causing the original target to detach from the DOM).  Elements owned by
-    // the picker (highlight / selection boxes) have pointer-events:none so they won't
-    // be returned here — only interactive UI (toolbar, panel) will match.
-    // Note: elementFromPoint on a ShadowRoot falls through to page elements when no
-    // shadow element is at the point, so we must verify via getRootNode().
+    // Check 2: the click point lands on an interactive overlay UI element inside the shadow root.
     const shadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
-    if (shadowHit && shadowHit.getRootNode() === shadowRoot) return;
+    if (shadowHit && shadowHit.getRootNode() === shadowRoot) {
+      const pe = getComputedStyle(shadowHit).pointerEvents;
+      if (pe !== "none") return;
+    }
+
+    // Block page element clicks if popover has unsaved changes (after overlay checks)
+    if (callbacks.shouldBlockClick?.()) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -2517,6 +2557,14 @@ export function createPicker(
 
     if (elementStack.length === 0) return;
     const el = elementStack[stackIndex];
+
+    if (commentMode) {
+      // In comment mode: just call onSelect (no selection UI)
+      hideHighlight();
+      hoveredElement = null;
+      callbacks.onSelect(el);
+      return;
+    }
 
     selectedElement = el;
     selectionLabelHidden = false;
@@ -2559,6 +2607,8 @@ export function createPicker(
     if (!active) return;
     if (e.key === "Escape") {
       if (shadowRoot.querySelector(".retune-floating-dialog")) return;
+      if (shadowRoot.querySelector(".retune-comment-popover")) return;
+      if (commentMode) return; // In comment mode, Escape exits comment mode (handled by Retune.tsx)
       e.preventDefault();
       e.stopPropagation();
       callbacks.onCancel();
@@ -2605,6 +2655,7 @@ export function createPicker(
     if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
     hideHighlight();
     hideSelection();
+    hideScopeHighlights();
     stopTracking();
     document.removeEventListener("mousemove", handleMouseMove, true);
     document.removeEventListener("click", handleClick, true);
@@ -2692,5 +2743,21 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights };
+  // SVG cursor with drop shadow — use base64 to avoid # encoding issues in data URIs
+  const commentCursorSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none"><defs><filter id="s" x="2" y="8" width="23" height="23" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB"><feFlood flood-opacity="0" result="a"/><feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="b"/><feOffset dy="1"/><feGaussianBlur stdDeviation="1.5"/><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.35 0"/><feBlend in2="a" result="c"/><feBlend in="SourceGraphic" in2="c" result="d"/></filter></defs><g filter="url(#s)"><path fill-rule="evenodd" clip-rule="evenodd" d="M5 18.5C5 13.8056 8.80558 10 13.5 10C18.1944 10 22 13.8056 22 18.5C22 23.1944 18.1944 27 13.5 27H7.5C6.11929 27 5 25.8807 5 24.5V18.5Z" fill="white"/></g><path fill-rule="evenodd" clip-rule="evenodd" d="M6 18.5C6 14.3579 9.35786 11 13.5 11C17.6421 11 21 14.3579 21 18.5C21 22.6421 17.6421 26 13.5 26H7.5C6.67157 26 6 25.3284 6 24.5V18.5ZM13.5 25H7.5C7.22386 25 7 24.7761 7 24.5V18.5C7 14.9101 9.91015 12 13.5 12C17.0899 12 20 14.9101 20 18.5C20 22.0899 17.0899 25 13.5 25Z" fill="black"/></svg>`;
+  const commentCursorB64 = typeof btoa === "function" ? btoa(commentCursorSvg) : "";
+  const commentCursorUrl = `url("data:image/svg+xml;base64,${commentCursorB64}") 5 27, pointer`;
+
+  let commentMode = false;
+  function setCommentMode(enabled: boolean) {
+    commentMode = enabled;
+    if (enabled) {
+      clearSelection();
+      cursorStyle.textContent = `* { cursor: ${commentCursorUrl} !important; }`;
+    } else if (active) {
+      cursorStyle.textContent = "* { cursor: default !important; }";
+    }
+  }
+
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode };
 }

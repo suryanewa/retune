@@ -1,6 +1,6 @@
 ---
 name: retune-visual-changes
-description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", a Before/After changes table, or property diffs with Token/Variable columns. Triggers on: retune, "Visual Changes", "apply these changes", style diff, design tokens, design variables, property before/after table, visual tweaks, overlay changes.
+description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", "# Comments", "Prop Changes", "Attribute Changes", "SVG Attribute Changes", a Before/After changes table, or property diffs with Token/Variable columns. Triggers on: retune, "Visual Changes", "apply these changes", style diff, design tokens, design variables, property before/after table, visual tweaks, overlay changes, "Comment #", "Address each comment", "Prop Changes", "Attribute Changes".
 ---
 
 # Applying Retune Visual Changes
@@ -58,6 +58,53 @@ Use these fields to find the element in source code, in order of reliability:
 4. **Classes** — Applied class names
 5. **Text content** — The element's visible text
 6. **DOM Path** — Full traversal path (last resort)
+
+### Prop Changes
+
+When the output includes a `### Prop Changes` section, the user changed a React component prop in Retune's visual editor:
+
+```
+### Prop Changes
+
+Apply these changes to the JSX where this component is rendered:
+
+| Prop | From | To |
+|------|------|----|
+| `size` | `"sm"` | `"md"` |
+```
+
+To apply prop changes:
+
+1. Use the **Component** field (e.g., `Avatar → MailApp`) to identify which component's prop changed. The first name is the component, the second is its parent.
+2. Find the JSX where that component is rendered and change the prop value.
+3. If the prop was using its default value (From shows `--`), add the prop explicitly.
+4. If changing to the default value, you can remove the prop or set it explicitly.
+
+```diff
+- <Avatar initials="SC" size="sm" />
++ <Avatar initials="SC" size="md" />
+```
+
+Prop changes may appear alongside CSS changes on the same element. Apply both. The prop change affects the JSX attribute; the CSS change affects the stylesheet or utility classes.
+
+### Attribute Changes
+
+When the output includes `### Attribute Changes` or `### SVG Attribute Changes`, the user changed an HTML or SVG attribute (not a CSS property):
+
+```
+### Attribute Changes
+
+Apply these changes to the HTML element's attributes:
+
+| Attribute | From | To |
+|-----------|------|----|
+| `alt` | `""` | `"Sunset over the Pacific"` |
+| `loading` | `eager` | `lazy` |
+```
+
+For HTML attributes (`alt`, `loading`, `autoplay`, `loop`, `muted`, `controls`): modify the attribute on the JSX element. For framework components (Next.js `<Image>`), these may be props instead of attributes.
+
+For SVG attributes (`fill`, `stroke`, `stroke-width`): modify the attribute on the SVG element directly. These are NOT CSS properties -- do not add them to a stylesheet.
 
 ### Pseudo-State Changes
 
@@ -208,6 +255,51 @@ When the output says **"This is a component-level change affecting N instances"*
 
 Width and height changes from drag-to-resize appear as regular property changes in the changes table. Apply them using the project's styling approach — don't add inline styles if the project uses CSS classes or stylesheets.
 
+## Comments
+
+Retune allows users to leave comments on elements or areas of their running app. Comments describe intent, feedback, or instructions that complement (or replace) visual property changes.
+
+### Comment Output Format
+
+```
+## Comment #1 on `<button>` "Get Started"
+
+**Component:** HeroSection
+**Selector:** `.hero > .cta-container > button.btn-primary`
+**Classes:** `btn-primary`
+**Marker position:** (500, 200) on viewport
+
+> Make this button more prominent — larger, bolder, maybe a gradient background
+```
+
+### How to Handle Comments
+
+Comments are **user intent in plain language**. Unlike property changes (which are exact values), comments require interpretation:
+
+1. **Read the comment text** (blockquoted with `>`) — this is what the user wants
+2. **Use the element identification** (Component, Selector, Classes) to find the element in source code
+3. **Apply the requested change** using the project's styling conventions
+4. **Use your judgment** — the user is describing what they want, not dictating exact CSS values
+5. **If a comment accompanies visual changes**, the comment provides context for WHY the changes were made. Apply the visual changes first, then address any additional intent in the comment.
+
+### Comment-Only Output
+
+When the output header says "The user has left comments on their running app using Retune. Address each comment by making the described changes to the source code:", there are no visual property changes — only comments. Read each comment and make the described changes.
+
+### Area Comments
+
+Area comments target a region of the page rather than a specific element:
+
+```
+## Comment #2 on area
+
+**Region:** (100, 300) 400×200px
+
+> Add a testimonials section here
+```
+
+For area comments, use the region coordinates and surrounding elements to determine where in the source code to make changes.
+
 ## Clearing Changes
 
 After applying all changes to source code, **always call `retune_clear_changes`** to clear the pending changes from the Retune overlay. This:
@@ -217,14 +309,57 @@ After applying all changes to source code, **always call `retune_clear_changes`*
 
 If you don't clear, the overlay will still show the old changes and the user may get confused.
 
+## Manifest Generation & Maintenance
+
+Retune uses a `retune.manifest.json` file in the project's public directory to power accurate token pickers, component controls, and scope targeting. If the MCP tool response includes a manifest generation prompt, generate the manifest before applying changes.
+
+### When to generate:
+- When a tool response says "No retune.manifest.json found" or "missing component definitions"
+- When `npx retune setup` output asks you to complete the manifest
+
+### Manifest format:
+
+The manifest has two sections:
+
+**components** -- React components with props (types, enum values, class_map) and state hooks (names, types, defaults).
+
+**tokens** -- Design tokens organized by category: `colors`, `spacing`, `sizing`, `radii`, `borderWidths`, `shadows`, `typography`.
+
+Each token has:
+- `"value"` -- the token's value exactly as defined. All formats valid: hex, rgb, space-separated RGB (e.g., `"59 130 246"`), rgba, hsl, oklch, named colors, px, rem, em, unitless. Do not skip or transform values.
+- `"variable"` -- CSS custom property name starting with `--` (when the project uses CSS variables)
+- `"class"` -- utility class name (when the project uses Tailwind or similar utility classes)
+
+**Colors must be organized into sub-groups** by hue ramp (e.g., "blue", "red"), semantic role (e.g., "brand", "status"), or component scope (e.g., "pagination").
+
+### Key rules:
+- Include the FULL spacing scale and FULL color palette (every step/shade)
+- Omit framework internals (`--tw-ring-*`, `--tw-shadow*`, `--tw-translate-*`, etc.)
+- Include tokens from design system packages in node_modules
+- `"value"` must be a single CSS value, not descriptions or compound values
+- For Tailwind projects: extract tokens from `tailwind.config.js` theme values
+- For components: include `class_map` when props determine which CSS class is applied
+
+### After generating or updating:
+Always call `retune_manifest_loaded` after writing the manifest file. This notifies the overlay to reload immediately -- the user sees updated token pickers and component controls without refreshing the page.
+
+### Maintenance:
+When modifying components (adding props, changing variants) or design tokens (adding colors, spacing), update the manifest to keep it in sync. The manifest should always reflect the current state of the codebase. Call `retune_manifest_loaded` after any update.
+
 ## Workflow
 
 1. Read the formatted changes output
-2. Locate the element using Source → Component → Selector → text content
-3. For each changed property:
-   a. Check if an exact token/class/variable match exists
-   b. Apply using the project's styling approach
-   c. Watch for competing rules and scope
-4. For structural actions (delete, text edit, reorder, reparent): apply the DOM change to the JSX source
-5. Verify the change makes sense in context (don't blindly apply if something looks wrong)
-6. **Call `retune_clear_changes`** to clear the applied changes from the overlay
+2. For each **visual change** (CSS property changes):
+   a. Locate the element using Source → Component → Selector → text content
+   b. Check if an exact token/class/variable match exists
+   c. Apply using the project's styling approach
+   d. Watch for competing rules and scope
+3. For **prop changes**: find the JSX where the component is rendered and update the prop value
+4. For **attribute changes**: modify HTML/SVG attributes on the element (alt, loading, fill, stroke, etc.)
+5. For **structural actions** (delete, text edit, reorder, reparent): apply the DOM change to the JSX source
+6. For each **comment**:
+   a. Read the comment text to understand the user's intent
+   b. Locate the element using Component → Selector → Classes
+   c. Make the described changes using the project's conventions
+7. Verify all changes make sense in context (don't blindly apply if something looks wrong)
+8. **Call `retune_clear_changes`** to clear the applied changes and comments from the overlay

@@ -54,14 +54,14 @@ function extractColorGroup(name: string): { group: string; shade: string } {
   return { group: name, shade: "" };
 }
 
-/** Group variables by color ramp */
+/** Group variables by manifest sub-group (preferred) or color ramp (fallback) */
 function groupByRamp(items: DesignVariable[]): Map<string, DesignVariable[]> {
   const groups = new Map<string, DesignVariable[]>();
   for (const t of items) {
-    const displayName = getDisplayName(t.className);
-    const { group } = extractColorGroup(displayName);
-    if (!groups.has(group)) groups.set(group, []);
-    groups.get(group)!.push(t);
+    // Prefer manifest sub-group over ramp parsing
+    const groupKey = t.manifestGroup || extractColorGroup(getDisplayName(t.className)).group;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey)!.push(t);
   }
   return groups;
 }
@@ -576,7 +576,9 @@ export function ColorPicker({
     const ramps: [string, DesignVariable[]][] = [];
     const standalone: DesignVariable[] = [];
     for (const [name, items] of rampGroups) {
-      if (items.length > 1) {
+      // Manifest groups always get a section header, even with 1 item
+      const isManifestGroup = items.some(i => i.manifestGroup);
+      if (items.length > 1 || isManifestGroup) {
         items.sort((a, b) => {
           const aShade = parseInt(extractColorGroup(getDisplayName(a.className)).shade) || 0;
           const bShade = parseInt(extractColorGroup(getDisplayName(b.className)).shade) || 0;

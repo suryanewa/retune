@@ -7,6 +7,8 @@
   color: var(--retune-text);
   line-height: 1.4;
   interpolate-size: allow-keywords;
+  user-select: none;
+  -webkit-user-select: none;
 
   /* ══════════════════════════════════════
      PRIMITIVES — raw palette, never change
@@ -89,7 +91,7 @@
   --retune-always-black: #1c1917;
 
   /* ── Text ── */
-  --retune-text: var(--retune-black);
+  --retune-text: var(--retune-black-90);
   --retune-text-secondary: var(--retune-black-70);
   --retune-text-tertiary: var(--retune-black-50);
   --retune-text-disabled: var(--retune-black-25);
@@ -122,7 +124,7 @@
    ══════════════════════════════════════ */
 :host(.dark) {
   /* ── Text ── */
-  --retune-text: var(--retune-white);
+  --retune-text: var(--retune-white-90);
   --retune-text-secondary: var(--retune-white-70);
   --retune-text-tertiary: var(--retune-white-50);
   --retune-text-disabled: var(--retune-white-25);
@@ -149,6 +151,10 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+input, textarea, [contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
 
 /* ── Toolbar ── */
 @keyframes retune-icon-in {
@@ -161,7 +167,7 @@
   z-index: 2147483647;
   pointer-events: auto;
   background: var(--retune-surface);
-  border-radius: 999px;
+  border-radius: 16px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
   height: 44px;
   padding: 6px;
@@ -190,7 +196,7 @@
 }
 
 .retune-toolbar.collapsed:hover {
-  background: color-mix(in srgb, var(--retune-black) 5%, var(--retune-surface));
+  background: var(--retune-surface);
 }
 
 .retune-toolbar.top.right { top: 16px; right: 16px; }
@@ -273,12 +279,13 @@
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 50%;
+  border-radius: 10px;
   background: transparent;
   cursor: pointer;
   color: var(--retune-text);
   padding: 6px;
   flex-shrink: 0;
+  position: relative;
   transition: background 0.12s ease;
 }
 
@@ -357,7 +364,7 @@
   color: var(--retune-always-white);
   min-width: 32px;
   height: 32px;
-  border-radius: 999px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -565,7 +572,8 @@
 :host(.dark) .retune-panel,
 :host(.dark) .retune-settings-panel,
 :host(.dark) .retune-toolbar,
-:host(.dark) .retune-floating-dialog {
+:host(.dark) .retune-floating-dialog,
+:host(.dark) .retune-comment-popover {
   border: 1px solid var(--retune-black);
   box-shadow:
     inset 0 0 0 1px rgb(255 255 255 / 10%),
@@ -668,8 +676,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  height: 32px;
   padding-right: 12px;
   cursor: pointer;
   transition: background 0.1s;
@@ -682,7 +689,10 @@
 }
 
 .retune-tree-node.selected {
-  background: var(--retune-surface-hover);
+  background: var(--retune-blue-bg);
+}
+.retune-tree-node.descendant-selected {
+  background: color-mix(in srgb, var(--retune-blue-500) 6%, transparent);
 }
 
 .retune-tree-arrow {
@@ -705,27 +715,45 @@
   visibility: hidden;
 }
 
-.retune-tree-tag {
-  font-size: 12px;
-  font-weight: 400;
+.retune-tree-icon {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--retune-text-tertiary);
+  opacity: 0.5;
+}
+.retune-tree-node.selected .retune-tree-icon,
+.retune-tree-node.descendant-selected .retune-tree-icon,
+.retune-tree-node:hover .retune-tree-icon {
+  opacity: 1;
+}
+.retune-tree-icon--component {
+  color: var(--retune-blue-text);
+}
+:host(.dark) .retune-tree-node.selected .retune-tree-icon--component {
   color: var(--retune-text);
-  white-space: nowrap;
 }
 
-.retune-tree-qualifier {
+.retune-tree-name {
   font-size: 11px;
   font-weight: 400;
-  color: var(--retune-text-tertiary);
+  line-height: 16px;
+  letter-spacing: 0.005em;
+  color: var(--retune-text);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
-
-.retune-tree-component {
-  font-size: 10px;
-  font-weight: 500;
+.retune-tree-name--component {
   color: var(--retune-blue-text);
-  white-space: nowrap;
-  margin-left: auto;
-  flex-shrink: 0;
+  font-weight: 500;
+}
+:host(.dark) .retune-tree-node.selected .retune-tree-name--component {
+  color: var(--retune-text);
 }
 
 .retune-tree-moved {
@@ -908,6 +936,7 @@
 }
 
 .retune-align-btn:hover {
+  background: var(--retune-border);
   color: var(--retune-text);
 }
 
@@ -1168,7 +1197,7 @@
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
 }
 
@@ -1177,7 +1206,7 @@
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
   padding: 0 16px;
 }
@@ -1187,7 +1216,7 @@
   font-size: 11px;
   font-weight: 400;
   letter-spacing: -0.005em;
-  color: var(--retune-text-secondary);
+  color: var(--retune-text-tertiary);
   line-height: 16px;
   display: flex;
   align-items: center;
@@ -1330,7 +1359,7 @@
 }
 
 .retune-prop-input:first-child { padding-left: 12px; }
-.retune-prop-input::selection { background: #bfdbfe; color: var(--retune-text); }
+.retune-prop-input::selection { background: var(--retune-blue-bg); color: var(--retune-text); }
 .retune-prop-input:focus { outline: none; }
 
 /* ── Color Input (split: [swatch|hex] [opacity%]) ── */
@@ -1367,6 +1396,8 @@
   width: 20px;
   height: 20px;
   border-radius: 2px;
+  position: relative;
+  overflow: hidden;
 }
 
 .retune-color-hex-input {
@@ -1388,7 +1419,7 @@
   outline: 1px solid var(--retune-border);
   outline-offset: -1px;
 }
-.retune-color-hex-input::selection { background: #bfdbfe; color: var(--retune-text); }
+.retune-color-hex-input::selection { background: var(--retune-blue-bg); color: var(--retune-text); }
 
 .retune-color-opacity-section {
   display: flex;
@@ -1742,7 +1773,7 @@
   box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.5);
 }
 
-.retune-cp-input::selection { background: #bfdbfe; color: var(--retune-text); }
+.retune-cp-input::selection { background: var(--retune-blue-bg); color: var(--retune-text); }
 
 /* ── Gradient Editor ── */
 .retune-gradient-editor {
@@ -2035,7 +2066,7 @@
   position: absolute;
   inset: 0;
   right: auto;
-  background: #ebebeb;
+  background: var(--retune-surface-active);
   pointer-events: none;
 }
 
@@ -2057,8 +2088,7 @@
   width: 2px;
   height: 16px;
   border-radius: 1px;
-  background: var(--retune-surface);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  background: var(--retune-text);
   pointer-events: none;
   margin-left: -1px;
 }
@@ -2314,7 +2344,7 @@
   padding: 0 8px;
 }
 
-.retune-text-input-field::selection { background: #bfdbfe; color: var(--retune-text); }
+.retune-text-input-field::selection { background: var(--retune-blue-bg); color: var(--retune-text); }
 .retune-text-input-field:focus { outline: none; }
 
 /* ── ComboInput ── */
@@ -2372,7 +2402,7 @@
   outline: 1px solid var(--retune-border-hover);
   outline-offset: -1px;
 }
-.retune-combo-input::selection { background: #bfdbfe; color: var(--retune-text); }
+.retune-combo-input::selection { background: var(--retune-blue-bg); color: var(--retune-text); }
 
 .retune-combo-trigger {
   width: 32px;
@@ -3108,6 +3138,325 @@
   text-transform: capitalize;
 }
 
+/* ── Component Section ── */
+.retune-component-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+}
+.retune-component-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--retune-text);
+}
+.retune-component-source {
+  font-size: 10px;
+  color: var(--retune-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Component props/state grid ── */
+.retune-component-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 8px;
+  padding: 0 48px 4px 16px;
+}
+.retune-component-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.retune-component-field-label {
+  font-size: 11px;
+  font-weight: 450;
+  letter-spacing: -0.005em;
+  color: var(--retune-text-tertiary);
+}
+.retune-component-field--toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.retune-component-field--toggle .retune-component-field-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.retune-component-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.retune-component-field > .retune-prop {
+  width: 100%;
+}
+.retune-component-field > .retune-select {
+  width: 100%;
+}
+
+.retune-component-field .retune-prop-input::-webkit-inner-spin-button,
+.retune-component-field .retune-prop-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.retune-component-field .retune-prop-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.retune-component-toggle {
+  position: relative;
+  width: 28px;
+  height: 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--retune-border);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+.retune-component-toggle.on {
+  background: var(--retune-blue);
+}
+.retune-component-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--retune-always-white);
+  transition: transform 150ms ease;
+  box-shadow: 0 1px 2px var(--retune-black-25);
+}
+.retune-component-toggle.on .retune-component-toggle-thumb {
+  transform: translateX(12px);
+}
+
+/* ── Comment system ── */
+.retune-comment-marker {
+  position: fixed;
+  min-height: 24px;
+  border-radius: 12px 12px 12px 0;
+  background: var(--retune-surface);
+  color: var(--retune-text);
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  z-index: 2147483646;
+  pointer-events: none;
+  transform: translate(-4px, -24px);
+  transform-origin: bottom left;
+  user-select: none;
+  animation: retune-marker-in 150ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+  transition: width 150ms ease, height 150ms ease, border-radius 150ms ease, transform 150ms ease;
+  overflow: hidden;
+  width: 24px;
+  height: 24px;
+  will-change: width, height;
+}
+.retune-comment-marker-num {
+  min-width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 150ms ease;
+}
+.retune-comment-marker-preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 200px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--retune-text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  padding: 10px 12px 0;
+  box-sizing: border-box;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+  will-change: opacity;
+}
+.retune-comment-marker.interactive {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.retune-comment-marker.expanded .retune-comment-marker-num {
+  opacity: 0;
+}
+.retune-comment-marker.expanded .retune-comment-marker-preview {
+  opacity: 1;
+}
+.retune-comment-popover.shaking {
+  animation: retune-shake 300ms ease-out !important;
+}
+@keyframes retune-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+
+@keyframes retune-marker-in {
+  from {
+    opacity: 0;
+    transform: translate(-4px, -24px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-4px, -24px) scale(1);
+  }
+}
+.retune-comment-area-outline {
+  position: fixed;
+  border: 1px dashed var(--retune-blue);
+  pointer-events: none;
+  z-index: 2147483639;
+}
+.retune-area-handle {
+  position: fixed;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--retune-blue);
+  border: 2px solid var(--retune-always-white);
+  box-shadow: 0 1px 3px var(--retune-black-25);
+  z-index: 2147483640;
+  cursor: nwse-resize;
+  pointer-events: auto;
+}
+.retune-comment-popover {
+  background: var(--retune-surface);
+  border-radius: 16px;
+  padding: 12px;
+  width: 280px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  font-family: InterVariable, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  z-index: 2147483647;
+  pointer-events: auto;
+  transform-origin: top left;
+  animation: retune-popover-in 150ms cubic-bezier(0.23, 1, 0.32, 1) 30ms backwards;
+}
+@keyframes retune-popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.retune-comment-textarea {
+  width: 100%;
+  min-height: 48px;
+  background: var(--retune-surface-hover);
+  border: none;
+  border-radius: 8px;
+  color: var(--retune-text);
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 8px 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.retune-comment-textarea::placeholder {
+  color: var(--retune-text-tertiary);
+}
+.retune-comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.retune-comment-submit-btn {
+  background: var(--retune-blue);
+  color: var(--retune-always-white);
+  border: none;
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  font-family: inherit;
+}
+.retune-comment-submit-btn:hover { opacity: 0.9; }
+.retune-comment-submit-btn:disabled { opacity: 0.4; cursor: default; }
+.retune-comment-cancel-btn {
+  background: transparent;
+  color: var(--retune-text-muted);
+  border: none;
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  font-family: inherit;
+}
+.retune-comment-cancel-btn:hover { background: var(--retune-surface-hover); color: var(--retune-text); }
+.retune-comment-delete-btn {
+  background: transparent;
+  color: var(--retune-red);
+  border: none;
+  border-radius: 16px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+  font-family: inherit;
+}
+.retune-comment-delete-btn:hover { background: color-mix(in srgb, var(--retune-red) 10%, transparent); }
+.retune-comment-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 14px;
+  height: 14px;
+  background: var(--retune-blue-10);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  line-height: 1;
+}
+.retune-toolbar-btn.active {
+  background: var(--retune-surface-hover);
+}
+.retune-toolbar-btn.active:hover {
+  background: var(--retune-surface-hover);
+}
+.retune-toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--retune-border);
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .retune-toolbar,
   .retune-toolbar-collapse-btn,
@@ -3142,8 +3491,15 @@
   .retune-toolbar.expanded .retune-toolbar-expanded > *,
   .retune-toolbar.collapsed .retune-toolbar-collapse-btn,
   .retune-grid-picker-dialog,
-  .retune-combo-dropdown-anchor {
+  .retune-combo-dropdown-anchor,
+  .retune-comment-marker,
+  .retune-comment-popover,
+  .retune-comment-popover.shaking {
     animation: none;
+  }
+
+  .retune-comment-marker {
+    transition: none;
   }
 
   .retune-variable-action,

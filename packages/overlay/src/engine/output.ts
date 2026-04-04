@@ -14,6 +14,7 @@ import { type TokenMap, scanDesignTokens, summarizeTokenSystem } from "../inspec
 import { camelToKebab, truncate } from "../utils";
 import { getVariableRegistry } from "../variables/registry";
 import { enrichPropertyChanges } from "./candidates";
+import type { Comment } from "./comment-store";
 
 export type Fidelity = "minimal" | "standard" | "full";
 
@@ -91,8 +92,8 @@ function getTokenMap(): TokenMap {
   return cachedTokenMap;
 }
 
-export function formatChanges(changes: ElementChange[], fidelity: Fidelity): string {
-  if (changes.length === 0) return "No changes recorded.";
+export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comments?: Comment[], manifest?: Record<string, any> | null): string {
+  if (changes.length === 0 && (!comments || comments.length === 0)) return "No changes recorded.";
 
   // Separate bulk instances from primary changes
   const bulkCount = changes.filter(c => c.changes.some(p => p.property === "__bulkOf")).length;
@@ -104,15 +105,19 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
   const lines: string[] = [];
 
   // Header — preamble gives the AI model clear intent + identification
-  lines.push("Apply these Retune visual changes to the source code:\n");
-  lines.push(`# Visual Changes (${changes.length} element${changes.length > 1 ? "s" : ""})`);
-  lines.push("");
-
+  const hasChanges = changes.length > 0;
+  const hasComments = comments && comments.length > 0;
+  if (hasChanges && hasComments) {
+    lines.push("Apply these Retune visual changes and address the user's comments in the source code:\n");
+  } else if (hasComments) {
+    lines.push("The user has left comments on their running app using Retune. Address each comment by making the described changes to the source code:\n");
+  } else {
+    lines.push("Apply these Retune visual changes to the source code:\n");
+  }
   // Environment context
   lines.push("**Environment:**");
   lines.push(`- URL: ${window.location.href}`);
   lines.push(`- Viewport: ${window.innerWidth}×${window.innerHeight}`);
-  lines.push(`- Device Pixel Ratio: ${window.devicePixelRatio}`);
   lines.push(`- Timestamp: ${new Date().toISOString()}`);
   lines.push("");
 
@@ -132,14 +137,75 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity): str
     lines.push("");
   }
 
-  // Each element change — pass bulk instance count so structural actions can note it
-  const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap, bulkCount));
-  lines.push(sections.join("\n---\n\n"));
+  // Manifest context — gives AI agent knowledge of the project's component system
+  if (manifest?.components && fidelity !== "minimal") {
+    const componentNames = Object.keys(manifest.components);
+    if (componentNames.length > 0) {
+      lines.push(`> **Manifest:** ${componentNames.length} components defined (${componentNames.join(", ")}). Prop types, enum values, and class mappings are available in \`retune.manifest.json\`.`);
+      lines.push("");
+    }
+  }
+
+  // Each element change — only show section if there are changes
+  if (changes.length > 0) {
+    lines.push(`# Visual Changes (${changes.length} element${changes.length !== 1 ? "s" : ""})`);
+    lines.push("");
+    const sections = changes.map((change) => formatSingleChange(change, fidelity, tokenMap, bulkCount, manifest));
+    lines.push(sections.join("\n---\n\n"));
+  }
+
+  // Comments section
+  if (comments && comments.length > 0) {
+    if (changes.length > 0) {
+      lines.push("");
+      lines.push("---");
+      lines.push("");
+    }
+    lines.push(`# Comments (${comments.length})`);
+    lines.push("");
+    comments.forEach((comment, idx) => {
+      if (comment.type === "element" && comment.elementInfo) {
+        const info = comment.elementInfo;
+        const textHint = info.textContent ? ` "${truncate(info.textContent, 60)}"` : "";
+        lines.push(`## Comment #${idx + 1} on \`<${info.tagName}>\`${textHint}`);
+        lines.push("");
+        if (info.componentName) {
+          lines.push(`**Component:** ${info.componentName}`);
+        }
+        if (comment.selector) {
+          lines.push(`**Selector:** \`${comment.selector}\``);
+        }
+        if (info.classes.length > 0) {
+          lines.push(`**Classes:** \`${info.classes.join(" ")}\``);
+        }
+        lines.push(`**Marker position:** (${Math.round(comment.position.x)}, ${Math.round(comment.position.y)}) on viewport`);
+      } else if (comment.type === "area" && comment.area) {
+        const a = comment.area;
+        lines.push(`## Comment #${idx + 1} on area`);
+        lines.push("");
+        lines.push(`**Region:** (${Math.round(a.x)}, ${Math.round(a.y)}) ${Math.round(a.width)}×${Math.round(a.height)}px`);
+        const contained = comment.elementInfo?.containedElements;
+        if (contained && contained.length > 0) {
+          const items = contained.slice(0, 8).map(el => {
+            const text = el.textContent ? ` "${truncate(el.textContent, 30)}"` : "";
+            const comp = el.componentName ? ` (${el.componentName})` : "";
+            return `\`<${el.tagName}>\` ${el.selector}${text}${comp}`;
+          });
+          lines.push(`**Contains:** ${items.join(", ")}`);
+        }
+      } else {
+        lines.push(`## Comment #${idx + 1}`);
+      }
+      lines.push("");
+      lines.push(`> ${comment.text.split("\n").join("\n> ")}`);
+      lines.push("");
+    });
+  }
 
   return lines.join("\n");
 }
 
-function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap: TokenMap, bulkInstanceCount = 0): string {
+function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap: TokenMap, bulkInstanceCount = 0, manifest?: Record<string, any> | null): string {
   const lines: string[] = [];
 
   // Element identification
@@ -155,6 +221,41 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
   // Component hierarchy
   if (change.reactComponents.length > 0) {
     lines.push(`**Component:** ${change.reactComponents.join(" → ")}`);
+
+    // Per-element manifest context — show component props/class_map for the nearest component
+    if (manifest?.components && fidelity !== "minimal") {
+      const compName = change.reactComponents[0];
+      const compDef = manifest.components[compName];
+      if (compDef?.props) {
+        const propSummaries: string[] = [];
+        for (const [propName, propDef] of Object.entries<any>(compDef.props)) {
+          if (propDef.type === "function") continue; // skip callbacks
+          let summary = `${propName}: ${propDef.type}`;
+          if (propDef.type === "enum" && propDef.values) {
+            summary += `(${propDef.values.join(", ")})`;
+          }
+          if (propDef.default !== undefined) {
+            summary += ` = ${JSON.stringify(propDef.default)}`;
+          }
+          if (propDef.class_map) {
+            const mappings = Object.entries(propDef.class_map).map(([v, c]) => `${v}→${c}`).join(", ");
+            summary += ` [${mappings}]`;
+          }
+          propSummaries.push(summary);
+        }
+        if (propSummaries.length > 0) {
+          if (fidelity === "full") {
+            lines.push(`**Component props:** ${propSummaries.join("; ")}`);
+          } else {
+            // Standard: only show enum props with class_map (most useful for the agent)
+            const enumProps = propSummaries.filter(s => s.includes("enum") || s.includes("→"));
+            if (enumProps.length > 0) {
+              lines.push(`**Variants:** ${enumProps.join("; ")}`);
+            }
+          }
+        }
+      }
+    }
   }
 
   // Styling approach
@@ -371,6 +472,39 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     for (const { property, value } of change.unlinkedProperties) {
       const kebab = camelToKebab(property);
       lines.push(`| \`${kebab}\` | \`${value}\` |`);
+    }
+  }
+
+  // Attribute changes (HTML/SVG attributes — alt, loading, autoplay, fill, stroke, etc.)
+  if (change.attributeChanges && change.attributeChanges.length > 0) {
+    const isSvgElement = ["SVG", "PATH", "CIRCLE", "ELLIPSE", "RECT", "LINE", "POLYGON", "POLYLINE", "G", "TEXT", "USE", "DEFS"].includes(change.tagName.toUpperCase());
+    lines.push("");
+    lines.push(isSvgElement ? "### SVG Attribute Changes" : "### Attribute Changes");
+    lines.push("");
+    lines.push(isSvgElement
+      ? "Apply these changes to the SVG element's attributes:"
+      : "Apply these changes to the HTML element's attributes:");
+    lines.push("");
+    lines.push("| Attribute | From | To |");
+    lines.push("|-----------|------|----|");
+    for (const { attr, from, to } of change.attributeChanges) {
+      lines.push(`| \`${attr}\` | \`${from || "—"}\` | \`${to}\` |`);
+    }
+  }
+
+  // Prop changes (React component prop edits)
+  if (change.propChanges && change.propChanges.length > 0) {
+    lines.push("");
+    lines.push("### Prop Changes");
+    lines.push("");
+    lines.push("Apply these changes to the JSX where this component is rendered:");
+    lines.push("");
+    lines.push("| Prop | From | To |");
+    lines.push("|------|------|----|");
+    for (const { prop, from, to } of change.propChanges) {
+      const fromStr = from === undefined ? "—" : JSON.stringify(from);
+      const toStr = to === undefined ? "—" : JSON.stringify(to);
+      lines.push(`| \`${prop}\` | \`${fromStr}\` | \`${toStr}\` |`);
     }
   }
 

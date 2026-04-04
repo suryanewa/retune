@@ -32,6 +32,15 @@ const TYPOGRAPHY_PROPS = [
 
 const BACKGROUND_PROPS = [
   "backgroundColor", "backgroundImage",
+  "backgroundSize", "backgroundPosition", "backgroundRepeat",
+] as const;
+
+const MEDIA_PROPS = [
+  "objectFit", "objectPosition", "aspectRatio",
+] as const;
+
+const SVG_PROPS = [
+  "fill", "stroke", "strokeWidth",
 ] as const;
 
 const LAYOUT_PROPS = [
@@ -62,6 +71,8 @@ const ALL_PROPS = [
   ...BORDER_PROPS,
   ...TYPOGRAPHY_PROPS,
   ...BACKGROUND_PROPS,
+  ...MEDIA_PROPS,
+  ...SVG_PROPS,
   ...LAYOUT_PROPS,
   ...VISUAL_PROPS,
   ...TEXT_OVERFLOW_PROPS,

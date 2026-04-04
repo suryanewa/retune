@@ -18,10 +18,18 @@ interface TrackedElement {
   reactComponents: string[];
   originalStyles: Record<string, string>;
   currentStyles: Record<string, string>;
+  /** Original React prop values (snapshot at selection time) */
+  originalProps?: Record<string, unknown>;
+  /** Current React prop values (after edits) */
+  currentProps?: Record<string, unknown>;
   /** Value-only variable associations: camelCase property → variable ref */
   variableAssociations?: Record<string, TrackedVariableRef>;
   /** Properties explicitly unlinked from their variable */
   unlinkedVariables?: Set<string>;
+  /** Original HTML/SVG attribute values */
+  originalAttrs?: Record<string, string>;
+  /** Current HTML/SVG attribute values */
+  currentAttrs?: Record<string, string>;
   sourceFile?: { fileName: string; lineNumber: number; columnNumber?: number } | null;
   stylingApproach?: string;
   inlineStyles?: string | null;
@@ -76,6 +84,7 @@ export class ChangeTracker {
     domPath?: string,
     nearbySiblings?: string | null,
     position?: { x: number; y: number; width: number; height: number },
+    reactProps?: Record<string, unknown> | null,
   ) {
     if (!this.tracked.has(selector)) {
       this.tracked.set(selector, {
@@ -86,6 +95,8 @@ export class ChangeTracker {
         reactComponents,
         originalStyles: { ...currentStyles },
         currentStyles: { ...currentStyles },
+        originalProps: reactProps ? { ...reactProps } : undefined,
+        currentProps: reactProps ? { ...reactProps } : undefined,
         sourceFile,
         stylingApproach,
         inlineStyles,
@@ -97,7 +108,53 @@ export class ChangeTracker {
         nearbySiblings,
         position,
       });
+    } else if (reactProps) {
+      // Backfill reactProps if element was tracked before props were available
+      const entry = this.tracked.get(selector)!;
+      if (!entry.originalProps) {
+        entry.originalProps = { ...reactProps };
+        entry.currentProps = { ...reactProps };
+      }
     }
+  }
+
+  /** Record a React prop change */
+  recordPropChange(selector: string, propName: string, newValue: unknown): void {
+    const entry = this.tracked.get(selector);
+    if (!entry || !entry.currentProps) return;
+    entry.currentProps[propName] = newValue;
+    this.persist();
+  }
+
+  /** Check if a prop has been changed from its original value */
+  isPropChanged(selector: string, propName: string): boolean {
+    const entry = this.tracked.get(selector);
+    if (!entry?.originalProps || !entry?.currentProps) return false;
+    return entry.originalProps[propName] !== entry.currentProps[propName];
+  }
+
+  /** Reset a prop to its original value. Returns the original value or undefined. */
+  resetProp(selector: string, propName: string): unknown | undefined {
+    const entry = this.tracked.get(selector);
+    if (!entry?.originalProps || !entry?.currentProps) return undefined;
+    const original = entry.originalProps[propName];
+    entry.currentProps[propName] = original;
+    this.persist();
+    return original;
+  }
+
+  /** Record an HTML/SVG attribute change (alt, loading, autoplay, etc.) */
+  recordAttributeChange(selector: string, attr: string, oldValue: string, newValue: string): void {
+    const entry = this.tracked.get(selector);
+    if (!entry) return;
+    if (!entry.originalAttrs) entry.originalAttrs = {};
+    if (!entry.currentAttrs) entry.currentAttrs = {};
+    // Only store original once
+    if (!(attr in entry.originalAttrs)) {
+      entry.originalAttrs[attr] = oldValue;
+    }
+    entry.currentAttrs[attr] = newValue;
+    this.persist();
   }
 
   /** Set an initial value for a property if it hasn't been set yet.
@@ -317,13 +374,35 @@ export class ChangeTracker {
         }
       }
 
+      // Collect prop changes
+      const propChanges: Array<{ prop: string; from: unknown; to: unknown }> = [];
+      if (tracked.originalProps && tracked.currentProps) {
+        for (const [prop, currentVal] of Object.entries(tracked.currentProps)) {
+          const originalVal = tracked.originalProps[prop];
+          if (currentVal !== originalVal) {
+            propChanges.push({ prop, from: originalVal, to: currentVal });
+          }
+        }
+      }
+
+      // Collect attribute changes
+      const attributeChanges: Array<{ attr: string; from: string; to: string }> = [];
+      if (tracked.originalAttrs && tracked.currentAttrs) {
+        for (const [attr, currentVal] of Object.entries(tracked.currentAttrs)) {
+          const originalVal = tracked.originalAttrs[attr] || "";
+          if (currentVal !== originalVal) {
+            attributeChanges.push({ attr, from: originalVal, to: currentVal });
+          }
+        }
+      }
+
       const unlinked = tracked.unlinkedVariables
         ? Array.from(tracked.unlinkedVariables).map(prop => ({
             property: prop,
             value: tracked.currentStyles[prop] || "",
           }))
         : [];
-      const hasChanges = propertyChanges.length > 0 || unlinked.length > 0;
+      const hasChanges = propertyChanges.length > 0 || unlinked.length > 0 || propChanges.length > 0 || attributeChanges.length > 0;
 
       if (hasChanges) {
         const change: ElementChange = {
@@ -350,6 +429,12 @@ export class ChangeTracker {
         }
         if (unlinked.length > 0) {
           change.unlinkedProperties = unlinked;
+        }
+        if (propChanges.length > 0) {
+          change.propChanges = propChanges;
+        }
+        if (attributeChanges.length > 0) {
+          change.attributeChanges = attributeChanges;
         }
         changes.push(change);
       }

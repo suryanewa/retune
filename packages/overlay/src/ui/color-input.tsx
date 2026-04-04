@@ -178,8 +178,14 @@ export function ColorInput({ prop, value, onChange, variableMatch, property, onV
     }
   }, [emitColor]);
 
+  // Detect "none" / "transparent" state
+  const isNone = !value || value === "none" || value === "transparent" || (currentHexRef.current === "#000000" && currentOpacityRef.current === 0);
+
   // Swatch display: split view when opacity < 100 (left=solid, right=with opacity over checkerboard)
   const swatchStyle = (() => {
+    if (isNone) {
+      return { backgroundColor: "#fff", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.1)" } as React.CSSProperties;
+    }
     const hex = currentHexRef.current;
     const op = currentOpacityRef.current;
     if (op >= 100) {
@@ -205,11 +211,17 @@ export function ColorInput({ prop, value, onChange, variableMatch, property, onV
           className="retune-color-swatch"
           onClick={variableMatch ? handleTokenDotOpen : handleSwatchClick}
         >
-          <div className="retune-color-swatch-inner" style={swatchStyle} />
+          <div className="retune-color-swatch-inner" style={swatchStyle}>
+            {isNone && (
+              <svg width="100%" height="100%" viewBox="0 0 16 16" style={{ position: "absolute", top: 0, left: 0 }}>
+                <line x1="3" y1="13" x2="13" y2="3" stroke="var(--retune-red-500)" strokeWidth="1" strokeLinecap="round" />
+              </svg>
+            )}
+          </div>
         </div>
         <input
           className="retune-color-hex-input"
-          value={variableMatch ? formatVarName(variableMatch.variable.className) : hexLocal}
+          value={isNone ? "None" : variableMatch ? formatVarName(variableMatch.variable.className) : hexLocal}
           readOnly={!!variableMatch}
           onClick={variableMatch ? handleTokenDotOpen : undefined}
           onChange={variableMatch ? undefined : (e) => setHexLocal(e.target.value.replace(/[^a-fA-F0-9]/g, "").slice(0, 6))}

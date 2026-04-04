@@ -662,6 +662,72 @@ export function getDirectReactComponent(element: Element): string | null {
   return null;
 }
 
+/** Get the component fiber if this element is its root DOM node. Returns null otherwise. */
+function getDirectComponentFiber(element: Element): any | null {
+  const fiber = getFiber(element);
+  if (!fiber) return null;
+
+  let current = fiber.return;
+  while (current) {
+    if (typeof current.type === "function" || typeof current.type === "object") {
+      const name =
+        current.type?.displayName ||
+        current.type?.name ||
+        current.elementType?.displayName ||
+        current.elementType?.name;
+      if (name && !isFrameworkInternal(name)) {
+        const rootDom = findFirstDomFiber(current);
+        return rootDom === element ? current : null;
+      }
+    }
+    current = current.return;
+  }
+  return null;
+}
+
+/** Get props only if this element is a component's root DOM node */
+export function getDirectReactProps(element: Element): Record<string, unknown> | null {
+  const fiber = getDirectComponentFiber(element);
+  if (!fiber?.memoizedProps) return null;
+
+  const raw = fiber.memoizedProps;
+  const props: Record<string, unknown> = {};
+  for (const key of Object.keys(raw)) {
+    if (key === "children" || key === "ref" || key === "key" || key === "params" || key === "searchParams") continue;
+    try { props[key] = raw[key]; } catch {}
+  }
+  return Object.keys(props).length > 0 ? props : null;
+}
+
+/** Get state hooks only if this element is a component's root DOM node */
+export function getDirectReactState(element: Element): ReactHook[] | null {
+  const fiber = getDirectComponentFiber(element);
+  if (!fiber) return null;
+
+  const hooks: ReactHook[] = [];
+  let hook = fiber.memoizedState;
+  let index = 0;
+
+  while (hook) {
+    const type = identifyHookType(hook);
+    const hasDispatch = !!(hook.queue && typeof hook.queue.dispatch === "function");
+
+    if (type === "state" || type === "reducer" || type === "ref") {
+      hooks.push({
+        index,
+        type,
+        value: type === "ref" ? hook.memoizedState?.current : hook.memoizedState,
+        hasDispatch,
+      });
+    }
+
+    hook = hook.next;
+    index++;
+  }
+
+  return hooks.length > 0 ? hooks : null;
+}
+
 /** Find the first DOM element rendered by a component fiber */
 function findFirstDomFiber(fiber: any): Element | null {
   if (fiber.stateNode instanceof Element) return fiber.stateNode;
@@ -731,17 +797,210 @@ export function getReactProps(element: Element): Record<string, unknown> | null 
       (typeof current.type === "function" || typeof current.type === "object") &&
       current.memoizedProps
     ) {
-      const props = { ...current.memoizedProps };
-      // Remove children and internal props
-      delete props.children;
-      delete props.ref;
-      delete props.key;
-      return props;
+      // Safely extract props without triggering framework proxies (Next.js async params)
+      const raw = current.memoizedProps;
+      const props: Record<string, unknown> = {};
+      for (const key of Object.keys(raw)) {
+        if (key === "children" || key === "ref" || key === "key" || key === "params" || key === "searchParams") continue;
+        try {
+          props[key] = raw[key];
+        } catch {
+          // Skip props that throw on access
+        }
+      }
+      return Object.keys(props).length > 0 ? props : null;
     }
     current = current.return;
   }
 
   return null;
+}
+
+/** Detected hook type */
+export type HookType = "state" | "reducer" | "ref" | "memo" | "callback" | "effect" | "unknown";
+
+/** A single hook extracted from the fiber */
+export interface ReactHook {
+  index: number;
+  type: HookType;
+  value: unknown;
+  /** True if this hook has a dispatch function (useState/useReducer) */
+  hasDispatch: boolean;
+}
+
+/** Identify hook type from its shape */
+function identifyHookType(hook: any): HookType {
+  const state = hook.memoizedState;
+  const queue = hook.queue;
+
+  // useState / useReducer — has a queue with dispatch
+  if (queue && typeof queue.dispatch === "function") {
+    return queue.lastRenderedReducer?.name === "basicStateReducer" ? "state" : "reducer";
+  }
+
+  // useRef — memoizedState is { current: ... }
+  if (
+    state !== null &&
+    typeof state === "object" &&
+    "current" in state &&
+    Object.keys(state).length === 1
+  ) {
+    return "ref";
+  }
+
+  // useEffect / useLayoutEffect — has tag, create, deps, next
+  if (
+    state !== null &&
+    typeof state === "object" &&
+    "tag" in state &&
+    "create" in state &&
+    "deps" in state
+  ) {
+    return "effect";
+  }
+
+  // useMemo / useCallback — [value, deps] tuple
+  if (Array.isArray(state) && state.length === 2 && Array.isArray(state[1])) {
+    return "memo"; // could be callback too, indistinguishable
+  }
+
+  return "unknown";
+}
+
+/** Get state hooks from the nearest React component */
+export function getReactState(element: Element): ReactHook[] | null {
+  const fiber = getFiber(element);
+  if (!fiber) return null;
+
+  // Walk up to find the nearest component fiber
+  let componentFiber = fiber;
+  while (componentFiber) {
+    if (
+      (typeof componentFiber.type === "function" || typeof componentFiber.type === "object") &&
+      !isFrameworkInternal(componentFiber.type?.displayName || componentFiber.type?.name || "")
+    ) {
+      break;
+    }
+    componentFiber = componentFiber.return;
+  }
+  if (!componentFiber) return null;
+
+  const hooks: ReactHook[] = [];
+  let hook = componentFiber.memoizedState;
+  let index = 0;
+
+  while (hook) {
+    const type = identifyHookType(hook);
+    const hasDispatch = !!(hook.queue && typeof hook.queue.dispatch === "function");
+
+    // Only include state/reducer hooks (editable) and refs (readable)
+    if (type === "state" || type === "reducer" || type === "ref") {
+      hooks.push({
+        index,
+        type,
+        value: type === "ref" ? hook.memoizedState?.current : hook.memoizedState,
+        hasDispatch,
+      });
+    }
+
+    hook = hook.next;
+    index++;
+  }
+
+  return hooks.length > 0 ? hooks : null;
+}
+
+/** Update a useState/useReducer hook's value via its dispatch function */
+export function setReactState(element: Element, hookIndex: number, newValue: unknown): boolean {
+  const fiber = getFiber(element);
+  if (!fiber) return false;
+
+  // Walk up to find the nearest component fiber
+  let componentFiber = fiber;
+  while (componentFiber) {
+    if (
+      (typeof componentFiber.type === "function" || typeof componentFiber.type === "object") &&
+      !isFrameworkInternal(componentFiber.type?.displayName || componentFiber.type?.name || "")
+    ) {
+      break;
+    }
+    componentFiber = componentFiber.return;
+  }
+  if (!componentFiber) return false;
+
+  // Walk to the target hook
+  let hook = componentFiber.memoizedState;
+  for (let i = 0; i < hookIndex && hook; i++) {
+    hook = hook.next;
+  }
+
+  if (!hook?.queue?.dispatch) return false;
+
+  // Call dispatch — goes through React's normal update pipeline
+  hook.queue.dispatch(newValue);
+  return true;
+}
+
+/** Override a component prop and trigger re-render */
+export function setReactProp(element: Element, propName: string, newValue: unknown): boolean {
+  const fiber = getFiber(element);
+  if (!fiber) return false;
+
+  // Walk up to find the nearest component fiber
+  let componentFiber = fiber;
+  while (componentFiber) {
+    if (
+      (typeof componentFiber.type === "function" || typeof componentFiber.type === "object") &&
+      !isFrameworkInternal(componentFiber.type?.displayName || componentFiber.type?.name || "")
+    ) {
+      break;
+    }
+    componentFiber = componentFiber.return;
+  }
+  if (!componentFiber) return false;
+
+  // Try React DevTools hook first — works for all components including stateless
+  const hook = (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
+  if (hook?.renderers) {
+    for (const renderer of hook.renderers.values()) {
+      if (renderer.overrideProps) {
+        renderer.overrideProps(componentFiber, [propName], newValue);
+        return true;
+      }
+    }
+  }
+
+  // Fallback: mutate pendingProps + dispatch
+  componentFiber.pendingProps = { ...componentFiber.memoizedProps, [propName]: newValue };
+  if (componentFiber.alternate) {
+    componentFiber.alternate.pendingProps = componentFiber.pendingProps;
+  }
+
+  let stateHook = componentFiber.memoizedState;
+  while (stateHook) {
+    if (stateHook.queue?.dispatch) {
+      const current = stateHook.memoizedState;
+      stateHook.queue.dispatch(typeof current === "object" && current !== null ? { ...current } : current);
+      return true;
+    }
+    stateHook = stateHook.next;
+  }
+
+  let parent = componentFiber.return;
+  while (parent) {
+    let parentHook = parent.memoizedState;
+    while (parentHook) {
+      if (parentHook.queue?.dispatch) {
+        const current = parentHook.memoizedState;
+        parentHook.queue.dispatch(typeof current === "object" && current !== null ? { ...current } : current);
+        return true;
+      }
+      parentHook = parentHook.next;
+    }
+    parent = parent.return;
+  }
+
+  return false;
 }
 
 // ---- Ancestor scope extraction ----

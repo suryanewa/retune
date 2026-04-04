@@ -20,22 +20,27 @@ import { PreviewBridge } from "../ui/preview-bridge";
 import { PreviewBridgeContext } from "../ui/preview-bridge-context";
 import { LivePreviewEngine } from "../engine/live-preview";
 import { ChangeTracker } from "../engine/change-tracker";
+import { CommentStore, type Comment } from "../engine/comment-store";
 import { formatChanges, collapseShorthands, type Fidelity } from "../engine/output";
 import { BridgeClient } from "../bridge/ws-client";
 import { inspectElement, matchesHotkey } from "../ui/helpers";
-import { getSelector, getSelectorCandidates, getAncestorScopes, getSharedSelector, scoreNamePattern, isHashedClass, type SelectorCandidate, type AncestorScope } from "../selector/identifier";
+import { getSelector, getSelectorCandidates, getAncestorScopes, getSharedSelector, scoreNamePattern, isHashedClass, setReactProp, type SelectorCandidate, type AncestorScope } from "../selector/identifier";
 import { detectChildrenType } from "../drag/detect";
 import { getPseudoStateStyles, getStyleSources, getScopedStyles, type ForcedState, type StyleSource } from "../inspector/styles";
+import { setManifestTokens } from "../variables";
 import { PropertyPanel } from "./PropertyPanel";
+import { ComponentSection, MANIFEST_PROMPT as MANIFEST_PROMPT_TEXT, MANIFEST_COMPONENTS_PROMPT } from "../ui/ComponentSection";
+import { PanelBanner } from "../ui/PanelBanner";
 import { ElementTree, type ReparentEntry } from "./ElementTree";
 import { SettingsPanel } from "./SettingsPanel";
 import { IconCursorClick } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursorClick";
-import { IconSquareBehindSquare1 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSquareBehindSquare1";
+import { IconSquareBehindSquare6 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSquareBehindSquare6";
 import { IconStepBack } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconStepBack";
 import { IconCrossMedium } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCrossMedium";
 import { IconBroom } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconBroom";
 import { IconCheckCircle2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCheckCircle2";
 import { IconSettingsGear2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSettingsGear2";
+import { IconCursor1 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCursor1";
 import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
@@ -203,8 +208,26 @@ function buildParentScopeLevel(element: Element): ScopeLevel | null {
  *  Each level accumulates classes into a compound selector.
  *  Falls back to parent-scoped selectors when no semantic classes exist.
  *  Ancestor scopes are inserted between class scopes and "This instance". */
-function buildScopeLevels(candidates: SelectorCandidate[], element: Element, ancestorScopes: AncestorScope[] = []): ScopeLevel[] {
-  const meaningful = candidates.filter(c => c.verdict === "semantic");
+/** Extract class→{propName, value} from all manifest class_maps */
+function getManifestClassInfo(manifest: Record<string, any> | null): Map<string, { propName: string; value: string; componentName: string }> {
+  const map = new Map<string, { propName: string; value: string; componentName: string }>();
+  if (!manifest?.components) return map;
+  for (const [compName, comp] of Object.entries<any>(manifest.components)) {
+    if (!comp?.props) continue;
+    for (const [propName, propDef] of Object.entries<any>(comp.props)) {
+      if (!propDef?.class_map) continue;
+      for (const [value, className] of Object.entries<string>(propDef.class_map)) {
+        map.set(className, { propName, value, componentName: compName });
+      }
+    }
+  }
+  return map;
+}
+
+function buildScopeLevels(candidates: SelectorCandidate[], element: Element, ancestorScopes: AncestorScope[] = [], manifest?: Record<string, any> | null): ScopeLevel[] {
+  // Boost manifest class_map classes to semantic
+  const manifestClasses = getManifestClassInfo(manifest ?? null);
+  const meaningful = candidates.filter(c => c.verdict === "semantic" || manifestClasses.has(c.selector.replace(/^\./, '')));
   if (meaningful.length === 0) {
     // Strategy 1: compound class fingerprint (utility-class elements)
     const fingerprint = buildCompoundFingerprint(element);
@@ -239,7 +262,12 @@ function buildScopeLevels(candidates: SelectorCandidate[], element: Element, anc
     const compound = parts.slice().sort().map(c => `.${CSS.escape(c)}`).join('');
     let count: number;
     try { count = document.querySelectorAll(compound).length; } catch { count = 0; }
-    levels.push({ label: humanizeScopeLabel(className, prevClassName), selector: compound, count, kind: "class" });
+    // Use manifest prop value for label when available (e.g., "tag-blue" → "Blue" from color prop)
+    const manifestInfo = manifestClasses.get(className);
+    const label = manifestInfo
+      ? humanizeSegment(manifestInfo.value)
+      : humanizeScopeLabel(className, prevClassName);
+    levels.push({ label, selector: compound, count, kind: "class" });
   }
   appendAncestorLevels(levels, ancestorScopes);
   levels.push({ label: "This instance", selector: null, count: 1, kind: "element" });
@@ -289,10 +317,519 @@ export function Retune(props: RetuneConfig = {}) {
   return <RetuneInner {...props} />;
 }
 
+// ── Comment Icon (custom) ──
+
+function IconComment({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <path d="M3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10C17 13.866 13.866 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z" stroke="currentColor" strokeWidth="1.25" />
+    </svg>
+  );
+}
+
+// ── Comment Marker (JS-driven hover expansion) ──
+
+function useCommentPosition(c: Comment): { x: number; y: number } {
+  // Position stored as viewport coords at click time.
+  // On scroll, re-query element and use its current rect + anchorOffset.
+  const [pos, setPos] = useState(c.position);
+
+  useEffect(() => {
+    function onScroll() {
+      if (c.type === "element" && c.selector && c.anchorOffset) {
+        try {
+          const el = document.querySelector(c.selector);
+          if (el) {
+            const rect = el.getBoundingClientRect();
+            setPos({ x: rect.left + c.anchorOffset.x, y: rect.top + c.anchorOffset.y });
+            return;
+          }
+        } catch {}
+      }
+    }
+    // Capture phase catches scroll on any element (nested containers)
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [c.selector, c.anchorOffset, c.type]);
+
+  return pos;
+}
+
+function CommentMarker({ comment: c, index, isPopoverOpen, isAreaResize, onAreaResize, onAreaResizeLive, onOpen }: {
+  comment: Comment;
+  index: number;
+  isPopoverOpen: boolean;
+  isAreaResize?: boolean;
+  onAreaResize?: (newPos: { x: number; y: number }) => void;
+  onAreaResizeLive?: (newPos: { x: number; y: number }) => void;
+  onOpen: () => void;
+}) {
+  const markerRef = useRef<HTMLDivElement>(null);
+  const previewRef = useRef<HTMLSpanElement>(null);
+  const popoverOpenRef2 = useRef(isPopoverOpen);
+  popoverOpenRef2.current = isPopoverOpen;
+  const pos = useCommentPosition(c);
+
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return;
+
+    const onEnter = () => {
+      if (popoverOpenRef2.current) return;
+      const preview = previewRef.current;
+      if (!preview) return;
+
+      const measurer = document.createElement("span");
+      measurer.style.cssText = `position:absolute;visibility:hidden;font-size:12px;line-height:1.4;font-family:inherit;white-space:nowrap;`;
+      measurer.textContent = c.text;
+      marker.appendChild(measurer);
+      const textW = measurer.offsetWidth;
+      measurer.remove();
+      const targetW = Math.min(textW + 24, 200);
+      const targetH = preview.offsetHeight + 10;
+
+      const markerLeft = parseFloat(marker.style.left) || 0;
+      const maxLeft = window.innerWidth - targetW - 12;
+      const clampedLeft = Math.min(markerLeft, maxLeft);
+      const offsetX = markerLeft - clampedLeft + 4;
+
+      marker.style.width = targetW + "px";
+      marker.style.height = targetH + "px";
+      marker.style.transform = `translate(-${offsetX}px, -${targetH}px)`;
+      marker.classList.add("expanded");
+    };
+
+    const onLeave = () => {
+      marker.style.width = "";
+      marker.style.height = "";
+      marker.style.transform = "";
+      marker.classList.remove("expanded");
+    };
+
+    marker.addEventListener("mouseenter", onEnter);
+    marker.addEventListener("mouseleave", onLeave);
+    return () => {
+      marker.removeEventListener("mouseenter", onEnter);
+      marker.removeEventListener("mouseleave", onLeave);
+    };
+  }, [c.text]);
+
+  // Collapse marker when popover opens
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker) return;
+    if (isPopoverOpen) {
+      marker.style.width = "";
+      marker.style.height = "";
+      marker.style.transform = "";
+      marker.classList.remove("expanded");
+    }
+  }, [isPopoverOpen]);
+
+  // Area resize drag on the marker itself
+  const dragRef = useRef<{ startX: number; startY: number; dragging: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!isAreaResize || !onAreaResize) return;
+    const marker = markerRef.current;
+    if (!marker) return;
+
+    const onDown = (e: PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragRef.current = { startX: e.clientX, startY: e.clientY, dragging: false };
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      const dx = Math.abs(e.clientX - dragRef.current.startX);
+      const dy = Math.abs(e.clientY - dragRef.current.startY);
+      if (dx > 3 || dy > 3) dragRef.current.dragging = true;
+      if (dragRef.current.dragging) {
+        marker.style.left = e.clientX + "px";
+        marker.style.top = e.clientY + "px";
+        onAreaResizeLive?.({ x: e.clientX, y: e.clientY });
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!dragRef.current) return;
+      const wasDragging = dragRef.current.dragging;
+      dragRef.current = null;
+      if (wasDragging) {
+        onAreaResize({ x: e.clientX, y: e.clientY });
+      } else {
+        onOpen();
+      }
+    };
+
+    marker.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerup", onUp, true);
+    return () => {
+      marker.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+  }, [isAreaResize, onAreaResize, onOpen]);
+
+  return (
+    <div
+      ref={markerRef}
+      className={`retune-comment-marker interactive${isPopoverOpen ? " popover-open" : ""}${isAreaResize ? " area-resize" : ""}`}
+      style={{ left: pos.x, top: pos.y, cursor: isAreaResize ? "nwse-resize" : undefined }}
+      onPointerUp={isAreaResize ? undefined : (e) => { e.stopPropagation(); onOpen(); }}
+    >
+      <span className="retune-comment-marker-num">{index + 1}</span>
+      <span ref={previewRef} className="retune-comment-marker-preview">{c.text}</span>
+    </div>
+  );
+}
+
+// ── Area Outline with resize handles ──
+
+function AreaOutline({ comment: c, interactive, liveBR, onResize }: {
+  comment: Comment;
+  interactive: boolean;
+  liveBR?: { x: number; y: number };
+  onResize: (newArea: { x: number; y: number; width: number; height: number }) => void;
+}) {
+  const area = c.area!;
+  const [dragging, setDragging] = useState<{
+    handle: "tl" | "br";
+    startX: number; startY: number;
+    origArea: typeof area;
+  } | null>(null);
+  const [liveArea, setLiveArea] = useState(area);
+
+  useEffect(() => { setLiveArea(area); }, [area.x, area.y, area.width, area.height]);
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    const onMove = (e: PointerEvent) => {
+      const dx = e.clientX - dragging.startX;
+      const dy = e.clientY - dragging.startY;
+      const orig = dragging.origArea;
+
+      if (dragging.handle === "tl") {
+        const newX = orig.x + dx;
+        const newY = orig.y + dy;
+        setLiveArea({
+          x: newX,
+          y: newY,
+          width: Math.max(20, orig.width - dx),
+          height: Math.max(20, orig.height - dy),
+        });
+      } else {
+        setLiveArea({
+          x: orig.x,
+          y: orig.y,
+          width: Math.max(20, orig.width + dx),
+          height: Math.max(20, orig.height + dy),
+        });
+      }
+    };
+
+    const onUp = () => {
+      setDragging(null);
+      onResize(liveArea);
+    };
+
+    document.addEventListener("pointermove", onMove, true);
+    document.addEventListener("pointerup", onUp, true);
+    return () => {
+      document.removeEventListener("pointermove", onMove, true);
+      document.removeEventListener("pointerup", onUp, true);
+    };
+  }, [dragging, liveArea, onResize]);
+
+  const handleSize = 12;
+  const half = handleSize / 2;
+
+  return (
+    <>
+      <div
+        className="retune-comment-area-outline"
+        style={liveBR ? {
+          left: liveArea.x,
+          top: liveArea.y,
+          width: Math.max(20, liveBR.x - liveArea.x),
+          height: Math.max(20, liveBR.y - liveArea.y),
+        } : {
+          left: liveArea.x, top: liveArea.y, width: liveArea.width, height: liveArea.height,
+        }}
+      />
+      {interactive && (
+        <>
+          <div
+            className="retune-area-handle"
+            style={{ left: liveArea.x - half, top: liveArea.y - half }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setDragging({ handle: "tl", startX: e.clientX, startY: e.clientY, origArea: { ...liveArea } });
+            }}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+// ── Retune Logo (with bloom hover animation from retune-site) ──
+
+function RetuneLogo({ size = 20 }: { size?: number }) {
+  const gRef = useRef<SVGGElement>(null);
+
+  useEffect(() => {
+    const g = gRef.current;
+    const btn = g?.closest(".retune-toolbar-collapse-btn");
+    if (!g || !btn) return;
+
+    const seq: string[][] = [
+      ["sq1"], ["sq2"], ["sq3"], ["sq4"], ["sq5"], ["sq6"],
+      ["sq7"], ["sq8"], ["sq9"], ["sq10"], ["sq11"], ["sq12"],
+      ["sq13L", "sq13R"], ["sq14L", "sq14R"],
+    ];
+
+    const stagger = 45;
+    const flash = 300;
+    const pause = 200;
+    const cycleTime = seq.length * stagger + flash + pause;
+    let hovering = false;
+    let timers: ReturnType<typeof setTimeout>[] = [];
+
+    const isP3 = window.matchMedia("(color-gamut: p3)").matches;
+
+    function randomColor() {
+      const h = Math.random() * 360;
+      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const l = isDark ? 0.7 + Math.random() * 0.15 : 0.6 + Math.random() * 0.1;
+      const c = isP3 ? 0.3 + Math.random() * 0.1 : 0.2 + Math.random() * 0.08;
+      return isP3 ? `oklch(${l} ${c} ${h})` : `hsl(${h}, 100%, ${isDark ? 50 + Math.random() * 25 : 50 + Math.random() * 15}%)`;
+    }
+
+    function clearAll() { timers.forEach(clearTimeout); timers = []; }
+
+    function resetRects() {
+      g!.querySelectorAll("rect").forEach((el) => {
+        el.style.transition = "none";
+        el.style.fill = "";
+        el.removeAttribute("filter");
+      });
+    }
+
+    function runCycle() {
+      if (!hovering) return;
+      const color = randomColor();
+      seq.forEach((ids, i) => {
+        timers.push(setTimeout(() => {
+          if (!hovering) return;
+          ids.forEach((id) => {
+            const el = g!.querySelector(`#${id}`) as SVGRectElement | null;
+            if (!el) return;
+            el.style.transition = "none";
+            el.style.fill = color;
+            el.setAttribute("filter", "url(#retune-bloom)");
+            el.getBoundingClientRect();
+            el.style.transition = `fill ${flash}ms ease-out`;
+            el.style.fill = "";
+            timers.push(setTimeout(() => el.removeAttribute("filter"), 80));
+          });
+        }, i * stagger));
+      });
+      timers.push(setTimeout(runCycle, cycleTime));
+    }
+
+    function onEnter() { hovering = true; runCycle(); }
+    function onLeave() { hovering = false; clearAll(); resetRects(); }
+
+    btn.addEventListener("mouseenter", onEnter);
+    btn.addEventListener("mouseleave", onLeave);
+    return () => {
+      btn.removeEventListener("mouseenter", onEnter);
+      btn.removeEventListener("mouseleave", onLeave);
+      clearAll();
+    };
+  }, []);
+
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+      <defs>
+        <filter id="retune-bloom" x="-100%" y="-100%" width="300%" height="300%" colorInterpolationFilters="sRGB">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="wideBlur"/>
+          <feColorMatrix in="wideBlur" type="matrix" result="wideGlow"
+            values="1.8 0 0 0 0  0 1.8 0 0 0  0 0 1.8 0 0  0 0 0 0.6 0"/>
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="tightBlur"/>
+          <feColorMatrix in="tightBlur" type="matrix" result="tightGlow"
+            values="2 0 0 0 0.1  0 2 0 0 0.1  0 0 2 0 0.1  0 0 0 0.9 0"/>
+          <feColorMatrix in="SourceGraphic" type="matrix" result="hotCore"
+            values="1 0 0 0 0.4  0 1 0 0 0.4  0 0 1 0 0.4  0 0 0 1 0"/>
+          <feMerge>
+            <feMergeNode in="wideGlow"/>
+            <feMergeNode in="tightGlow"/>
+            <feMergeNode in="hotCore"/>
+          </feMerge>
+        </filter>
+      </defs>
+      <g ref={gRef}>
+        <rect id="sq1" x="3" y="15" width="2" height="2" fill="currentColor"/>
+        <rect id="sq2" x="3" y="13" width="2" height="2" fill="currentColor"/>
+        <rect id="sq3" x="3" y="11" width="2" height="2" fill="currentColor"/>
+        <rect id="sq4" x="3" y="9" width="2" height="2" fill="currentColor"/>
+        <rect id="sq5" x="3" y="7" width="2" height="2" fill="currentColor"/>
+        <rect id="sq6" x="3" y="5" width="2" height="2" fill="currentColor"/>
+        <rect id="sq7" x="5" y="3" width="2" height="2" fill="currentColor"/>
+        <rect id="sq8" x="7" y="3" width="2" height="2" fill="currentColor"/>
+        <rect id="sq9" x="9" y="3" width="2" height="2" fill="currentColor"/>
+        <rect id="sq10" x="11" y="5" width="2" height="2" fill="currentColor"/>
+        <rect id="sq11" x="11" y="7" width="2" height="2" fill="currentColor"/>
+        <rect id="sq12" x="11" y="15" width="2" height="2" fill="currentColor"/>
+        <rect id="sq13L" x="9" y="13" width="2" height="2" fill="currentColor"/>
+        <rect id="sq13R" x="13" y="13" width="2" height="2" fill="currentColor"/>
+        <rect id="sq14L" x="7" y="11" width="2" height="2" fill="currentColor"/>
+        <rect id="sq14R" x="15" y="11" width="2" height="2" fill="currentColor"/>
+      </g>
+    </svg>
+  );
+}
+
+// ── Comment Popover ──
+
+function CommentPopover({
+  position,
+  initialText,
+  onSubmit,
+  onCancel,
+  onDelete,
+  onTextChange,
+}: {
+  position: { x: number; y: number };
+  initialText: string;
+  onSubmit: (text: string) => void;
+  onCancel: () => void;
+  onDelete?: () => void;
+  onTextChange?: (text: string) => void;
+}) {
+  const [text, setText] = useState(initialText);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const isEdit = !!onDelete;
+
+  const autoResize = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, []);
+
+  const popoverElRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setTimeout(() => {
+      inputRef.current?.focus();
+      autoResize();
+      // Kill entrance animation after it completes so it doesn't replay on class changes
+      if (popoverElRef.current) popoverElRef.current.style.animation = "none";
+    }, 200);
+  }, [autoResize]);
+
+  const handleSubmit = () => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    onSubmit(trimmed);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    e.nativeEvent.stopImmediatePropagation();
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSubmit();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+    }
+  };
+
+  // Position: offset from marker, clamped to viewport
+  const popoverWidth = 280;
+  const popoverHeight = 140; // approximate
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  let left = position.x + 16;
+  let top = position.y - 8;
+
+  // Flip left if overflowing right edge
+  if (left + popoverWidth > vw - 12) {
+    left = position.x - popoverWidth - 16;
+  }
+  // Clamp left
+  if (left < 12) left = 12;
+
+  // Flip up if overflowing bottom edge
+  if (top + popoverHeight > vh - 12) {
+    top = position.y - popoverHeight - 8;
+  }
+  // Clamp top
+  if (top < 12) top = 12;
+
+  const style: React.CSSProperties = {
+    position: "fixed",
+    left,
+    top,
+    zIndex: 2147483647,
+  };
+
+  return (
+    <div
+      ref={popoverElRef}
+      className="retune-comment-popover"
+      style={style}
+      onPointerDownCapture={(e) => e.stopPropagation()}
+      onClickCapture={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <textarea
+        ref={inputRef}
+        className="retune-comment-textarea"
+        value={text}
+        onChange={(e) => { setText(e.target.value); onTextChange?.(e.target.value); autoResize(); }}
+        onKeyDown={handleKeyDown}
+        placeholder="Add a comment..."
+        rows={3}
+      />
+      <div className="retune-comment-actions">
+        {isEdit && (
+          <button className="retune-comment-delete-btn" onPointerUp={onDelete}>
+            Delete
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <button className="retune-comment-cancel-btn" onPointerUp={onCancel}>
+          Cancel
+        </button>
+        <button
+          className="retune-comment-submit-btn"
+          onPointerUp={handleSubmit}
+          disabled={!text.trim()}
+        >
+          {isEdit ? "Save" : "Comment"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function RetuneInner(props: RetuneConfig) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
   const [active, setActive] = useState(false);
+  const [mode, setMode] = useState<"edit" | "comment">("edit");
   const [selectedElement, setSelectedElement] = useState<InspectedElement | null>(null);
   const [changeCount, setChangeCount] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
@@ -313,14 +850,45 @@ function RetuneInner(props: RetuneConfig) {
   const [copied, setCopied] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
+  const [resetRevision, setResetRevision] = useState(0);
   // Properties owned by CSS rules matching the active scope selector (undefined = show all)
   const [ownedProperties, setOwnedProperties] = useState<Set<string> | undefined>(undefined);
   const [portalTarget, setPortalTarget] = useState<HTMLDivElement | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ current: string; latest: string } | null>(null);
-  const [updateDismissing, setUpdateDismissing] = useState(false);
+  const manifestLoadedRef = useRef(false);
+  const manifestCheckedRef = useRef(false);
+  const manifestDataRef = useRef<Record<string, any> | null>(null);
+  const [manifest, setManifest] = useState<Record<string, any> | null>(null);
+  const [manifestBannerDismissed, setManifestBannerDismissed] = useState(false);
+
+  // Sync ref → state on every render (handles StrictMode where setManifest may target stale instance)
+  if (manifestDataRef.current && !manifest) {
+    setManifest(manifestDataRef.current);
+  }
+
+  const tryLoadManifest = useCallback(async () => {
+    if (manifestLoadedRef.current) return;
+    manifestLoadedRef.current = true; // Prevent concurrent fetches
+    try {
+      const res = await fetch("/retune.manifest.json", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.components || data.tokens)) {
+          manifestDataRef.current = data;
+          setManifest(data);
+          if (data.tokens) setManifestTokens(data);
+        } else {
+          manifestLoadedRef.current = false; // Allow retry
+        }
+      } else {
+        manifestLoadedRef.current = false;
+      }
+    } catch {
+      manifestLoadedRef.current = false;
+    }
+    manifestCheckedRef.current = true;
+  }, []);
   const [updateDismissed, setUpdateDismissed] = useState(false);
-  const [updateCopied, setUpdateCopied] = useState(false);
-  const copyBtnRef = useRef<HTMLButtonElement>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -409,6 +977,20 @@ function RetuneInner(props: RetuneConfig) {
   const pickerRef = useRef<ReturnType<typeof createPicker> | null>(null);
   const previewRef = useRef<LivePreviewEngine | null>(null);
   const trackerRef = useRef<ChangeTracker | null>(null);
+  const commentStoreRef = useRef(new CommentStore());
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentCount, setCommentCount] = useState(0);
+  const [activeCommentId, setActiveCommentId] = useState<number | null>(null);
+  const [areaResizeLive, setAreaResizeLive] = useState<{ id: number; br: { x: number; y: number } } | null>(null);
+  const [commentDraft, setCommentDraft] = useState<{
+    position: { x: number; y: number };
+    type: "element" | "area";
+    selector?: string;
+    anchorOffset?: { x: number; y: number };
+    area?: { x: number; y: number; width: number; height: number };
+    areaScroll?: { x: number; y: number };
+    elementInfo?: Comment["elementInfo"];
+  } | null>(null);
   const previewBridgeRef = useRef(new PreviewBridge());
   const bridgeRef = useRef<BridgeClient | null>(null);
   const selectedElementRef = useRef<InspectedElement | null>(null);
@@ -464,7 +1046,20 @@ function RetuneInner(props: RetuneConfig) {
           }));
         }
         case "getFormattedChanges":
-          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current);
+          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current);
+        case "getComments":
+          return commentStoreRef.current.getAll();
+        case "clearComments":
+          commentStoreRef.current.clear();
+          setComments([]);
+          setCommentCount(0);
+          return;
+        case "reloadManifest": {
+          // Agent wrote the manifest — re-fetch and load it
+          manifestLoadedRef.current = false;
+          await tryLoadManifest();
+          return { loaded: !!manifestDataRef.current };
+        }
         case "clearChanges": {
           // MCP clear = agent already applied changes to source.
           // Don't restore DOM mutations — just clear the stacks and tracking data.
@@ -516,6 +1111,10 @@ function RetuneInner(props: RetuneConfig) {
           }
           p.clearAll();
           t.clear();
+          // Clear comments
+          commentStoreRef.current.clear();
+          setComments([]);
+          setCommentCount(0);
           // Deselect — DOM nodes may have been restructured by React reconciliation
           // after the source code change, making the old selection reference unreliable
           setSelectedElement(null);
@@ -696,9 +1295,52 @@ function RetuneInner(props: RetuneConfig) {
       setCanRedo(tracker.canRedo);
     }
 
+    // Restore persisted comments
+    const cStore = commentStoreRef.current;
+    if (cStore.restore()) {
+      setComments(cStore.getAll());
+      setCommentCount(cStore.count);
+    }
+
     const picker = createPicker(mount.root, {
       onHover: () => {},
+      shouldBlockClick: () => shouldBlockForPopoverRef.current(),
       onSelect: (element) => {
+        // In comment mode, create a comment instead of selecting for editing
+        if (modeRef.current === "comment") {
+          // Skip if area drag just ended or popover is already open
+          if (areaDragJustEndedRef.current || popoverOpenRef.current) return;
+          const cursor = lastClickRef.current;
+          const selector = getQuickSelector(element);
+          const componentName = getQuickComponentName(element);
+          // Build a selector path for context (up to 3 ancestors)
+          const selectorPath: string[] = [selector];
+          let ancestor = element.parentElement;
+          for (let i = 0; i < 3 && ancestor && ancestor !== document.body; i++) {
+            selectorPath.unshift(getQuickSelector(ancestor));
+            ancestor = ancestor.parentElement;
+          }
+          const fullSelector = selectorPath.join(" > ");
+          const rect = element.getBoundingClientRect();
+          const draft = {
+            position: { x: cursor.x, y: cursor.y },
+            type: "element" as const,
+            selector: fullSelector,
+            anchorOffset: { x: cursor.x - rect.left, y: cursor.y - rect.top },
+            elementInfo: {
+              tagName: element.tagName.toLowerCase(),
+              componentName,
+              componentPath: [],
+              classes: Array.from(element.classList),
+              textContent: (element.textContent || "").slice(0, 80).trim() || null,
+            },
+          };
+          popoverOpenRef.current = true; popoverTextRef.current = ""; popoverInitialTextRef.current = "";
+          setCommentDraft(draft);
+          // Hide selection UI (handles, badge) — we only need hover in comment mode
+          pickerRef.current?.clearSelection();
+          return;
+        }
         const inspected = inspectElement(element);
         // Clear forced pseudo-state when selecting a new element
         if (forcedStateRef.current) {
@@ -710,7 +1352,7 @@ function RetuneInner(props: RetuneConfig) {
         setSelectorCandidates(candidates);
         // Build scope levels with ancestor scopes and default to the narrowest class level
         const ancestors = getAncestorScopes(element);
-        const levels = buildScopeLevels(candidates, element, ancestors);
+        const levels = buildScopeLevels(candidates, element, ancestors, manifestDataRef.current);
         setScopeLevels(levels);
         scopeLevelsRef.current = levels;
         const defaultIndex = levels.length >= 2 ? levels.length - 2 : 0;
@@ -751,6 +1393,7 @@ function RetuneInner(props: RetuneConfig) {
         }
 
         setSelectedElement(inspected);
+        if (!manifestLoadedRef.current && inspected.reactProps) tryLoadManifest();
         setSettingsOpen(false);
         setSettingsVisible(false);
         setSettingsExiting(false);
@@ -774,6 +1417,7 @@ function RetuneInner(props: RetuneConfig) {
           inspected.domPath,
           inspected.nearbySiblings,
           inspected.position,
+          inspected.reactProps,
         );
 
         // Track all scope level selectors so migration works correctly
@@ -937,7 +1581,7 @@ function RetuneInner(props: RetuneConfig) {
             inspected.reactComponents, inspected.computedStyles, inspected.sourceFile,
             inspected.stylingApproach, inspected.inlineStyles, inspected.elementId,
             inspected.accessibleName, inspected.parentContext, inspected.childSummary,
-            inspected.domPath, inspected.nearbySiblings, inspected.position,
+            inspected.domPath, inspected.nearbySiblings, inspected.position, inspected.reactProps,
           );
         }
         tracker.recordChange(selector, property, value);
@@ -968,7 +1612,7 @@ function RetuneInner(props: RetuneConfig) {
             inspected.reactComponents, inspected.computedStyles, inspected.sourceFile,
             inspected.stylingApproach, inspected.inlineStyles, inspected.elementId,
             inspected.accessibleName, inspected.parentContext, inspected.childSummary,
-            inspected.domPath, inspected.nearbySiblings, inspected.position,
+            inspected.domPath, inspected.nearbySiblings, inspected.position, inspected.reactProps,
           );
         }
         tracker.recordChange(selector, property, value);
@@ -1022,6 +1666,9 @@ function RetuneInner(props: RetuneConfig) {
     forcedStateRef.current = null;
   }, []);
 
+  // Load manifest eagerly on mount so it's ready before user interacts
+  useEffect(() => { tryLoadManifest(); }, [tryLoadManifest]);
+
   const activateOverlay = useCallback(() => {
     setActive(true);
     pickerRef.current?.activate();
@@ -1069,6 +1716,261 @@ function RetuneInner(props: RetuneConfig) {
     tracker.persist();
   }, []);
   syncTrackerStateRef.current = syncTrackerState;
+
+  const syncCommentState = useCallback(() => {
+    const store = commentStoreRef.current;
+    setComments(store.getAll());
+    setCommentCount(store.count);
+  }, []);
+
+  // Quick element info helpers for comment mode (lightweight, no full inspection)
+  const getQuickSelector = useCallback((el: Element): string => {
+    if (el.id) return "#" + CSS.escape(el.id);
+    let base: string;
+    const cls = Array.from(el.classList).filter(c => !c.startsWith("_") && !/^[a-z]{1,3}[A-Za-z0-9_]{8,}$/.test(c));
+    if (cls.length > 0) {
+      base = "." + cls.map(c => CSS.escape(c)).join(".");
+    } else {
+      base = el.tagName.toLowerCase();
+    }
+    // Add :nth-child if siblings share the same selector
+    const parent = el.parentElement;
+    if (parent) {
+      const siblings = Array.from(parent.children).filter(s => {
+        if (s === el) return true;
+        if (s.id || el.id) return false;
+        if (cls.length > 0) return cls.every(c => s.classList.contains(c));
+        return s.tagName === el.tagName;
+      });
+      if (siblings.length > 1) {
+        const idx = Array.from(parent.children).indexOf(el) + 1;
+        base += `:nth-child(${idx})`;
+      }
+    }
+    return base;
+  }, []);
+
+  const getQuickComponentName = useCallback((el: Element): string | null => {
+    const key = Object.keys(el).find(k => k.startsWith("__reactFiber$"));
+    if (!key) return null;
+    let fiber = (el as any)[key]?.return;
+    while (fiber) {
+      if (typeof fiber.type === "function" || typeof fiber.type === "object") {
+        const n = fiber.type?.displayName || fiber.type?.name;
+        if (n && n.length > 2 && !n.startsWith("_") && !/^(Fragment|Suspense|StrictMode|Provider|Consumer|Context)/.test(n)) return n;
+      }
+      fiber = fiber.return;
+    }
+    return null;
+  }, []);
+
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+
+  // Sync comment mode to picker
+  useEffect(() => {
+    if (!active) return;
+    pickerRef.current?.setCommentMode(mode === "comment");
+  }, [mode, active]);
+
+  // Comment mode: handle clicks and drags to create comments
+  const lastClickRef = useRef({ x: 0, y: 0 });
+  const areaDragJustEndedRef = useRef(false);
+  useEffect(() => {
+    const trackClick = (e: MouseEvent) => { lastClickRef.current = { x: e.clientX, y: e.clientY }; };
+    document.addEventListener("click", trackClick, true);
+    return () => document.removeEventListener("click", trackClick, true);
+  }, []);
+
+  const commentDragRef = useRef<{
+    startX: number; startY: number; dragging: boolean;
+    areaEl: HTMLDivElement | null;
+  } | null>(null);
+  const popoverOpenRef = useRef(false);
+  const popoverTextRef = useRef("");
+  const popoverInitialTextRef = useRef("");
+  const shakePopover = useCallback(() => {
+    const el = mountRef.current?.root.querySelector(".retune-comment-popover") as HTMLElement | null;
+    if (!el) return;
+    if (el.classList.contains("shaking")) return;
+    el.classList.add("shaking");
+    const onEnd = () => {
+      el.classList.remove("shaking");
+      el.removeEventListener("animationend", onEnd);
+    };
+    el.addEventListener("animationend", onEnd);
+  }, []);
+  /** Returns true if the popover has unsaved changes and should block. Triggers shake if blocking. */
+  const shouldBlockForPopover = useCallback(() => {
+    if (!popoverOpenRef.current) return false;
+    if (areaDragJustEndedRef.current) return true;
+    const isDirty = popoverTextRef.current !== popoverInitialTextRef.current;
+    if (isDirty) {
+      shakePopover();
+      return true;
+    }
+    // No changes — dismiss and let the action pass through
+    popoverOpenRef.current = false;
+    popoverTextRef.current = "";
+    popoverInitialTextRef.current = "";
+    setCommentDraft(null);
+    setActiveCommentId(null);
+    return false;
+  }, [shakePopover]);
+  const shouldBlockForPopoverRef = useRef(shouldBlockForPopover);
+  shouldBlockForPopoverRef.current = shouldBlockForPopover;
+
+  // Mode shortcuts: V for edit, C for comment (when toolbar is active)
+  useEffect(() => {
+    if (!active) return;
+    const handleModeKey = (e: KeyboardEvent) => {
+      // Skip if typing in an input/textarea (check composedPath for shadow DOM)
+      const actualTarget = e.composedPath()[0] as HTMLElement | undefined;
+      const tag = actualTarget?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || actualTarget?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (shouldBlockForPopoverRef.current()) return;
+      if (e.key === "v" || e.key === "V") {
+        e.preventDefault();
+        setMode("edit");
+        setCommentDraft(null);
+        setActiveCommentId(null);
+        popoverOpenRef.current = false;
+        pickerRef.current?.setCommentMode(false);
+      } else if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        setMode("comment");
+        setSelectedElement(null);
+        pickerRef.current?.setCommentMode(true);
+      }
+    };
+    document.addEventListener("keydown", handleModeKey, true);
+    return () => document.removeEventListener("keydown", handleModeKey, true);
+  }, [active]);
+
+  // Comment mode: area drag selection (element clicks are handled by picker's onSelect)
+  useEffect(() => {
+    if (!active || mode !== "comment") return;
+
+    const handlePointerDown = (e: PointerEvent) => {
+      // Skip if click is inside the overlay (popover, toolbar, markers)
+      const path = e.composedPath();
+      for (let i = 0; i < path.length; i++) {
+        if (path[i] instanceof HTMLElement && (path[i] as HTMLElement).hasAttribute("data-retune-host")) return;
+      }
+      if (shouldBlockForPopoverRef.current()) return;
+      e.preventDefault();
+      const areaEl = document.createElement("div");
+      areaEl.style.cssText = `position:fixed;border:1px dashed #0D99FF;pointer-events:none;z-index:2147483640;display:none;`;
+      document.body.appendChild(areaEl);
+      commentDragRef.current = { startX: e.clientX, startY: e.clientY, dragging: false, areaEl };
+    };
+
+    const handlePointerMove = (e: PointerEvent) => {
+      const drag = commentDragRef.current;
+      if (!drag) return;
+      const dx = Math.abs(e.clientX - drag.startX);
+      const dy = Math.abs(e.clientY - drag.startY);
+      if (dx > 5 || dy > 5) {
+        drag.dragging = true;
+        if (drag.areaEl) {
+          drag.areaEl.style.display = "block";
+          drag.areaEl.style.left = Math.min(e.clientX, drag.startX) + "px";
+          drag.areaEl.style.top = Math.min(e.clientY, drag.startY) + "px";
+          drag.areaEl.style.width = dx + "px";
+          drag.areaEl.style.height = dy + "px";
+        }
+      }
+    };
+
+    const handlePointerUp = (e: PointerEvent) => {
+      const drag = commentDragRef.current;
+      if (!drag) return;
+      commentDragRef.current = null;
+
+      if (drag.dragging && drag.areaEl) {
+        const area = {
+          x: Math.min(e.clientX, drag.startX),
+          y: Math.min(e.clientY, drag.startY),
+          width: Math.abs(e.clientX - drag.startX),
+          height: Math.abs(e.clientY - drag.startY),
+        };
+        drag.areaEl.remove();
+        if (area.width > 10 && area.height > 10) {
+          // Query elements within the selected area
+          const containedElements: Array<{ tagName: string; selector: string; componentName: string | null; textContent: string | null }> = [];
+          const step = 20;
+          const seen = new Set<Element>();
+          for (let x = area.x + step / 2; x < area.x + area.width; x += step) {
+            for (let y = area.y + step / 2; y < area.y + area.height; y += step) {
+              const el = document.elementFromPoint(x, y);
+              if (el && !seen.has(el) && !el.closest?.("[data-retune-host]")) {
+                seen.add(el);
+                containedElements.push({
+                  tagName: el.tagName.toLowerCase(),
+                  selector: getQuickSelector(el),
+                  componentName: getQuickComponentName(el),
+                  textContent: (el.textContent || "").slice(0, 40).trim() || null,
+                });
+              }
+            }
+          }
+
+          popoverOpenRef.current = true; popoverTextRef.current = ""; popoverInitialTextRef.current = "";
+          areaDragJustEndedRef.current = true;
+          setTimeout(() => { areaDragJustEndedRef.current = false; }, 50);
+          setCommentDraft({
+            position: { x: e.clientX, y: e.clientY },
+            type: "area",
+            area,
+            areaScroll: { x: window.scrollX, y: window.scrollY },
+            elementInfo: containedElements.length > 0 ? {
+              tagName: "area",
+              componentName: containedElements[0].componentName,
+              componentPath: [],
+              classes: [],
+              textContent: null,
+              containedElements,
+            } as any : undefined,
+          });
+        }
+      } else if (drag.areaEl) {
+        drag.areaEl.remove();
+      }
+    };
+
+    // Escape in comment mode: shake if unsaved changes, dismiss if clean, switch mode if no popover
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (shouldBlockForPopoverRef.current()) return;
+      if (popoverOpenRef.current) {
+        // Clean popover — dismiss it
+        popoverOpenRef.current = false;
+        popoverTextRef.current = "";
+        popoverInitialTextRef.current = "";
+        setCommentDraft(null);
+        setActiveCommentId(null);
+      } else {
+        setMode("edit");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    document.addEventListener("pointermove", handlePointerMove, true);
+    document.addEventListener("pointerup", handlePointerUp, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+      document.removeEventListener("pointermove", handlePointerMove, true);
+      document.removeEventListener("pointerup", handlePointerUp, true);
+      if (commentDragRef.current?.areaEl) commentDragRef.current.areaEl.remove();
+    };
+  }, [active, mode]);
 
   // Flag to skip ownedProperties update in refreshSelectedElement when it was just set directly
   const skipOwnedUpdateRef = useRef(false);
@@ -2791,6 +3693,9 @@ function RetuneInner(props: RetuneConfig) {
     if (forcedStateRef.current) clearForcedInlineStyles();
     preview.clearAll();
     tracker.clear();
+    // Clear comments
+    commentStoreRef.current.clear();
+    syncCommentState();
     // Reset compound selector state
     // Reset to default scope level (narrowest class level)
     const levels = scopeLevelsRef.current;
@@ -2799,6 +3704,7 @@ function RetuneInner(props: RetuneConfig) {
     activeLevelIndexRef.current = defaultIdx;
     syncTrackerState();
     setChangeRevision((r) => r + 1);
+    setResetRevision((r) => r + 1);
     // Re-track the currently selected element so future changes are recorded
     const el = selectedElementRef.current;
     if (el) {
@@ -2938,7 +3844,7 @@ function RetuneInner(props: RetuneConfig) {
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
-    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity));
+    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity, commentStoreRef.current.getAll(), manifestDataRef.current));
     setCopied(true);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
@@ -2953,7 +3859,7 @@ function RetuneInner(props: RetuneConfig) {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
       getFormattedChanges: (f?: Fidelity) =>
-        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current),
+        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current),
       clearChanges: () => {
         const tracker = trackerRef.current;
         const preview = previewRef.current;
@@ -3017,25 +3923,44 @@ function RetuneInner(props: RetuneConfig) {
             className="retune-toolbar-collapse-btn"
             onClick={activateOverlay}
           >
-            <IconCursorClick size={20} />
+            <RetuneLogo size={20} />
             {!active && changeCount > 0 && <span className="retune-changes-dot" />}
           </button>
         </Tooltip>
 
-        {/* Expanded: edit count + actions */}
+        {/* Expanded: count + separator + mode + actions */}
         <div className="retune-toolbar-expanded">
-          {changeCount > 0 && (
-            <div className="retune-edit-count">{changeCount}</div>
+          {(changeCount > 0 || commentCount > 0) && (
+            <div className="retune-edit-count">{changeCount + commentCount}</div>
           )}
+          {(changeCount > 0 || commentCount > 0) && (
+            <div className="retune-toolbar-divider" />
+          )}
+          <Tooltip content="Edit mode" shortcut="V" side="top">
+            <button
+              className={`retune-toolbar-btn${mode === "edit" ? " active" : ""}`}
+              onClick={() => { setMode("edit"); setCommentDraft(null); setActiveCommentId(null); popoverOpenRef.current = false; }}
+            >
+              <IconCursor1 size={20} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Comment mode" shortcut="C" side="top">
+            <button
+              className={`retune-toolbar-btn${mode === "comment" ? " active" : ""}`}
+              onClick={() => { setMode("comment"); setSelectedElement(null); }}
+            >
+              <IconComment size={20} />
+            </button>
+          </Tooltip>
           <Tooltip content="Copy changes" shortcut="⌘C" side="top">
             <button
-              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleCopy}
-              disabled={changeCount === 0}
+              disabled={changeCount === 0 && commentCount === 0}
             >
               <span className="retune-icon-swap">
                 <span className={`retune-icon-swap-icon ${copied ? "out" : "in"}`}>
-                  <IconSquareBehindSquare1 size={20} />
+                  <IconSquareBehindSquare6 size={20} />
                 </span>
                 <span className={`retune-icon-swap-icon ${copied ? "in" : "out"}`}>
                   <IconCheckCircle2 size={20} />
@@ -3045,9 +3970,9 @@ function RetuneInner(props: RetuneConfig) {
           </Tooltip>
           <Tooltip content="Reset all" side="top">
             <button
-              className={`retune-toolbar-btn${changeCount === 0 ? " disabled" : ""}`}
+              className={`retune-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleReset}
-              disabled={changeCount === 0}
+              disabled={changeCount === 0 && commentCount === 0}
             >
               <IconBroom size={20} />
             </button>
@@ -3086,14 +4011,14 @@ function RetuneInner(props: RetuneConfig) {
       </div>
 
       {/* Design panel */}
-      <AnimatedPanel visible={!!(active && selectedElement && !settingsOpen && !toolbarDragging)}>
+      <AnimatedPanel visible={!!(active && selectedElement && !settingsOpen && !toolbarDragging && mode === "edit")}>
         <div className={`retune-panel ${side}`}>
           <div className="retune-tab-bar" ref={tabBarRef}>
             <div className="retune-tab-pill" ref={tabPillRef} />
             <button className={`retune-tab${panelTab === "elements" ? " active" : ""}`} onClick={() => setPanelTab("elements")}>Elements</button>
             <button className={`retune-tab${panelTab === "design" ? " active" : ""}`} onClick={() => setPanelTab("design")}>Design</button>
             <span
-              onClick={() => { if (updateInfo && updateDismissed) { setUpdateDismissed(false); setUpdateCopied(false); } }}
+              onClick={() => { if (updateInfo && updateDismissed) { setUpdateDismissed(false); } }}
               style={{ marginLeft: "auto", fontSize: "11px", lineHeight: "16px", color: "var(--retune-text-tertiary)", letterSpacing: "-0.005em", paddingRight: "8px", display: "flex", alignItems: "center", gap: "4px", cursor: updateInfo ? "pointer" : "default" }}
             >
               {updateInfo && <span style={{ width: 4, height: 4, borderRadius: "50%", background: "var(--retune-blue)", flexShrink: 0 }} />}
@@ -3101,181 +4026,16 @@ function RetuneInner(props: RetuneConfig) {
             </span>
           </div>
           <div className="retune-panel-body">
-            {updateInfo && (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateRows: (updateDismissing || updateDismissed) ? "0fr" : "1fr",
-                  opacity: (updateDismissing || updateDismissed) ? 0 : 1,
-                  transition: "grid-template-rows 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                }}
-                onTransitionEnd={(e) => {
-                  if (e.propertyName === "opacity" && updateDismissing) {
-                    setUpdateDismissed(true);
-                    setUpdateDismissing(false);
-                  }
-                }}
-              >
-              <div style={{ overflow: "hidden", minHeight: 0 }}>
-              <div
-                style={{
-                  padding: "12px 16px",
-                  background: "var(--retune-blue)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px",
-                  transform: (updateDismissing || updateDismissed) ? "translateY(-4px)" : "translateY(0)",
-                  transition: "transform 150ms cubic-bezier(0.25, 0.46, 0.45, 0.94)",
-                }}
-              >
-                <div style={{ fontFamily: "inherit", fontSize: "12px", fontWeight: 600, lineHeight: "16px", letterSpacing: "-0.06px", color: "var(--retune-white)" }}>
-                  Retune v{updateInfo.latest} is available
-                </div>
-                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  {/* Copy / Paste button
-                      Structure: button (no padding) contains:
-                      1. Invisible sizer (has padding, determines button dimensions)
-                      2. Two absolute overlays (same padding, crossfade between them)
-                      Width change animated via Web Animations API */}
-                  <button
-                    ref={copyBtnRef}
-                    onClick={() => {
-                      if (updateCopied) return;
-                      const btn = copyBtnRef.current;
-                      if (!btn) return;
-                      const oldWidth = btn.getBoundingClientRect().width;
-                      navigator.clipboard.writeText("Update Retune to the latest version by running `npm install retune@latest` and `npx retune setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect.");
-                      setUpdateCopied(true);
-                      requestAnimationFrame(() => {
-                        const newWidth = btn.getBoundingClientRect().width;
-                        if (Math.abs(newWidth - oldWidth) > 1) {
-                          btn.animate(
-                            [{ width: `${oldWidth}px` }, { width: `${newWidth}px` }],
-                            { duration: 200, easing: "cubic-bezier(0.215, 0.61, 0.355, 1)" }
-                          );
-                        }
-                      });
-                      setTimeout(() => {
-                        const b = copyBtnRef.current;
-                        if (!b) return;
-                        const oldW = b.getBoundingClientRect().width;
-                        setUpdateCopied(false);
-                        requestAnimationFrame(() => {
-                          const newW = b.getBoundingClientRect().width;
-                          if (Math.abs(newW - oldW) > 1) {
-                            b.animate(
-                              [{ width: `${oldW}px` }, { width: `${newW}px` }],
-                              { duration: 200, easing: "cubic-bezier(0.215, 0.61, 0.355, 1)" }
-                            );
-                          }
-                        });
-                      }, 3000);
-                    }}
-                    style={{
-                      background: "var(--retune-white)",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: 0,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      lineHeight: "16px",
-                      letterSpacing: "-0.055px",
-                      color: "var(--retune-text)",
-                      whiteSpace: "nowrap",
-                      position: "relative",
-                      overflow: "hidden",
-                      flexShrink: 0,
-                      transition: "transform 100ms ease",
-                    }}
-                    onPointerDown={(e) => { (e.currentTarget as HTMLElement).style.transform = "scale(0.97)"; }}
-                    onPointerUp={(e) => { (e.currentTarget as HTMLElement).style.transform = ""; }}
-                    onPointerLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ""; }}
-                  >
-                    {/* Invisible sizer — determines button dimensions including padding */}
-                    <span style={{
-                      display: "flex", gap: "2px", alignItems: "center",
-                      padding: "6px 8px 6px 4px",
-                      visibility: "hidden",
-                    }}>
-                      <span style={{ width: 16, height: 16, flexShrink: 0 }} />
-                      {updateCopied ? "Paste in your AI agent to update" : "Copy update instructions"}
-                    </span>
-                    {/* Overlay A: Copy — crossfades out */}
-                    <span style={{
-                      position: "absolute", inset: 0,
-                      display: "flex", gap: "2px", alignItems: "center",
-                      padding: "6px 8px 6px 4px",
-                      opacity: updateCopied ? 0 : 1,
-                      filter: updateCopied ? "blur(2px)" : "blur(0)",
-                      transition: "opacity 200ms cubic-bezier(0.215, 0.61, 0.355, 1), filter 200ms cubic-bezier(0.215, 0.61, 0.355, 1)",
-                    }}>
-                      <span style={{
-                        width: 16, height: 16, flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transform: updateCopied ? "scale(0.95)" : "scale(1)",
-                        transition: "transform 200ms cubic-bezier(0.215, 0.61, 0.355, 1)",
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M8.5 3.5C9.32843 3.5 10 4.17157 10 5V6H11C11.8284 6 12.5 6.67157 12.5 7.5V11C12.5 11.8284 11.8284 12.5 11 12.5H7.5C6.67157 12.5 6 11.8284 6 11V10H5C4.17157 10 3.5 9.32843 3.5 8.5V5C3.5 4.17157 4.17157 3.5 5 3.5H8.5ZM10 8.5C10 9.32843 9.32843 10 8.5 10H7V11C7 11.2761 7.22386 11.5 7.5 11.5H11C11.2761 11.5 11.5 11.2761 11.5 11V7.5C11.5 7.22386 11.2761 7 11 7H10V8.5ZM5 4.5C4.72386 4.5 4.5 4.72386 4.5 5V8.5C4.5 8.77614 4.72386 9 5 9H8.5C8.77614 9 9 8.77614 9 8.5V5C9 4.72386 8.77614 4.5 8.5 4.5H5Z" fill="currentColor" fillOpacity="0.9" />
-                        </svg>
-                      </span>
-                      Copy update instructions
-                    </span>
-                    {/* Overlay B: Paste — crossfades in */}
-                    <span style={{
-                      position: "absolute", inset: 0,
-                      display: "flex", gap: "2px", alignItems: "center",
-                      padding: "6px 8px 6px 4px",
-                      opacity: updateCopied ? 1 : 0,
-                      filter: updateCopied ? "blur(0)" : "blur(2px)",
-                      transition: "opacity 200ms cubic-bezier(0.215, 0.61, 0.355, 1), filter 200ms cubic-bezier(0.215, 0.61, 0.355, 1)",
-                    }}>
-                      <span style={{
-                        width: 16, height: 16, flexShrink: 0,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        transform: updateCopied ? "scale(1)" : "scale(0.95)",
-                        transition: "transform 200ms cubic-bezier(0.215, 0.61, 0.355, 1)",
-                      }}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M11.0839 4.22268C11.2371 3.99294 11.5475 3.93087 11.7773 4.08401C12.007 4.23718 12.0691 4.5476 11.916 4.77737L7.91596 10.7774C7.83287 10.902 7.69784 10.9833 7.54877 10.9981C7.39988 11.0127 7.25223 10.9593 7.14643 10.8535L4.14643 7.85354C3.9512 7.65827 3.95118 7.34176 4.14643 7.14651C4.34168 6.95126 4.6582 6.95128 4.85346 7.14651L7.42182 9.71487L11.0839 4.22268Z" fill="currentColor" fillOpacity="0.9" />
-                        </svg>
-                      </span>
-                      Paste in your AI agent to update
-                    </span>
-                  </button>
-                  {/* Maybe later — fades out */}
-                  <button
-                    onClick={() => setUpdateDismissing(true)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      borderRadius: "6px",
-                      padding: "6px 8px",
-                      cursor: updateCopied ? "default" : "pointer",
-                      fontFamily: "inherit",
-                      fontSize: "11px",
-                      fontWeight: 500,
-                      lineHeight: "16px",
-                      letterSpacing: "-0.055px",
-                      color: "var(--retune-white)",
-                      whiteSpace: "nowrap",
-                      opacity: updateCopied ? 0 : 0.9,
-                      filter: updateCopied ? "blur(2px)" : "blur(0)",
-                      pointerEvents: updateCopied ? "none" : "auto",
-                      transition: "opacity 200ms cubic-bezier(0.215, 0.61, 0.355, 1), filter 200ms cubic-bezier(0.215, 0.61, 0.355, 1)",
-                    }}
-                    onMouseEnter={(e) => { if (!updateCopied) (e.currentTarget as HTMLElement).style.opacity = "1"; }}
-                    onMouseLeave={(e) => { if (!updateCopied) (e.currentTarget as HTMLElement).style.opacity = "0.9"; }}
-                  >
-                    Maybe later
-                  </button>
-                </div>
-              </div>
-              </div>
-              </div>
-            )}
+            <PanelBanner
+              visible={!!updateInfo && !updateDismissed}
+              title={`Retune v${updateInfo?.latest || ""} is available`}
+              body=""
+              copyLabel="Copy update instructions"
+              copiedLabel="Paste in your AI agent to update"
+              copyText="Update Retune to the latest version by running `npm install retune@latest` and `npx retune setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect."
+              revertAfter={3000}
+              onDismiss={() => setUpdateDismissed(true)}
+            />
             {panelTab === "elements" && (
               <ElementTree
                 selectedElement={selectedElement?.element ?? null}
@@ -3288,11 +4048,119 @@ function RetuneInner(props: RetuneConfig) {
               />
             )}
             {panelTab === "design" && selectedElement && (
+              <>
+              {/* Manifest banner — no manifest: shows on any element */}
+              <PanelBanner
+                visible={manifestCheckedRef.current && !manifestLoadedRef.current && !manifestBannerDismissed}
+                title="Unlock your design system"
+                body="Apply your project's actual tokens, color palettes, and component variants directly."
+                copyLabel="Copy instructions"
+                copiedLabel="Paste in your AI agent"
+                copyText={MANIFEST_PROMPT_TEXT}
+                onDismiss={() => setManifestBannerDismissed(true)}
+                onCopy={() => {
+                  const delays = [10000, 30000, 60000, 120000, 180000, 300000];
+                  for (const d of delays) {
+                    setTimeout(() => { if (!manifestLoadedRef.current) tryLoadManifest(); }, d);
+                  }
+                }}
+              />
+              {/* Manifest banner — partial (tokens but no components key): shows when component selected */}
+              <PanelBanner
+                visible={!!selectedElement.reactProps && !!manifest && !("components" in manifest) && !manifestBannerDismissed}
+                title="Know your components"
+                body="See every variant, size, and state your components support and switch between them."
+                copyLabel="Copy instructions"
+                copiedLabel="Paste in your AI agent"
+                copyText={MANIFEST_COMPONENTS_PROMPT}
+                onDismiss={() => setManifestBannerDismissed(true)}
+                onCopy={() => {
+                  const delays = [10000, 30000, 60000, 120000, 180000, 300000];
+                  for (const d of delays) {
+                    setTimeout(() => { if (!manifestLoadedRef.current) tryLoadManifest(); }, d);
+                  }
+                }}
+              />
+              <ComponentSection
+                selectedElement={selectedElement}
+                manifest={manifest}
+                resetRevision={resetRevision}
+                onRefresh={() => refreshSelectedElementRef.current()}
+                onPropChange={(propName, newValue) => {
+                  const tracker = trackerRef.current;
+                  if (!tracker) return;
+                  const el = selectedElement;
+                  // Ensure element is tracked with reactProps so prop changes can be recorded
+                  tracker.track(
+                    el.selector, el.tagName, el.textContent, el.classes,
+                    el.reactComponents, el.computedStyles, el.sourceFile,
+                    el.stylingApproach, el.inlineStyles, el.elementId,
+                    el.accessibleName, el.parentContext, el.childSummary,
+                    el.domPath, el.nearbySiblings, el.position,
+                    el.reactProps,
+                  );
+                  tracker.recordPropChange(el.selector, propName, newValue);
+                  syncTrackerState();
+                  setChangeRevision(r => r + 1);
+                  // Recompute scope levels if class_map changed element classes
+                  const comp = manifest?.components?.[el.reactComponents[0]];
+                  if (comp?.props?.[propName]?.class_map) {
+                    const candidates = getSelectorCandidates(el.element);
+                    setSelectorCandidates(candidates);
+                    const ancestors = getAncestorScopes(el.element);
+                    const levels = buildScopeLevels(candidates, el.element, ancestors, manifestDataRef.current);
+                    setScopeLevels(levels);
+                    scopeLevelsRef.current = levels;
+                  }
+                }}
+                changedProps={(() => {
+                  const tracker = trackerRef.current;
+                  if (!tracker || !selectedElement) return undefined;
+                  const changed = new Set<string>();
+                  const entry = tracker.getPendingChanges().find(c => c.selector === selectedElement.selector);
+                  if (entry?.propChanges) {
+                    for (const pc of entry.propChanges) changed.add(pc.prop);
+                  }
+                  return changed.size > 0 ? changed : undefined;
+                })()}
+                onPropReset={(propName) => {
+                  const tracker = trackerRef.current;
+                  if (!tracker) return;
+                  tracker.resetProp(selectedElement.selector, propName);
+                  syncTrackerState();
+                  setChangeRevision(r => r + 1);
+                  // Recompute scope levels if class_map changed
+                  const comp = manifest?.components?.[selectedElement.reactComponents[0]];
+                  if (comp?.props?.[propName]?.class_map) {
+                    const candidates = getSelectorCandidates(selectedElement.element);
+                    setSelectorCandidates(candidates);
+                    const ancestors = getAncestorScopes(selectedElement.element);
+                    const levels = buildScopeLevels(candidates, selectedElement.element, ancestors, manifestDataRef.current);
+                    setScopeLevels(levels);
+                    scopeLevelsRef.current = levels;
+                  }
+                }}
+              />
               <PropertyPanel
                 key={selectedElement.selector}
                 element={selectedElement}
                 position={side}
                 onPropertyChange={handlePropertyChange}
+                onAttributeChange={(attr, oldValue, newValue) => {
+                  const tracker = trackerRef.current;
+                  if (!tracker || !selectedElement) return;
+                  const el = selectedElement;
+                  tracker.track(
+                    el.selector, el.tagName, el.textContent, el.classes,
+                    el.reactComponents, el.computedStyles, el.sourceFile,
+                    el.stylingApproach, el.inlineStyles, el.elementId,
+                    el.accessibleName, el.parentContext, el.childSummary,
+                    el.domPath, el.nearbySiblings, el.position,
+                  );
+                  tracker.recordAttributeChange(el.selector, attr, oldValue, newValue);
+                  syncTrackerState();
+                  setChangeRevision(r => r + 1);
+                }}
                 onPropertyHover={setHoveredBoxModel}
                 onApplyToElement={handleApplyToElement}
                 onVariableSwap={handleVariableSwap}
@@ -3314,6 +4182,7 @@ function RetuneInner(props: RetuneConfig) {
                 onForcedStateChange={handleForcedStateChange}
                 onPinLinesChange={(authored) => pickerRef.current?.updatePinLines(authored)}
               />
+              </>
             )}
           </div>
         </div>
@@ -3340,6 +4209,157 @@ function RetuneInner(props: RetuneConfig) {
           revision={changeRevision}
         />
       )}
+
+      {/* Comment markers (visible in both modes) */}
+      {active && comments.map((c, idx) => (
+        <CommentMarker key={c.id} comment={c} index={idx} isPopoverOpen={activeCommentId === c.id}
+          isAreaResize={c.type === "area" && !!c.area}
+          onAreaResizeLive={c.type === "area" && c.area ? (newPos) => {
+            setAreaResizeLive({ id: c.id, br: newPos });
+          } : undefined}
+          onAreaResize={c.type === "area" && c.area ? (newPos) => {
+            setAreaResizeLive(null);
+            const store = commentStoreRef.current;
+            const comment = store.get(c.id);
+            if (!comment || !comment.area) return;
+            const area = comment.area;
+            comment.area = {
+              x: area.x,
+              y: area.y,
+              width: Math.max(20, newPos.x - area.x),
+              height: Math.max(20, newPos.y - area.y),
+            };
+            comment.position = newPos;
+            // Re-scan contained elements
+            const newArea = comment.area;
+            const contained: Array<{ tagName: string; selector: string; componentName: string | null; textContent: string | null }> = [];
+            const step = 20;
+            const seen = new Set<Element>();
+            for (let x = newArea.x + step / 2; x < newArea.x + newArea.width; x += step) {
+              for (let y = newArea.y + step / 2; y < newArea.y + newArea.height; y += step) {
+                const el = document.elementFromPoint(x, y);
+                if (el && !seen.has(el) && !el.closest?.("[data-retune-host]")) {
+                  seen.add(el);
+                  contained.push({
+                    tagName: el.tagName.toLowerCase(),
+                    selector: getQuickSelector(el),
+                    componentName: getQuickComponentName(el),
+                    textContent: (el.textContent || "").slice(0, 40).trim() || null,
+                  });
+                }
+              }
+            }
+            if (comment.elementInfo) (comment.elementInfo as any).containedElements = contained;
+            store.persist();
+            syncCommentState();
+          } : undefined}
+          onOpen={() => {
+          popoverOpenRef.current = true; popoverTextRef.current = c.text; popoverInitialTextRef.current = c.text;
+          setActiveCommentId(c.id);
+          setCommentDraft(null);
+        }} />
+      ))}
+
+      {/* Area outlines for area comments */}
+      {active && comments.filter(c => c.type === "area" && c.area).map(c => (
+        <AreaOutline
+          key={`area-${c.id}`}
+          comment={c}
+          interactive={true}
+          liveBR={areaResizeLive?.id === c.id ? areaResizeLive.br : undefined}
+          onResize={(newArea) => {
+            const store = commentStoreRef.current;
+            const updated = store.get(c.id);
+            if (!updated) return;
+            updated.area = newArea;
+            // Re-scan contained elements
+            const contained: Array<{ tagName: string; selector: string; componentName: string | null; textContent: string | null }> = [];
+            const step = 20;
+            const seen = new Set<Element>();
+            for (let x = newArea.x + step / 2; x < newArea.x + newArea.width; x += step) {
+              for (let y = newArea.y + step / 2; y < newArea.y + newArea.height; y += step) {
+                const el = document.elementFromPoint(x, y);
+                if (el && !seen.has(el) && !el.closest?.("[data-retune-host]")) {
+                  seen.add(el);
+                  contained.push({
+                    tagName: el.tagName.toLowerCase(),
+                    selector: getQuickSelector(el),
+                    componentName: getQuickComponentName(el),
+                    textContent: (el.textContent || "").slice(0, 40).trim() || null,
+                  });
+                }
+              }
+            }
+            if (updated.elementInfo) {
+              (updated.elementInfo as any).containedElements = contained;
+            }
+            store.persist();
+            syncCommentState();
+          }}
+        />
+      ))}
+
+      {/* Draft area outline (visible while popover is open for a new area comment) */}
+      {active && commentDraft?.type === "area" && commentDraft.area && (
+        <div
+          className="retune-comment-area-outline"
+          style={{
+            left: commentDraft.area.x,
+            top: commentDraft.area.y,
+            width: commentDraft.area.width,
+            height: commentDraft.area.height,
+          }}
+        />
+      )}
+
+      {/* Comment popover for new comment draft */}
+      {active && mode === "comment" && commentDraft && !activeCommentId && (
+        <CommentPopover
+          position={commentDraft.position}
+          initialText=""
+          onTextChange={(t) => { popoverTextRef.current = t; }}
+          onSubmit={(text) => {
+            const store = commentStoreRef.current;
+            store.add(text, commentDraft.position, commentDraft.type, {
+              selector: commentDraft.selector,
+              anchorOffset: commentDraft.anchorOffset,
+              area: commentDraft.area,
+              areaScroll: commentDraft.areaScroll,
+              elementInfo: commentDraft.elementInfo,
+            });
+            syncCommentState();
+            popoverOpenRef.current = false;
+            setCommentDraft(null);
+          }}
+          onCancel={() => { popoverOpenRef.current = false; setCommentDraft(null); }}
+        />
+      )}
+
+      {/* Comment popover for editing existing comment (works in both modes) */}
+      {active && activeCommentId && (() => {
+        const c = commentStoreRef.current.get(activeCommentId);
+        if (!c) return null;
+        return (
+          <CommentPopover
+            position={c.position}
+            initialText={c.text}
+            onTextChange={(t) => { popoverTextRef.current = t; }}
+            onSubmit={(text) => {
+              commentStoreRef.current.update(activeCommentId, text);
+              syncCommentState();
+              popoverOpenRef.current = false;
+              setActiveCommentId(null);
+            }}
+            onCancel={() => { popoverOpenRef.current = false; setActiveCommentId(null); }}
+            onDelete={() => {
+              commentStoreRef.current.delete(activeCommentId);
+              syncCommentState();
+              popoverOpenRef.current = false;
+              setActiveCommentId(null);
+            }}
+          />
+        );
+      })()}
     </TooltipPortalContext.Provider>
     </PreviewBridgeContext.Provider>,
     portalTarget

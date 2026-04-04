@@ -160,6 +160,7 @@ export function PropertyPanel({
   element,
   position,
   onPropertyChange,
+  onAttributeChange,
   onPropertyHover,
   onApplyToElement,
   onVariableSwap,
@@ -184,6 +185,8 @@ export function PropertyPanel({
   element: InspectedElement;
   position: "left" | "right";
   onPropertyChange: (property: string, value: string) => void;
+  /** Record an HTML/SVG attribute change (not CSS) */
+  onAttributeChange?: (attr: string, oldValue: string, newValue: string) => void;
   onPropertyHover?: (property: BoxModelProperty) => void;
   onApplyToElement?: (element: Element, property: string, value: string) => void;
   onVariableSwap?: (oldClassName: string, newClassName: string) => void;
@@ -355,6 +358,12 @@ export function PropertyPanel({
   const showOffsets = positionType === "absolute" || positionType === "fixed" || positionType === "relative";
   const isSticky = positionType === "sticky";
   const hasVerticalAlign = isText || ["IMG", "INPUT", "SELECT", "TEXTAREA"].includes(element.tagName) || isFlex || isGrid;
+  const isImage = element.tagName === "IMG" || element.tagName === "PICTURE" || element.tagName === "CANVAS";
+  const isVideo = element.tagName === "VIDEO";
+  const isSvg = element.tagName === "SVG" || element.tagName === "svg";
+  const isSvgChild = !isSvg && !!element.element?.closest("svg");
+  const isMedia = isImage || isVideo;
+  const hasBackgroundImage = s.backgroundImage && s.backgroundImage !== "none" && !s.backgroundImage.startsWith("linear-gradient") && !s.backgroundImage.startsWith("radial-gradient");
 
   // Detect if element is a child of a flex/grid container
   const parentDisplay = element.element?.parentElement
@@ -397,6 +406,8 @@ export function PropertyPanel({
   const [radiusExpanded, setRadiusExpanded] = useState(false);
   const [typoExpanded, setTypoExpanded] = useState(false);
   const [sizeExtras, setSizeExtras] = useState<Set<SizeExtra>>(new Set());
+  const [aspectLocked, setAspectLocked] = useState(false);
+  const aspectRatioRef = useRef<number>(1); // width / height ratio, captured when lock is toggled
   const [sizeMenuOpen, setSizeMenuOpen] = useState(false);
   const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -728,7 +739,7 @@ export function PropertyPanel({
   return (
     <>
       {/* Element */}
-      <Section label={element.tagName.toLowerCase()}>
+      <Section label={element.reactComponents?.[0] ? "Scope" : element.tagName.toLowerCase()}>
         {scopeLevels.length > 1 && onScopeLevelChange && (() => {
           const prevLevelRef = useRef(activeLevelIndex);
           const fieldRef = useRef<HTMLDivElement>(null);
@@ -896,21 +907,24 @@ export function PropertyPanel({
           );
         })()}
         {onForcedStateChange && (
-          <RowGroup label="State">
+          <RowGroup label="Trigger">
             <div className="retune-row">
               <SelectInput
                 prop="__state"
-                value={forcedState ?? "none"}
-                options={["none", ":hover", ":focus", ":active"]}
-                onChange={(_, val) => onForcedStateChange(val === "none" ? null : val as ForcedState)}
+                value={forcedState ? ({ ":hover": "Hover", ":focus": "Focus", ":active": "Active" } as Record<string, string>)[forcedState] ?? "None" : "None"}
+                options={["None", "Hover", "Focus", "Active"]}
+                onChange={(_, val) => {
+                  const map: Record<string, string | null> = { None: null, Hover: ":hover", Focus: ":focus", Active: ":active" };
+                  onForcedStateChange(map[val] as ForcedState | null);
+                }}
               />
             </div>
           </RowGroup>
         )}
       </Section>
 
-      {/* Position */}
-      <Section label="Position">
+      {/* Position (hidden for SVG child shapes) */}
+      {!isSvgChild && <Section label="Position">
         {/* Unified alignment row — always visible, disabled when not applicable */}
         {(() => {
           const isAbsoluteOrFixed = positionType === "absolute" || positionType === "fixed";
@@ -1041,10 +1055,10 @@ export function PropertyPanel({
             </div>
           </RowGroup>
         )}
-      </Section>
+      </Section>}
 
-      {/* Layout */}
-      <Section label="Layout">
+      {/* Layout (hidden for SVG child shapes) */}
+      {!isSvgChild && <Section label="Layout">
         <Row>
           <Field label="Display">
             <SegmentedControl
@@ -1249,10 +1263,10 @@ export function PropertyPanel({
             </div>
           )}
         </RowGroup>
-      </Section>
+      </Section>}
 
-      {/* Size */}
-      <Section
+      {/* Size (hidden for SVG child shapes) */}
+      {!isSvgChild && <Section
         label="Size"
         action={
           <>
@@ -1330,6 +1344,14 @@ export function PropertyPanel({
                 else {
                   if (isFlexChild) handleSizingModeChange("width", "fixed");
                   onPropertyChange(prop, val);
+                  // Aspect ratio lock: adjust height proportionally
+                  if (aspectLocked) {
+                    const newW = parseFloat(val);
+                    if (!isNaN(newW) && aspectRatioRef.current > 0) {
+                      const newH = Math.round(newW / aspectRatioRef.current);
+                      requestAnimationFrame(() => onPropertyChange("height", `${newH}px`));
+                    }
+                  }
                 }
               }}
               {...changeProps("width")}
@@ -1346,11 +1368,44 @@ export function PropertyPanel({
                 else {
                   if (isFlexChild) handleSizingModeChange("height", "fixed");
                   onPropertyChange(prop, val);
+                  // Aspect ratio lock: adjust width proportionally
+                  if (aspectLocked) {
+                    const newH = parseFloat(val);
+                    if (!isNaN(newH) && aspectRatioRef.current > 0) {
+                      const newW = Math.round(newH * aspectRatioRef.current);
+                      requestAnimationFrame(() => onPropertyChange("width", `${newW}px`));
+                    }
+                  }
                 }
               }}
               {...changeProps("height")}
             />
           </Field>
+          <Tooltip content={aspectLocked ? "Unlock aspect ratio" : "Lock aspect ratio"} side="top">
+          <button
+            className={`retune-split-btn${aspectLocked ? " active" : ""}`}
+            onClick={() => {
+              if (!aspectLocked && element.element) {
+                const rect = element.element.getBoundingClientRect();
+                if (rect.height > 0) aspectRatioRef.current = rect.width / rect.height;
+                element.element.setAttribute("data-retune-aspect-locked", "true");
+              } else if (element.element) {
+                element.element.removeAttribute("data-retune-aspect-locked");
+              }
+              setAspectLocked(v => !v);
+            }}
+          >
+            {aspectLocked ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M12 4C14.2091 4 16 5.79086 16 8V10H16.125C17.1605 10 18 10.8395 18 11.875V17.125C18 18.1605 17.1605 19 16.125 19H7.875C6.83947 19 6 18.1605 6 17.125V11.875C6 10.8395 6.83947 10 7.875 10H8V8C8 5.79086 9.79086 4 12 4ZM7.875 11C7.39175 11 7 11.3918 7 11.875V17.125C7 17.6082 7.39175 18 7.875 18H16.125C16.6082 18 17 17.6082 17 17.125V11.875C17 11.3918 16.6082 11 16.125 11H7.875ZM15 8C15 6.34315 13.6569 5 12 5C10.3431 5 9 6.34315 9 8V10H15V8Z" fill="currentColor" fillOpacity="0.9" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path d="M16.125 10C17.1605 10 18 10.8395 18 11.875V17.125C18 18.1605 17.1605 19 16.125 19H7.875C6.83947 19 6 18.1605 6 17.125V11.875C6 10.8395 6.83947 10 7.875 10H8V7C8 4.79086 9.79086 3 12 3C14.2091 3 16 4.79086 16 7V7.5C16 7.77614 15.7761 8 15.5 8C15.2239 8 15 7.77614 15 7.5V7C15 5.34315 13.6569 4 12 4C10.3431 4 9 5.34315 9 7V10H16.125ZM7.875 11C7.39175 11 7 11.3918 7 11.875V17.125C7 17.6082 7.39175 18 7.875 18H16.125C16.6082 18 17 17.6082 17 17.125V11.875C17 11.3918 16.6082 11 16.125 11H7.875Z" fill="currentColor" fillOpacity="0.9" />
+              </svg>
+            )}
+          </button>
+          </Tooltip>
         </Row>
         {visibleSizeExtras.has("min") && (
           <div className="retune-section-row">
@@ -1406,10 +1461,10 @@ export function PropertyPanel({
             </div>
           </div>
         )}
-      </Section>
+      </Section>}
 
-      {/* Typography */}
-      {isText && (
+      {/* Typography (hidden for SVG child shapes) */}
+      {isText && !isSvgChild && (
         <Section label="Typography">
           <Row>
             <Field label="Font">
@@ -1561,8 +1616,8 @@ export function PropertyPanel({
         </Section>
       )}
 
-      {/* Appearance */}
-      <Section label="Appearance">
+      {/* Appearance (hidden for SVG child shapes) */}
+      {!isSvgChild && <Section label="Appearance">
         <Row>
           <Field label="Opacity">
             <NumberInput prop="opacity" value={s.opacity} onChange={onPropertyChange} min={0} max={1} step={0.01} {...variableProps("opacity")} {...changeProps("opacity")} />
@@ -1613,10 +1668,58 @@ export function PropertyPanel({
             <SelectInput prop="overflow" value={s.overflow} options={["visible", "hidden", "auto", "scroll"]} onChange={onPropertyChange} />
           </Field>
         </Row>
-      </Section>
+      </Section>}
 
-      {/* Fill */}
-      {(() => {
+      {/* SVG Fill — always visible for SVG child shapes */}
+      {isSvgChild && (() => {
+        const hasFill = s.fill && s.fill !== "none" && s.fill !== "transparent";
+        return (
+          <Section label="Fill" action={
+            hasFill ? (
+              <Tooltip content="Remove fill" side="top"><button className="retune-section-action" onClick={() => onPropertyChange("fill", "none")}><Minus /></button></Tooltip>
+            ) : (
+              <Tooltip content="Add fill" side="top"><button className="retune-section-action" onClick={() => onPropertyChange("fill", "#000000")}><Plus /></button></Tooltip>
+            )
+          }>
+            {hasFill && (
+              <RowGroup label="Color">
+                <div className="retune-row">
+                  <ColorInput prop="fill" value={s.fill} onChange={onPropertyChange} {...variableProps("fill")} {...changeProps("fill")} />
+                </div>
+              </RowGroup>
+            )}
+          </Section>
+        );
+      })()}
+
+      {/* SVG Stroke — always visible for SVG child shapes */}
+      {isSvgChild && (() => {
+        const hasStrokeColor = s.stroke && s.stroke !== "none" && s.stroke !== "transparent";
+        return (
+          <Section label="Stroke" action={
+            hasStrokeColor ? (
+              <Tooltip content="Remove stroke" side="top"><button className="retune-section-action" onClick={() => { onPropertyChange("stroke", "none"); }}><Minus /></button></Tooltip>
+            ) : null
+          }>
+            <RowGroup label="Color">
+              <div className="retune-row">
+                <ColorInput prop="stroke" value={hasStrokeColor ? s.stroke : "transparent"} onChange={(prop, val) => {
+                  onPropertyChange(prop, val);
+                  if (!s.strokeWidth || s.strokeWidth === "0") onPropertyChange("strokeWidth", "1");
+                }} {...variableProps("stroke")} {...changeProps("stroke")} />
+              </div>
+            </RowGroup>
+            <RowGroup label="Width">
+              <div className="retune-row">
+                <NumberInput label="" prop="strokeWidth" value={s.strokeWidth || "0"} onChange={onPropertyChange} min={0} step={0.5} {...variableProps("strokeWidth")} {...changeProps("strokeWidth")} />
+              </div>
+            </RowGroup>
+          </Section>
+        );
+      })()}
+
+      {/* Fill (hidden for images/videos and SVG child shapes) */}
+      {!isMedia && !isSvgChild && (() => {
         const fillVarMatch = getVariableMatch("backgroundColor");
         const fillHasVariable = !!fillVarMatch;
 
@@ -1675,8 +1778,180 @@ export function PropertyPanel({
         );
       })()}
 
-      {/* Border */}
-      <Section
+
+      {/* Image / Media */}
+      {isMedia && (
+        <Section label={isVideo ? "Video" : "Image"}>
+          <Row>
+            <Field label="Fit">
+              <SelectInput
+                prop="objectFit"
+                value={s.objectFit || "fill"}
+                options={["fill", "contain", "cover", "none", "scale-down"]}
+                onChange={onPropertyChange}
+                {...variableProps("objectFit")}
+                {...changeProps("objectFit")}
+              />
+            </Field>
+            <Field label="Position">
+              <ComboInput
+                prop="objectPosition"
+                value={s.objectPosition || "50% 50%"}
+                options={[
+                  { value: "center", label: "Center" },
+                  { value: "top", label: "Top" },
+                  { value: "bottom", label: "Bottom" },
+                  { value: "left", label: "Left" },
+                  { value: "right", label: "Right" },
+                  { value: "top left", label: "Top Left" },
+                  { value: "top right", label: "Top Right" },
+                  { value: "bottom left", label: "Bottom Left" },
+                  { value: "bottom right", label: "Bottom Right" },
+                ]}
+                onChange={onPropertyChange}
+                {...variableProps("objectPosition")}
+                {...changeProps("objectPosition")}
+              />
+            </Field>
+          </Row>
+          {isImage && element.element && (
+            <Row>
+              <Field label="Loading">
+                <SegmentedControl
+                  options={[{ value: "lazy", label: "Lazy" }, { value: "eager", label: "Eager" }]}
+                  value={((element.element as HTMLImageElement).loading === "lazy") ? "lazy" : "eager"}
+                  onChange={(v) => {
+                    const oldVal = (element.element as HTMLImageElement).loading || "eager";
+                    (element.element as HTMLImageElement).loading = v as "lazy" | "eager";
+                    onAttributeChange?.("loading", oldVal, v);
+                  }}
+                />
+              </Field>
+            </Row>
+          )}
+          {isImage && element.element && (
+            <RowGroup label="Alt">
+              <div className="retune-row">
+                <TextInput
+                  label=""
+                  prop="alt"
+                  value={(element.element as HTMLImageElement).alt || ""}
+                  onChange={(prop, value) => {
+                    if (element.element) {
+                      const oldVal = (element.element as HTMLImageElement).alt || "";
+                      (element.element as HTMLImageElement).alt = value;
+                      onAttributeChange?.(prop, oldVal, value);
+                    }
+                  }}
+                />
+              </div>
+            </RowGroup>
+          )}
+          {isVideo && element.element && (
+            <>
+              <Row>
+                <Field label="Autoplay">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).autoplay ? "true" : "false"}
+                    onChange={(v) => {
+                      const oldVal = (element.element as HTMLVideoElement).autoplay ? "true" : "false";
+                      (element.element as HTMLVideoElement).autoplay = v === "true";
+                      onAttributeChange?.("autoplay", oldVal, v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+                <Field label="Loop">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).loop ? "true" : "false"}
+                    onChange={(v) => {
+                      const oldVal = (element.element as HTMLVideoElement).loop ? "true" : "false";
+                      (element.element as HTMLVideoElement).loop = v === "true";
+                      onAttributeChange?.("loop", oldVal, v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+              </Row>
+              <Row>
+                <Field label="Muted">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Yes" }, { value: "false", label: "No" }]}
+                    value={(element.element as HTMLVideoElement).muted ? "true" : "false"}
+                    onChange={(v) => {
+                      const oldVal = (element.element as HTMLVideoElement).muted ? "true" : "false";
+                      (element.element as HTMLVideoElement).muted = v === "true";
+                      onAttributeChange?.("muted", oldVal, v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+                <Field label="Controls">
+                  <SegmentedControl
+                    options={[{ value: "true", label: "Show" }, { value: "false", label: "Hide" }]}
+                    value={(element.element as HTMLVideoElement).controls ? "true" : "false"}
+                    onChange={(v) => {
+                      const oldVal = (element.element as HTMLVideoElement).controls ? "true" : "false";
+                      (element.element as HTMLVideoElement).controls = v === "true";
+                      onAttributeChange?.("controls", oldVal, v === "true" ? "true" : "false");
+                    }}
+                  />
+                </Field>
+              </Row>
+            </>
+          )}
+        </Section>
+      )}
+
+      {/* Background Image */}
+      {hasBackgroundImage && (
+        <Section label="Background Image">
+          <RowGroup label="Size">
+            <div className="retune-row">
+              <ComboInput
+                label=""
+                prop="backgroundSize"
+                value={s.backgroundSize || "auto"}
+                options={[
+                  { value: "cover", label: "Cover" },
+                  { value: "contain", label: "Contain" },
+                  { value: "auto", label: "Auto" },
+                  { value: "100% 100%", label: "Stretch" },
+                ]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundSize")}
+                {...changeProps("backgroundSize")}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Position">
+            <div className="retune-row">
+              <SelectInput
+                prop="backgroundPosition"
+                value={s.backgroundPosition || "center center"}
+                options={["center", "top", "bottom", "left", "right", "top left", "top right", "bottom left", "bottom right"]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundPosition")}
+                {...changeProps("backgroundPosition")}
+              />
+            </div>
+          </RowGroup>
+          <RowGroup label="Repeat">
+            <div className="retune-row">
+              <SelectInput
+                prop="backgroundRepeat"
+                value={s.backgroundRepeat || "repeat"}
+                options={["no-repeat", "repeat", "repeat-x", "repeat-y", "space", "round"]}
+                onChange={onPropertyChange}
+                {...variableProps("backgroundRepeat")}
+                {...changeProps("backgroundRepeat")}
+              />
+            </div>
+          </RowGroup>
+        </Section>
+      )}
+
+      {/* Border (hidden for SVG child shapes — they use Stroke) */}
+      {!isSvgChild && (<Section
         label="Border"
         action={
           hasBorder ? (
@@ -1756,7 +2031,7 @@ export function PropertyPanel({
             </Row>
           </>
         )}
-      </Section>
+      </Section>)}
 
       {/* Shadow */}
       {(() => {
@@ -1878,8 +2153,8 @@ export function PropertyPanel({
         );
       })()}
 
-      {/* Filters */}
-      <Section
+      {/* Filters (hidden for SVG child shapes) */}
+      {!isSvgChild && <Section
         label="Filters"
         action={
           <div style={{ position: "relative" }}>
@@ -1995,7 +2270,7 @@ export function PropertyPanel({
             </>
           );
         })()}
-      </Section>
+      </Section>}
       <div ref={filterSectionRef} />
     </>
   );
