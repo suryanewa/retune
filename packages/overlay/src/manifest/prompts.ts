@@ -10,22 +10,50 @@ Place the file where your framework serves static assets:
 - Vite/CRA: public/retune.manifest.json
 - Remix: public/retune.manifest.json
 
+## Manifest Version
+
+Always include "version": 2 at the top level.
+
 ## Components
 
-For each React component, include a "props" object and optionally a "state" object.
+Think like a designer using Figma. Only document components that a designer would want to adjust visually. For each component, only include props that produce a VISIBLE change when modified.
 
-Props:
-- All props with their types: "string", "number", "boolean", "enum", "function"
-- For enum props, list all allowed values in a "values" array
+**Include:** Components that render visible UI — buttons, cards, modals, dropdowns, navigation, tables, form inputs, layout containers with visual variants.
+
+**Skip entirely:**
+- Context providers and wrappers (ThemeProvider, MotionConfig, AuthProvider)
+- Analytics/tracking components (I13nAnchor, BeaconComponent)
+- Page-level shells that pass config downward (AppShell, PageWrapper)
+- HOCs and utility wrappers (withTheme, withRouter, ErrorBoundary, Suspense)
+- Components where ALL props are objects, functions, or internal config
+
+**Props — only include props that produce visible changes:**
+- Variant choices: "type": "enum", "values": ["primary", "secondary", "ghost"]
+- Size options: "type": "enum", "values": ["sm", "md", "lg"]
+- Content text: "type": "string" (labels, titles, placeholders)
+- Visibility toggles: "type": "boolean" (isOpen, expanded, shown)
+- State toggles: "type": "boolean" (disabled, loading, active)
 - Default values where defined
-- IMPORTANT: For props that determine which CSS class is applied, include a "class_map" object mapping each prop value to its CSS class name. Look for patterns like className={\`btn-\${variant}\`} or conditional class logic.
+
+**Skip these prop types:**
+- Event handlers (onClick, onChange, onSubmit)
+- Refs and DOM references
+- Complex data objects and arrays
+- Analytics/tracking props
+- Internal IDs, className, style, children
+- Config objects passed from providers
+
+**class_map:** For props that determine which CSS class is applied, include a "class_map" object mapping each prop value to its CSS class name.
+
+**hidden_unless (conditional visibility):** For props that are only relevant when another prop has a certain value, add "hidden_unless": { "otherProp": "requiredValue" }. Example: borderColor is only relevant when variant is "outline":
+  "borderColor": { "type": "color", "hidden_unless": { "variant": "outline" } }
 
 State (for components with useState hooks):
-- List each useState hook in declaration order
-- Use the variable name as the key (e.g., "activeFolder", "isOpen")
+- Only include state that produces visible changes (open/closed, active tab, selected item)
+- Skip internal state (previous values, RAF IDs, observer refs, debounce timers)
+- Use the variable name as the key (e.g., "isOpen", "activeTab")
 - Include type, default value, and description
 - Use "enum" type with "values" when state has a finite set of possible values
-- Use "boolean" for toggle states, "number" for counters/IDs, "string" for free text
 
 ## Design Tokens
 
@@ -66,6 +94,7 @@ Each group is an object containing its token entries. Read the project's Tailwin
 ## Example
 
 {
+  "version": 2,
   "components": {
     "Avatar": {
       "props": {
@@ -76,6 +105,14 @@ Each group is an object containing its token entries. Read the project's Tailwin
           "class_map": { "sm": "avatar--sm", "md": "avatar--md", "lg": "avatar--lg" }
         },
         "initials": { "type": "string" }
+      }
+    },
+    "Button": {
+      "props": {
+        "variant": { "type": "enum", "values": ["solid", "outline", "ghost"], "default": "solid" },
+        "size": { "type": "enum", "values": ["sm", "md", "lg"], "default": "md" },
+        "disabled": { "type": "boolean", "default": false },
+        "borderColor": { "type": "string", "hidden_unless": { "variant": "outline" } }
       }
     }
   },
@@ -112,23 +149,20 @@ Each group is an object containing its token entries. Read the project's Tailwin
   }
 }`;
 
-export const MANIFEST_COMPONENTS_PROMPT = `Update the existing retune.manifest.json to add a "components" section. The manifest already has design tokens. Do NOT modify the existing "tokens" section.
+export const MANIFEST_COMPONENTS_PROMPT = `Update the existing retune.manifest.json to add or update the "components" section. Do NOT modify the existing "tokens" section. Set "version": 2.
 
-Scan the project's React components and add a "components" object to the manifest:
+Think like a designer using Figma. Only document components that render visible UI and have props that produce visible changes when modified.
 
-For each React component in the project, include a "props" object and optionally a "state" object:
+**Include:** Buttons, cards, modals, dropdowns, navigation, tables, form inputs, layout containers with visual variants.
 
-Props:
-- All props with their types: "string", "number", "boolean", "enum", "function"
-- For enum props, list all allowed values in a "values" array
-- Default values where defined
-- For props that map to CSS classes, include a "class_map" object (e.g., size: "sm" maps to class "avatar--sm")
+**Skip:** Context providers, analytics wrappers, HOCs, page shells, error boundaries, animation config wrappers, and any component where all props are objects/functions/internal config.
 
-State (for components with useState hooks):
-- List each useState hook in declaration order
-- Use the variable name as the key (e.g., "activeFolder", "isOpen")
-- Include type, default value, and description
-- Use "enum" type with "values" when state has a finite set of possible values
-- Use "boolean" for toggle states, "number" for counters/IDs, "string" for free text
+For each component, include:
+- "props" — only visually meaningful props (variant, size, label, disabled, isOpen). Skip event handlers, refs, data objects, tracking props.
+- "state" — only visible state (isOpen, activeTab). Skip internal state.
+- "hidden_unless" — for props only relevant when another prop has a certain value: "borderColor": { "type": "string", "hidden_unless": { "variant": "outline" } }
+- "class_map" — for props that map to CSS classes
 
-If no meaningful components are found, add "components": {} to indicate the analysis was completed.`;
+Prop types: "string", "number", "boolean", "enum". For enum props, list values in a "values" array. Include defaults.
+
+If no meaningful visual components are found, add "components": {} to indicate the analysis was completed.`;

@@ -538,11 +538,11 @@ describe("Manifest token integration", () => {
     expect(brandToken!.manifestGroup).toBe("brand");
   });
 
-  it("manifest tokens with class field populate manifestClassLookup", () => {
+  it("manifest tokens with variable + class include manifestClass", () => {
     setManifestTokens({
       tokens: {
         colors: {
-          "blue-500": { value: "#3b82f6", class: "bg-blue-500" },
+          "blue-500": { value: "#3b82f6", variable: "--color-blue-500", class: "bg-blue-500" },
         },
       },
     });
@@ -550,9 +550,10 @@ describe("Manifest token integration", () => {
     const vars = getVariablesForProperty("backgroundColor");
     const token = vars.find(v => v.manifestClass === "bg-blue-500");
     expect(token).toBeDefined();
+    expect(token!.className).toBe("var(--color-blue-500)");
   });
 
-  it("class-only tokens (no variable) are included", () => {
+  it("class-only tokens (no variable) are excluded from variable picker", () => {
     setManifestTokens({
       tokens: {
         spacing: {
@@ -562,25 +563,25 @@ describe("Manifest token integration", () => {
     });
     invalidateCssVariables();
     const vars = getVariablesForProperty("padding");
+    // Class-only tokens should NOT appear in the variable picker
     const token = vars.find(v => v.className === "p-4");
-    expect(token).toBeDefined();
-    expect(token!.values._value).toBe("1rem");
+    expect(token).toBeUndefined();
   });
 
-  it("typography tokens are sub-categorized by name", () => {
+  it("typography tokens with variables are sub-categorized by name", () => {
     setManifestTokens({
       tokens: {
         typography: {
-          "font-bold": { value: "700", class: "font-bold" },
-          "text-sm": { value: "0.875rem", class: "text-sm" },
-          "leading-tight": { value: "1.25", class: "leading-tight" },
+          "font-bold": { value: "700", variable: "--font-weight-bold", class: "font-bold" },
+          "text-sm": { value: "0.875rem", variable: "--font-size-sm", class: "text-sm" },
+          "leading-tight": { value: "1.25", variable: "--leading-tight", class: "leading-tight" },
         },
       },
     });
     invalidateCssVariables();
-    expect(getVariablesForProperty("fontWeight").map(v => v.className)).toContain("font-bold");
-    expect(getVariablesForProperty("fontSize").map(v => v.className)).toContain("text-sm");
-    expect(getVariablesForProperty("lineHeight").map(v => v.className)).toContain("leading-tight");
+    expect(getVariablesForProperty("fontWeight").map(v => v.className)).toContain("var(--font-weight-bold)");
+    expect(getVariablesForProperty("fontSize").map(v => v.className)).toContain("var(--font-size-sm)");
+    expect(getVariablesForProperty("lineHeight").map(v => v.className)).toContain("var(--leading-tight)");
   });
 
   it("framework internal prefixes are filtered from manifest", () => {

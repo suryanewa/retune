@@ -34,6 +34,81 @@ function getValueType(value: unknown): "boolean" | "number" | "string" | "functi
   return "object";
 }
 
+// ── Auto-filtering for designer-relevant props ──
+
+/** Props that are always hidden regardless of manifest */
+const ALWAYS_HIDE_PROPS = new Set([
+  "children", "ref", "key", "className", "style", "params", "searchParams",
+  "dangerouslySetInnerHTML",
+]);
+
+/** Name patterns that indicate non-designer props */
+const HIDE_NAME_PATTERNS = [
+  /^on[A-Z]/,          // event handlers: onClick, onChange, onSubmit
+  /^__/,               // React internals: __source, __self
+  /^\$/,               // framework internals: $type, $$typeof
+  /^_/,                // private/internal convention
+  /^data-/,            // data attributes (tracking, analytics)
+  /^aria-/,            // accessibility (important but not for visual editing)
+  /^(?:i13n|ylk|track|beacon)/i,  // analytics-specific
+];
+
+/** Component names that are framework plumbing (not visually editable) */
+const FRAMEWORK_COMPONENT_PATTERNS = [
+  /Provider$/i,
+  /Context$/i,
+  /Config$/i,
+  /Wrapper$/i,
+  /^HOC/i,
+  /^with[A-Z]/,        // HOC pattern: withTheme, withRouter
+  /^I13n/i,            // Yahoo analytics
+  /^Motion/i,          // Framer Motion
+  /^Suspense$/,
+  /^ErrorBoundary$/i,
+];
+
+/** Check if a prop should be shown to designers (when NOT in manifest) */
+function isDesignerRelevantProp(name: string, value: unknown): boolean {
+  // Always-hide list
+  if (ALWAYS_HIDE_PROPS.has(name)) return false;
+
+  // Name patterns
+  for (const pattern of HIDE_NAME_PATTERNS) {
+    if (pattern.test(name)) return false;
+  }
+
+  // Value type filtering — only show simple primitives
+  if (typeof value === "function") return false;
+  if (value === null || value === undefined) return false;
+
+  // Objects and arrays are noise for designers
+  if (typeof value === "object") return false;
+
+  // Long strings are likely serialized data, not editable content
+  if (typeof value === "string" && value.length > 80) return false;
+
+  return true;
+}
+
+/** Check if a component is framework plumbing */
+function isFrameworkComponent(name: string | null): boolean {
+  if (!name) return false;
+  return FRAMEWORK_COMPONENT_PATTERNS.some(p => p.test(name));
+}
+
+/** Check hidden_unless condition from manifest */
+function isHiddenByCondition(
+  hiddenUnless: Record<string, unknown> | undefined,
+  currentProps: Record<string, unknown> | null,
+): boolean {
+  if (!hiddenUnless || !currentProps) return false;
+  for (const [depProp, requiredValue] of Object.entries(hiddenUnless)) {
+    const actual = currentProps[depProp];
+    if (actual !== requiredValue) return true; // condition not met → hide
+  }
+  return false; // all conditions met → show
+}
+
 function formatValue(value: unknown): string {
   if (value === null) return "null";
   if (value === undefined) return "undefined";
@@ -122,31 +197,43 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
   const { reactComponents, reactProps, reactState, sourceFile } = selectedElement;
   const componentName = reactComponents[0] || null;
 
-  // Build prop/state lists early so we can bail if there's nothing to show
+  // Skip framework plumbing components entirely
+  if (isFrameworkComponent(componentName)) return null;
+
+  const isInManifest = !!(manifest?.components && componentName && manifest.components[componentName]);
+  const manifestComp = isInManifest ? manifest!.components[componentName!] : null;
+
+  // Build prop list — manifest-registered props are authoritative
   const propEntries: Array<[string, unknown]> = [];
-  const skip = new Set(["children", "ref", "key", "className", "style", "params", "searchParams"]);
   const seen = new Set<string>();
-  if (reactProps) {
+
+  if (isInManifest && manifestComp?.props) {
+    // Manifest mode: show ONLY declared props (plus hidden_unless filtering)
+    for (const [key, def] of Object.entries<any>(manifestComp.props)) {
+      const value = reactProps?.[key] ?? def.default;
+      // Check hidden_unless condition
+      if (def.hidden_unless && isHiddenByCondition(def.hidden_unless, reactProps)) continue;
+      propEntries.push([key, value]);
+      seen.add(key);
+    }
+  } else if (reactProps) {
+    // Auto-filter mode: apply designer-relevance heuristics
     for (const key of Object.keys(reactProps)) {
-      if (skip.has(key) || key.startsWith("__") || key.startsWith("data-")) continue;
-      try { propEntries.push([key, reactProps[key]]); seen.add(key); } catch {}
+      const value = reactProps[key];
+      if (!isDesignerRelevantProp(key, value)) continue;
+      try { propEntries.push([key, value]); seen.add(key); } catch {}
     }
   }
-  if (manifest?.components && componentName) {
-    const comp = manifest.components[componentName];
-    if (comp?.props) {
-      for (const [key, def] of Object.entries<any>(comp.props)) {
-        if (seen.has(key) || skip.has(key)) continue;
-        if (def.default !== undefined) {
-          propEntries.push([key, def.default]);
-        }
-      }
-    }
-  }
+
   const editableState = reactState?.filter(h => h.hasDispatch) || [];
+  // Auto-filter state too: only show simple primitive state values
+  const filteredState = editableState.filter(h => {
+    const v = h.value;
+    return typeof v === "boolean" || typeof v === "number" || (typeof v === "string" && v.length < 80);
+  });
 
   // Only show section when there are actual props or state to display
-  if (propEntries.length === 0 && editableState.length === 0) return null;
+  if (propEntries.length === 0 && filteredState.length === 0) return null;
 
   // Track current previewed values so reset can revert correctly
   const previewedRef = useRef<Record<string, unknown>>({});
@@ -207,7 +294,7 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
 
   // Stabilize inferred labels (no-manifest fallback) — compute once from initial values
   const inferredLabelsRef = useRef<Map<number, string>>(new Map());
-  for (const hook of editableState) {
+  for (const hook of filteredState) {
     if (!inferredLabelsRef.current.has(hook.index)) {
       inferredLabelsRef.current.set(hook.index, inferStateLabel(hook.value, hook.index));
     }
@@ -233,8 +320,8 @@ export function ComponentSection({ selectedElement, onRefresh, onPropChange, cha
   for (const [key, value] of propEntries) {
     allEntries.push({ key, label: key.charAt(0).toUpperCase() + key.slice(1), value, type: "prop", enumValues: getManifestEnum(manifest, componentName, key) });
   }
-  for (let i = 0; i < editableState.length; i++) {
-    const hook = editableState[i];
+  for (let i = 0; i < filteredState.length; i++) {
+    const hook = filteredState[i];
     allEntries.push({ key: `s-${hook.index}`, label: getStateLabel(hook, i), value: hook.value, type: "state", enumValues: getStateEnum(i), hookIndex: hook.index });
   }
 
