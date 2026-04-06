@@ -276,12 +276,13 @@ export function AlignmentGrid({ justifyContent, alignItems, flexDirection, onCha
   }, [flow, isSpaceBetween, onChange]);
 
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
-    // Find which cell was double-clicked to determine the target position
-    const cell = (e.target as HTMLElement).closest?.(".retune-alignment-cell");
+    const cell = (e.target as Element).closest?.(".retune-alignment-cell");
     if (isSpaceBetween) {
-      // Exit space-between: use the clicked cell's position for justifyContent
+      // Exit space-between: use the clicked cell's position
       if (cell) {
-        const cells = Array.from(cell.parentElement?.querySelectorAll(".retune-alignment-cell") || []);
+        // Find index within the grid (not the tooltip wrapper)
+        const grid = cell.closest(".retune-alignment-grid");
+        const cells = Array.from(grid?.querySelectorAll(".retune-alignment-cell") || []);
         const idx = cells.indexOf(cell);
         if (idx >= 0) {
           const row = Math.floor(idx / 3);
@@ -292,7 +293,6 @@ export function AlignmentGrid({ justifyContent, alignItems, flexDirection, onCha
           return;
         }
       }
-      // Fallback: use current coords
       const css = positionToCss(selectedCoords.row, selectedCoords.col, flow);
       onChange("justifyContent", css.justifyContent);
     } else {
