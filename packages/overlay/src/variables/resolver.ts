@@ -703,6 +703,12 @@ export function getVariablesForProperty(property: string): DesignVariable[] {
   if (!category) return [];
 
   const cssVars = getCssVariables().byCategory.get(category) || [];
+
+  // When manifest covers this category, don't include scanned utility classes —
+  // the manifest tokens (already in cssVars via addManifestTokens) are authoritative.
+  const manifestCategories = getManifestCategories();
+  if (manifestCategories.has(category)) return cssVars;
+
   const registry = getVariableRegistry();
   const classTokens = (registry.groups.get(category) || [])
     .filter(t => Object.keys(t.values).includes(kebab));
@@ -719,6 +725,8 @@ export function hasVariablesForProperty(property: string): boolean {
   if (!category) return false;
   const { byCategory } = getCssVariables();
   if ((byCategory.get(category)?.length ?? 0) > 0) return true;
+  // When manifest covers this category, don't check scanned utility classes
+  if (getManifestCategories().has(category)) return false;
   const registry = getVariableRegistry();
   return (registry.groups.get(category) || []).some(t => Object.keys(t.values).includes(kebab));
 }
