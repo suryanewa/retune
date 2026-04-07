@@ -10,6 +10,11 @@ export interface TrackedVariableRef {
   values: Record<string, string>;
 }
 
+interface BreakpointStyles {
+  original: Record<string, string>;
+  current: Record<string, string>;
+}
+
 interface TrackedElement {
   selector: string;
   tagName: string;
@@ -18,6 +23,8 @@ interface TrackedElement {
   reactComponents: string[];
   originalStyles: Record<string, string>;
   currentStyles: Record<string, string>;
+  /** Per-breakpoint style overrides (key = max-width value e.g. "768px") */
+  breakpointStyles?: Map<string, BreakpointStyles>;
   /** Original React prop values (snapshot at selection time) */
   originalProps?: Record<string, unknown>;
   /** Current React prop values (after edits) */
@@ -47,6 +54,8 @@ interface UndoEntry {
   property: string;
   value: string;
   group: number;
+  /** Breakpoint scope: null = base, "768px" = @media override */
+  breakpoint?: string | null;
   /** When set, this entry is a metadata-only unlink (no style value change) */
   action?: "unlink";
   /** Saved variable association for restoring on undo of unlink */
@@ -170,14 +179,31 @@ export class ChangeTracker {
 
   /** Record a style change. Groups paired properties (e.g. paddingTop+paddingBottom
    *  from a single scrub gesture) into one undo step. */
-  recordChange(selector: string, property: string, newValue: string): { from: string; to: string } | null {
+  recordChange(selector: string, property: string, newValue: string, breakpoint?: string | null): { from: string; to: string } | null {
     const tracked = this.tracked.get(selector);
     if (!tracked) return null;
 
-    const oldValue = tracked.currentStyles[property] || "";
-    if (oldValue === newValue) return null;
+    const bp = breakpoint || null;
+    let oldValue: string;
 
-    tracked.currentStyles[property] = newValue;
+    if (bp) {
+      // Breakpoint-scoped change
+      if (!tracked.breakpointStyles) tracked.breakpointStyles = new Map();
+      let bpStyles = tracked.breakpointStyles.get(bp);
+      if (!bpStyles) {
+        // Lazy-init: snapshot current computed styles as originals for this breakpoint
+        bpStyles = { original: { ...tracked.currentStyles }, current: { ...tracked.currentStyles } };
+        tracked.breakpointStyles.set(bp, bpStyles);
+      }
+      oldValue = bpStyles.current[property] || "";
+      if (oldValue === newValue) return null;
+      bpStyles.current[property] = newValue;
+    } else {
+      // Base change (existing behavior)
+      oldValue = tracked.currentStyles[property] || "";
+      if (oldValue === newValue) return null;
+      tracked.currentStyles[property] = newValue;
+    }
 
     // Snapshot variable state so undo can restore it
     const camelProp = property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
@@ -197,13 +223,13 @@ export class ChangeTracker {
         // Already tracked in this group — keep the original "from" value (coalesce)
       } else {
         // New property in this gesture — add to the same group
-        this.undoStack.push({ selector, property, value: oldValue, group: last.group, prevVariableAssoc, prevUnlinked });
+        this.undoStack.push({ selector, property, value: oldValue, group: last.group, breakpoint: bp, prevVariableAssoc, prevUnlinked });
       }
       last.time = now;
     } else {
       // New gesture — new group
       this.groupCounter++;
-      this.undoStack.push({ selector, property, value: oldValue, group: this.groupCounter, prevVariableAssoc, prevUnlinked });
+      this.undoStack.push({ selector, property, value: oldValue, group: this.groupCounter, breakpoint: bp, prevVariableAssoc, prevUnlinked });
       this.lastChange = { selector, time: now, group: this.groupCounter };
     }
 
@@ -220,6 +246,18 @@ export class ChangeTracker {
     tracked.currentStyles[property] = newValue;
   }
 
+  /** Snapshot computed styles for a specific breakpoint (called before first edit at that breakpoint) */
+  trackBreakpoint(selector: string, breakpoint: string, computedStyles: Record<string, string>): void {
+    const tracked = this.tracked.get(selector);
+    if (!tracked) return;
+    if (!tracked.breakpointStyles) tracked.breakpointStyles = new Map();
+    if (tracked.breakpointStyles.has(breakpoint)) return; // already snapshotted
+    tracked.breakpointStyles.set(breakpoint, {
+      original: { ...computedStyles },
+      current: { ...computedStyles },
+    });
+  }
+
   /** Find an undo entry for a property within a specific group */
   private findInGroup(group: number, property: string): number {
     for (let i = this.undoStack.length - 1; i >= 0; i--) {
@@ -233,7 +271,7 @@ export class ChangeTracker {
   }
 
   /** Pop an entire undo group and return all entries */
-  popUndo(): Array<{ selector: string; property: string; value: string; action?: "unlink" }> | null {
+  popUndo(): Array<{ selector: string; property: string; value: string; breakpoint?: string | null; action?: "unlink" }> | null {
     if (this.undoStack.length === 0) return null;
 
     const top = this.undoStack[this.undoStack.length - 1];
@@ -252,22 +290,24 @@ export class ChangeTracker {
       if (!tracked) continue;
 
       if (entry.action === "unlink") {
-        // Undo an unlink → relink the property
         tracked.unlinkedVariables?.delete(entry.property);
-        // Restore saved variable association if any
         if (entry.variableRef) {
           if (!tracked.variableAssociations) tracked.variableAssociations = {};
           tracked.variableAssociations[entry.property] = entry.variableRef;
         }
-        this.redoStack.push({ selector: entry.selector, property: entry.property, value: "", group: redoGroup, action: "unlink", variableRef: entry.variableRef });
+        this.redoStack.push({ selector: entry.selector, property: entry.property, value: "", group: redoGroup, breakpoint: entry.breakpoint, action: "unlink", variableRef: entry.variableRef });
       } else {
-        const currentValue = tracked.currentStyles[entry.property] || "";
+        // Get/set from the correct bucket based on breakpoint
+        const styles = entry.breakpoint
+          ? tracked.breakpointStyles?.get(entry.breakpoint)?.current
+          : tracked.currentStyles;
+        if (!styles) continue;
+        const currentValue = styles[entry.property] || "";
         const camelProp = entry.property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        // Save current variable state for redo
         const currentAssoc = tracked.variableAssociations?.[camelProp] ?? null;
         const currentUnlinked = tracked.unlinkedVariables?.has(camelProp) ?? false;
-        this.redoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: redoGroup, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
-        tracked.currentStyles[entry.property] = entry.value;
+        this.redoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: redoGroup, breakpoint: entry.breakpoint, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
+        styles[entry.property] = entry.value;
 
         // Restore previous variable association state
         if (entry.prevVariableAssoc !== undefined) {
@@ -278,7 +318,6 @@ export class ChangeTracker {
             if (tracked.variableAssociations) delete tracked.variableAssociations[camelProp];
           }
         }
-        // Restore previous unlinked state
         if (entry.prevUnlinked !== undefined) {
           if (entry.prevUnlinked) {
             if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
@@ -295,43 +334,41 @@ export class ChangeTracker {
   }
 
   /** Pop an entire redo group and return all entries */
-  popRedo(): Array<{ selector: string; property: string; value: string; action?: "unlink" }> | null {
+  popRedo(): Array<{ selector: string; property: string; value: string; breakpoint?: string | null; action?: "unlink" }> | null {
     if (this.redoStack.length === 0) return null;
 
     const top = this.redoStack[this.redoStack.length - 1];
     const group = top.group;
     const entries: UndoEntry[] = [];
 
-    // Pop all entries in this group
     while (this.redoStack.length > 0 && this.redoStack[this.redoStack.length - 1].group === group) {
       entries.push(this.redoStack.pop()!);
     }
 
-    // Apply and push to undo with the same group ID
     const undoGroup = ++this.groupCounter;
     for (const entry of entries) {
       const tracked = this.tracked.get(entry.selector);
       if (!tracked) continue;
 
       if (entry.action === "unlink") {
-        // Redo an unlink → unlink the property again
         if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
         tracked.unlinkedVariables.add(entry.property);
-        // Clear variable association again
         if (tracked.variableAssociations) {
           delete tracked.variableAssociations[entry.property];
         }
-        this.undoStack.push({ selector: entry.selector, property: entry.property, value: "", group: undoGroup, action: "unlink", variableRef: entry.variableRef });
+        this.undoStack.push({ selector: entry.selector, property: entry.property, value: "", group: undoGroup, breakpoint: entry.breakpoint, action: "unlink", variableRef: entry.variableRef });
       } else {
-        const currentValue = tracked.currentStyles[entry.property] || "";
+        const styles = entry.breakpoint
+          ? tracked.breakpointStyles?.get(entry.breakpoint)?.current
+          : tracked.currentStyles;
+        if (!styles) continue;
+        const currentValue = styles[entry.property] || "";
         const camelProp = entry.property.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        // Save current variable state for undo
         const currentAssoc = tracked.variableAssociations?.[camelProp] ?? null;
         const currentUnlinked = tracked.unlinkedVariables?.has(camelProp) ?? false;
-        this.undoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: undoGroup, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
-        tracked.currentStyles[entry.property] = entry.value;
+        this.undoStack.push({ selector: entry.selector, property: entry.property, value: currentValue, group: undoGroup, breakpoint: entry.breakpoint, prevVariableAssoc: currentAssoc, prevUnlinked: currentUnlinked });
+        styles[entry.property] = entry.value;
 
-        // Restore variable association state from redo entry
         if (entry.prevVariableAssoc !== undefined) {
           if (entry.prevVariableAssoc) {
             if (!tracked.variableAssociations) tracked.variableAssociations = {};
@@ -340,7 +377,6 @@ export class ChangeTracker {
             if (tracked.variableAssociations) delete tracked.variableAssociations[camelProp];
           }
         }
-        // Restore unlinked state from redo entry
         if (entry.prevUnlinked !== undefined) {
           if (entry.prevUnlinked) {
             if (!tracked.unlinkedVariables) tracked.unlinkedVariables = new Set();
@@ -363,6 +399,7 @@ export class ChangeTracker {
     for (const tracked of this.tracked.values()) {
       const propertyChanges: PropertyChange[] = [];
 
+      // Base style changes
       for (const [prop, currentVal] of Object.entries(tracked.currentStyles)) {
         const originalVal = tracked.originalStyles[prop] || "";
         if (currentVal !== originalVal) {
@@ -371,6 +408,23 @@ export class ChangeTracker {
             from: originalVal,
             to: currentVal,
           });
+        }
+      }
+
+      // Breakpoint-scoped style changes
+      if (tracked.breakpointStyles) {
+        for (const [bp, bpStyles] of tracked.breakpointStyles) {
+          for (const [prop, currentVal] of Object.entries(bpStyles.current)) {
+            const originalVal = bpStyles.original[prop] || "";
+            if (currentVal !== originalVal) {
+              propertyChanges.push({
+                property: prop,
+                from: originalVal,
+                to: currentVal,
+                breakpoint: bp,
+              });
+            }
+          }
         }
       }
 
@@ -697,10 +751,14 @@ export class ChangeTracker {
   /** Save state to localStorage */
   persist() {
     try {
-      // Convert Sets to arrays for JSON serialization
+      // Convert Sets and Maps to JSON-serializable forms
       const entries = Array.from(this.tracked.entries()).map(([k, v]) => [
         k,
-        { ...v, unlinkedVariables: v.unlinkedVariables ? Array.from(v.unlinkedVariables) : undefined },
+        {
+          ...v,
+          unlinkedVariables: v.unlinkedVariables ? Array.from(v.unlinkedVariables) : undefined,
+          breakpointStyles: v.breakpointStyles ? Array.from(v.breakpointStyles.entries()) : undefined,
+        },
       ]);
       const data = {
         tracked: entries,
@@ -720,10 +778,13 @@ export class ChangeTracker {
       if (!raw) return false;
       const data = JSON.parse(raw);
       this.tracked = new Map(data.tracked);
-      // Restore Sets from arrays
+      // Restore Sets and Maps from arrays
       for (const tracked of this.tracked.values()) {
         if (tracked.unlinkedVariables && Array.isArray(tracked.unlinkedVariables)) {
           tracked.unlinkedVariables = new Set(tracked.unlinkedVariables as unknown as string[]);
+        }
+        if (tracked.breakpointStyles && Array.isArray(tracked.breakpointStyles)) {
+          tracked.breakpointStyles = new Map(tracked.breakpointStyles as unknown as [string, BreakpointStyles][]);
         }
       }
       this.undoStack = data.undoStack || [];

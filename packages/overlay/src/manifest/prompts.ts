@@ -91,10 +91,29 @@ The "colors" category MUST use nested groups. Group colors by their design syste
 - By component/feature for scoped tokens (e.g., "pagination", "article-ui")
 Each group is an object containing its token entries. Read the project's Tailwind config, design system docs, or CSS variable naming to determine the natural groupings. Group by purpose, NOT by value format -- tokens with hex values and space-separated RGB values belong in the same group if they serve the same role (e.g., all background colors together regardless of format).
 
+## Responsive
+
+Include a "responsive" object describing how the project handles responsive breakpoints:
+
+- "strategy": How breakpoints are expressed in code
+  - "tailwind" — Tailwind responsive prefixes (sm:, md:, lg:)
+  - "media-queries" — Plain CSS @media queries
+  - "css-in-js" — Theme breakpoints in styled-components/emotion
+  - "scss-mixins" — SCSS/Sass mixin-based breakpoints
+- "direction": "mobile-first" or "desktop-first" (Tailwind is mobile-first by default)
+- "breakpoints": Map of token name → width value (e.g. "sm": "640px")
+
+Detect from: tailwind.config.js/ts theme.screens, existing @media queries in CSS files, theme breakpoint objects in CSS-in-JS, SCSS breakpoint mixins/variables. If no breakpoints are defined, omit the "responsive" field entirely.
+
 ## Example
 
 {
   "version": 2,
+  "responsive": {
+    "strategy": "tailwind",
+    "direction": "mobile-first",
+    "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" }
+  },
   "components": {
     "Avatar": {
       "props": {

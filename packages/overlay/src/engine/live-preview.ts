@@ -13,6 +13,7 @@ interface AppliedRule {
   property: string;
   value: string;
   index: number;
+  breakpoint?: string | null;
 }
 
 export class LivePreviewEngine {
@@ -41,24 +42,26 @@ export class LivePreviewEngine {
   }
 
   /** Apply a single property change with !important to override existing styles */
-  applyChange(selector: string, property: string, value: string) {
-    // Remove existing rule for this selector+property if any
-    this.removeChange(selector, property);
+  applyChange(selector: string, property: string, value: string, breakpoint?: string | null) {
+    // Remove existing rule for this selector+property+breakpoint if any
+    this.removeChange(selector, property, breakpoint);
 
     const kebabProp = camelToKebab(property);
-    const rule = `${selector} { ${kebabProp}: ${value} !important; }`;
+    const innerRule = `${selector} { ${kebabProp}: ${value} !important; }`;
+    const rule = breakpoint ? `@media (max-width: ${breakpoint}) { ${innerRule} }` : innerRule;
     try {
       const index = this.sheet.insertRule(rule, this.sheet.cssRules.length);
-      this.rules.push({ selector, property, value, index });
+      this.rules.push({ selector, property, value, index, breakpoint: breakpoint || null });
     } catch {
       // Invalid CSS value or selector — skip silently
     }
   }
 
   /** Remove a specific property change */
-  removeChange(selector: string, property: string) {
+  removeChange(selector: string, property: string, breakpoint?: string | null) {
+    const bp = breakpoint || null;
     const ruleIndex = this.rules.findIndex(
-      (r) => r.selector === selector && r.property === property
+      (r) => r.selector === selector && r.property === property && (r.breakpoint || null) === bp
     );
     if (ruleIndex === -1) return;
 
@@ -90,22 +93,19 @@ export class LivePreviewEngine {
   migrateChanges(fromSelector: string, toSelector: string) {
     const toMigrate = this.rules.filter((r) => r.selector === fromSelector);
     if (toMigrate.length === 0) return;
-    // Apply new rules first so changes aren't lost if the new selector fails
     for (const rule of toMigrate) {
-      this.applyChange(toSelector, rule.property, rule.value);
+      this.applyChange(toSelector, rule.property, rule.value, rule.breakpoint);
     }
-    // Only then remove old rules
     for (const rule of toMigrate) {
-      this.removeChange(fromSelector, rule.property);
+      this.removeChange(fromSelector, rule.property, rule.breakpoint);
     }
   }
 
   private rebuildSheet(newRules: AppliedRule[]) {
     this.sheet.replaceSync("");
     this.rules = [];
-    // Re-insert rules individually; applyChange handles errors per-rule
     for (const r of newRules) {
-      this.applyChange(r.selector, r.property, r.value);
+      this.applyChange(r.selector, r.property, r.value, r.breakpoint);
     }
   }
 

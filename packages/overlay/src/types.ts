@@ -65,6 +65,8 @@ export interface PropertyChange {
   property: string;
   from: string;
   to: string;
+  /** null/undefined = base (widest breakpoint), "768px" = @media (max-width: 768px) override */
+  breakpoint?: string | null;
 }
 
 /** A candidate token/class/variable for a changed property's value */

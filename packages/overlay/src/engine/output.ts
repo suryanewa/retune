@@ -137,6 +137,18 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comm
     lines.push("");
   }
 
+  // Responsive context (from manifest)
+  if (manifest?.responsive && fidelity !== "minimal") {
+    const r = manifest.responsive;
+    lines.push(`> **Responsive:** ${r.strategy || "media-queries"}, ${r.direction || "desktop-first"}`);
+    if (r.breakpoints) {
+      const bpStr = Object.entries(r.breakpoints).map(([k, v]) => `${k}=${v}`).join(", ");
+      lines.push(`> **Breakpoints:** ${bpStr}`);
+    }
+    lines.push("> Changes marked with `@media` should be applied inside the corresponding breakpoint using the project's responsive strategy.");
+    lines.push("");
+  }
+
   // Manifest context — gives AI agent knowledge of the project's component system
   if (manifest?.components && fidelity !== "minimal") {
     const componentNames = Object.keys(manifest.components);
@@ -444,19 +456,49 @@ function formatSingleChange(change: ElementChange, fidelity: Fidelity, tokenMap:
     }
   }
 
-  // Changes table — only render if there are value changes
+  // Changes table — group by breakpoint (base first, then overrides)
   if (enriched.length > 0) {
-    lines.push("");
-    lines.push("### Changes");
-    lines.push("");
-    lines.push("| Property | Before | After | Token |");
-    lines.push("|----------|--------|-------|-------|");
-
+    const baseChanges = enriched.filter(p => !p.breakpoint);
+    const bpGroups = new Map<string, typeof enriched>();
     for (const prop of enriched) {
-      // Class swap properties use "class:oldName" format — don't camelToKebab those
-      const kebab = prop.property.startsWith("class:") ? prop.property : camelToKebab(prop.property);
-      const tokenStr = formatRecommended(prop);
-      lines.push(`| \`${kebab}\` | \`${prop.from}\` | \`${prop.to}\` | ${tokenStr} |`);
+      if (prop.breakpoint) {
+        const group = bpGroups.get(prop.breakpoint) || [];
+        group.push(prop);
+        bpGroups.set(prop.breakpoint, group);
+      }
+    }
+
+    const renderTable = (props: typeof enriched) => {
+      lines.push("| Property | Before | After | Token |");
+      lines.push("|----------|--------|-------|-------|");
+      for (const prop of props) {
+        const kebab = prop.property.startsWith("class:") ? prop.property : camelToKebab(prop.property);
+        const tokenStr = formatRecommended(prop);
+        lines.push(`| \`${kebab}\` | \`${prop.from}\` | \`${prop.to}\` | ${tokenStr} |`);
+      }
+    };
+
+    if (baseChanges.length > 0) {
+      lines.push("");
+      lines.push(bpGroups.size > 0 ? "### Changes (base)" : "### Changes");
+      lines.push("");
+      renderTable(baseChanges);
+    }
+
+    // Breakpoint overrides — sorted widest first
+    const sortedBps = [...bpGroups.entries()].sort((a, b) => parseInt(b[0]) - parseInt(a[0]));
+    for (const [bp, props] of sortedBps) {
+      // Try to map to manifest token name
+      let bpLabel = bp;
+      if (manifest?.responsive?.breakpoints) {
+        for (const [name, width] of Object.entries(manifest.responsive.breakpoints)) {
+          if (width === bp) { bpLabel = `${bp} — ${name}`; break; }
+        }
+      }
+      lines.push("");
+      lines.push(`### Override @media (max-width: ${bpLabel})`);
+      lines.push("");
+      renderTable(props);
     }
   }
 
