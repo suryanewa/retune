@@ -1,6 +1,10 @@
 /**
- * Section layout primitives for the property panel.
- * Mirrors the portfolio editor's SectionWrapper/SectionBody/SectionRow pattern.
+ * Panel layout primitives.
+ *
+ * Section  — collapsible group with header label + optional action
+ * Row      — universal horizontal container, optional shared label
+ * Field    — label-above-input pair, used inside Row
+ * RowAction — button on the right edge of a Row
  */
 
 import type { ReactNode } from "react";
@@ -21,22 +25,20 @@ export function Section({ label, gap, action, children }: { label: string; gap?:
   );
 }
 
-export function Row({ children }: { children: ReactNode }) {
+export function Row({ label, children }: { label?: string; children: ReactNode }) {
+  if (label) {
+    return (
+      <div className="retune-row-group">
+        <div className="retune-group-label-inline">{label}</div>
+        {children}
+      </div>
+    );
+  }
   return (
     <div className="retune-section-row">
       <div className="retune-row">
         {children}
       </div>
-    </div>
-  );
-}
-
-/** Groups multiple rows with equal vertical and horizontal gaps */
-export function RowGroup({ label, children }: { label?: string; children: ReactNode }) {
-  return (
-    <div className="retune-row-group">
-      {label && <div className="retune-group-label-inline">{label}</div>}
-      {children}
     </div>
   );
 }
@@ -50,6 +52,18 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
+export function RowAction({ onClick, active, children }: { onClick: () => void; active?: boolean; children: ReactNode }) {
+  return (
+    <button className={`retune-row-action${active ? " active" : ""}`} onClick={onClick}>
+      {children}
+    </button>
+  );
+}
+
+/** @deprecated Use Row with label prop instead */
+export const RowGroup = Row;
+
+/** @deprecated Use Row label prop instead */
 export function GroupLabel({ children }: { children: ReactNode }) {
   return (
     <div className="retune-group-label">{children}</div>

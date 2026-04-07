@@ -481,6 +481,7 @@ input, textarea, [contenteditable] {
   overflow-y: hidden;
   scrollbar-width: none;
   padding: 0 16px;
+  isolation: isolate; /* stacking context so bridge z-index:-1 stays within */
 }
 /* Remove gap around bridge connectors — the bridge IS the connection */
 /* Bridge connector between active/included pills */
@@ -886,7 +887,8 @@ input, textarea, [contenteditable] {
 .retune-section-row {
   padding: 0 48px 0 16px;
 }
-.retune-section-row:has(.retune-split-btn) {
+.retune-section-row:has(.retune-split-btn),
+.retune-section-row:has(.retune-row-action) {
   padding-right: 8px;
 }
 
@@ -897,7 +899,8 @@ input, textarea, [contenteditable] {
   gap: 4px;
   padding: 0 48px 0 16px;
 }
-.retune-row-group:has(.retune-split-btn) {
+.retune-row-group:has(.retune-split-btn),
+.retune-row-group:has(.retune-row-action) {
   padding-right: 8px;
 }
 
@@ -1223,7 +1226,8 @@ input, textarea, [contenteditable] {
   justify-content: space-between;
 }
 
-/* Split toggle button (expand/collapse shorthand) */
+/* Row action button (expand/collapse, dialog trigger, toggle) */
+.retune-row-action,
 .retune-split-btn {
   display: flex;
   align-items: center;
@@ -1239,10 +1243,12 @@ input, textarea, [contenteditable] {
   flex-shrink: 0;
   transition: background 0.15s ease, color 0.15s ease;
 }
+.retune-row-action:hover,
 .retune-split-btn:hover {
   background: var(--retune-surface-active);
   color: var(--retune-text);
 }
+.retune-row-action.active,
 .retune-split-btn.active {
   color: var(--retune-text);
   background: var(--retune-input-bg-hover);
