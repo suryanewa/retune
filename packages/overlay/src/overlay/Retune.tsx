@@ -2212,7 +2212,15 @@ function RetuneInner(props: RetuneConfig) {
     const tracker = trackerRef.current;
     if (!tracker || !selectedElement) return new Set<string>();
     const selector = activeSelector ?? selectedElement.selector;
-    return tracker.getChangedProperties(selector);
+    const result = tracker.getChangedProperties(selector);
+    // Also check the forced-state-suffixed selector so edits made under
+    // :hover/:focus/:active show their change dots.
+    const forced = forcedStateRef.current;
+    if (forced) {
+      const forcedChanges = tracker.getChangedProperties(`${selector}${forced}`);
+      for (const p of forcedChanges) result.add(p);
+    }
+    return result;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedElement, activeSelector, changeRevision]);
 

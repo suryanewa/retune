@@ -98,8 +98,10 @@ export function getPseudoStateStyles(
       const rule = rules[i];
 
       // Recurse into @layer, @media, @supports, etc.
+      // Skip @media rules whose condition doesn't match the current viewport.
       if (rule instanceof CSSGroupingRule ||
           (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        if (rule instanceof CSSMediaRule && !window.matchMedia(rule.conditionText).matches) continue;
         walkRules((rule as CSSGroupingRule).cssRules);
         continue;
       }
@@ -281,6 +283,7 @@ export function getStyleSources(element: Element): Record<string, StyleSource> {
       const rule = rules[i];
       if (rule instanceof CSSGroupingRule ||
           (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        if (rule instanceof CSSMediaRule && !window.matchMedia(rule.conditionText).matches) continue;
         walkRules((rule as CSSGroupingRule).cssRules);
         continue;
       }
@@ -361,6 +364,7 @@ export function getScopedStyles(
       const rule = rules[i];
       if (rule instanceof CSSGroupingRule ||
           (typeof CSSLayerBlockRule !== "undefined" && rule instanceof CSSLayerBlockRule)) {
+        if (rule instanceof CSSMediaRule && !window.matchMedia(rule.conditionText).matches) continue;
         walkScopedRules((rule as CSSGroupingRule).cssRules);
         continue;
       }

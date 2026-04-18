@@ -89,9 +89,9 @@ export function BorderSection({
               <ColorInput prop="borderColor" value={activeBorderColor} onChange={onPropertyChange} {...variableProps("borderColor")} {...changeProps("borderColor")} />
             </Field>
           </Row>
-          <Row label={borderExpanded ? undefined : "Width"}>
-            {borderExpanded ? (
-              <>
+          {borderExpanded ? (
+            <>
+              <div className="retune-section-row">
                 <div className="retune-row">
                   <Field label="Top">
                     <NumberInput prop="borderTopWidth" value={s.borderTopWidth} onChange={(p, v) => {
@@ -111,6 +111,8 @@ export function BorderSection({
                     </button>
                   </Tooltip>
                 </div>
+              </div>
+              <div className="retune-section-row">
                 <div className="retune-row">
                   <Field label="Bottom">
                     <NumberInput prop="borderBottomWidth" value={s.borderBottomWidth} onChange={(p, v) => {
@@ -124,10 +126,11 @@ export function BorderSection({
                       if (parseFloat(v) > 0 && s.borderLeftStyle === "none") onPropertyChange("borderLeftStyle", "solid");
                     }} min={0} {...changeProps("borderLeftWidth")} />
                   </Field>
-                  <div style={{ width: 32 }} />
                 </div>
-              </>
-            ) : (
+              </div>
+            </>
+          ) : (
+            <Row label="Width">
               <div className="retune-row">
                 <ShorthandInput
                   props={["borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth"]}
@@ -143,8 +146,8 @@ export function BorderSection({
                   </button>
                 </Tooltip>
               </div>
-            )}
-          </Row>
+            </Row>
+          )}
           <Row>
             <Field label="Style">
               <SelectInput prop="borderStyle" value={s.borderTopStyle !== "none" ? s.borderTopStyle : s.borderRightStyle !== "none" ? s.borderRightStyle : s.borderBottomStyle !== "none" ? s.borderBottomStyle : s.borderLeftStyle} options={["solid", "dashed", "dotted", "double", "groove", "ridge"]} onChange={onPropertyChange} />
