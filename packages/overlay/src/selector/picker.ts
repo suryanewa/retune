@@ -2074,7 +2074,7 @@ export function createPicker(
 
   // Double-click on selection box: cancel pending click-through, trigger inline text editing
   selection.addEventListener("dblclick", (e: MouseEvent) => {
-    if (!selectedElement) return;
+    if (!active || !selectedElement) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -2090,9 +2090,14 @@ export function createPicker(
     hideHandles();
     const hit = pageElementAtPoint(e.clientX, e.clientY);
     selection.style.display = "";
-    showSelection();
+    const target = hit || selectedElement;
+    if (target !== selectedElement) {
+      selectElement(target);
+    } else {
+      showSelection();
+    }
 
-    callbacks.onDoubleClick?.(hit || selectedElement);
+    callbacks.onDoubleClick?.(target);
   });
 
   // ── Spacing measurement lines ──
@@ -2431,7 +2436,7 @@ export function createPicker(
   }
 
   function showSelection() {
-    if (!selectedElement || selectedElements.length === 0) return;
+    if (!active || !selectedElement || selectedElements.length === 0) return;
     // Don't show selection during canvas reorder drag
     if (reorderDragActive) return;
 
@@ -2738,10 +2743,21 @@ export function createPicker(
     return getComputedStyle(shadowHit).pointerEvents !== "none";
   }
 
+  function isNativeInteractive(el: Element | null): boolean {
+    return !!el?.closest("button,a,input,select,textarea,label,summary,[role='button'],[role='link']");
+  }
+
   /** Block pointer/mouse down from reaching page elements (prevents :active and focus). */
   function blockPagePointerDown(e: Event) {
-    if (!active || suspended) return;
+    if (!active) return;
     if (isRetuneOverlayEvent(e)) return;
+    if (suspended) {
+      // Keep native pointer defaults so contenteditable can place the caret,
+      // but stop app-level press handlers from firing while text edit owns input.
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
     e.stopPropagation();
     e.stopImmediatePropagation();
   }
@@ -2764,6 +2780,17 @@ export function createPicker(
 
     if (isRetuneOverlayEvent(e)) return;
 
+    if (suspended) {
+      const target = e.target instanceof Element ? e.target : null;
+      const insideEditedElement = !!(selectedElement && target && selectedElement.contains(target));
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (!insideEditedElement || isNativeInteractive(target)) {
+        e.preventDefault();
+      }
+      return;
+    }
+
     // Block page element clicks if popover has unsaved changes (after overlay checks)
     if (callbacks.shouldBlockClick?.()) {
       e.preventDefault();
@@ -2783,6 +2810,9 @@ export function createPicker(
       Math.abs(x - lastClickPos.x) <= CLICK_RADIUS &&
       Math.abs(y - lastClickPos.y) <= CLICK_RADIUS &&
       elementStack.length > 1;
+
+    // Second click of a double-click must not cycle the stack — dblclick will sync selection
+    if (sameSpot && e.detail >= 2) return;
 
     if (sameSpot) {
       // Rebuild stack in case DOM changed (HMR, navigation)
@@ -2878,6 +2908,7 @@ export function createPicker(
   function handleDblClick(e: MouseEvent) {
     if (!active || !selectedElement) return;
     if (isRetuneOverlayEvent(e)) return;
+    if (suspended) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -2888,7 +2919,11 @@ export function createPicker(
     }
 
     const deepest = pageElementAtPoint(e.clientX, e.clientY);
-    callbacks.onDoubleClick?.(deepest || selectedElement);
+    const target = deepest || selectedElement;
+    if (target !== selectedElement) {
+      selectElement(target);
+    }
+    callbacks.onDoubleClick?.(target);
   }
 
   function handleKeyDown(e: KeyboardEvent) {
@@ -2943,6 +2978,9 @@ export function createPicker(
   `;
   const SUSPENDED_PAGE_STYLES = `
     * { user-select: none !important; -webkit-user-select: none !important; }
+    html[data-retune-suspended] *:active {
+      transform: none !important;
+    }
     [contenteditable="true"] {
       user-select: text !important;
       -webkit-user-select: text !important;
@@ -2972,6 +3010,7 @@ export function createPicker(
   function deactivate() {
     if (!active) return;
     active = false;
+    suspended = false;
     propertyEditMode = false;
     shiftHeldForSelection = false;
     document.documentElement.removeAttribute("data-retune-active");
@@ -3087,6 +3126,7 @@ export function createPicker(
     hideHandles();
     // Allow text selection only on the inline-edited element
     cursorStyle.textContent = SUSPENDED_PAGE_STYLES;
+    if (selectedElement) showSelection();
   }
   function resume() {
     suspended = false;

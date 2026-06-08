@@ -833,6 +833,8 @@ function RetuneInner(props: RetuneConfig) {
   const config = { ...DEFAULT_CONFIG, ...props };
 
   const [active, setActive] = useState(false);
+  const activeRef = useRef(false);
+  activeRef.current = active;
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [mode, setMode] = useState<"edit" | "comment">("edit");
   const [selectedElement, setSelectedElement] = useState<InspectedElement | null>(null);
@@ -981,6 +983,7 @@ function RetuneInner(props: RetuneConfig) {
 
   const mountRef = useRef<ReturnType<typeof mountOverlay> | null>(null);
   const pickerRef = useRef<ReturnType<typeof createPicker> | null>(null);
+  const endInlineTextEditRef = useRef<(() => void) | null>(null);
   const previewRef = useRef<LivePreviewEngine | null>(null);
   const trackerRef = useRef<ChangeTracker | null>(null);
   const commentStoreRef = useRef(new CommentStore());
@@ -1469,11 +1472,15 @@ function RetuneInner(props: RetuneConfig) {
         }
       },
       onDoubleClick: (element: Element) => {
+        if (!activeRef.current) return;
+
         // Enter inline text editing mode
         const el = element as HTMLElement;
         if (!el.textContent?.trim()) return; // no text to edit
         // Skip elements that are Retune's own UI
         if (el.closest("[data-retune-host]") || el.hasAttribute("data-retune-host")) return;
+
+        endInlineTextEditRef.current?.();
 
         // Suspend picker so hover highlights don't show during editing
         pickerRef.current?.suspend();
@@ -1491,15 +1498,27 @@ function RetuneInner(props: RetuneConfig) {
         // Place cursor at click position (don't select all — let user click to place cursor)
         // The double-click will naturally select a word, which is the expected behavior
 
+        let finished = false;
+        let blurTimer: ReturnType<typeof setTimeout> | null = null;
+
         const cleanup = () => {
+          if (finished) return;
+          finished = true;
+          endInlineTextEditRef.current = null;
+          if (blurTimer) {
+            clearTimeout(blurTimer);
+            blurTimer = null;
+          }
           el.contentEditable = "false";
           el.style.removeProperty("outline");
           el.style.removeProperty("cursor");
           el.removeEventListener("keydown", onKeyDown);
           el.removeEventListener("blur", onBlur);
           // Resume picker and restore selection highlight
-          pickerRef.current?.resume();
-          pickerRef.current?.refreshSelection();
+          if (activeRef.current) {
+            pickerRef.current?.resume();
+            pickerRef.current?.refreshSelection();
+          }
         };
 
         const save = () => {
@@ -1577,7 +1596,18 @@ function RetuneInner(props: RetuneConfig) {
 
         const onBlur = () => {
           // Delay to allow click-outside to register
-          setTimeout(save, 100);
+          blurTimer = setTimeout(() => {
+            blurTimer = null;
+            save();
+          }, 100);
+        };
+
+        endInlineTextEditRef.current = () => {
+          if (blurTimer) {
+            clearTimeout(blurTimer);
+            blurTimer = null;
+          }
+          save();
         };
 
         el.addEventListener("keydown", onKeyDown);
@@ -1718,6 +1748,10 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   const deactivateOverlay = useCallback(() => {
+    activeRef.current = false;
+    endInlineTextEditRef.current?.();
+    endInlineTextEditRef.current = null;
+    pickerRef.current?.deactivate();
     if (forcedStateRef.current) clearForcedInlineStyles();
     setActive(false);
     setEditPanelOpen(false);
