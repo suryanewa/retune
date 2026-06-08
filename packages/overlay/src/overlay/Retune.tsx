@@ -4172,7 +4172,7 @@ function RetuneInner(props: RetuneConfig) {
           {(changeCount > 0 || commentCount > 0) && (
             <div className="retune-toolbar-divider" />
           )}
-          <Tooltip content="Edit mode" shortcut="V" side="top">
+          <Tooltip content="Edit" shortcut="V" side="top">
             <button
               className={`retune-toolbar-btn${mode === "edit" ? " active" : ""}`}
               onClick={() => { setMode("edit"); setCommentDraft(null); setActiveCommentId(null); popoverOpenRef.current = false; }}
@@ -4180,7 +4180,7 @@ function RetuneInner(props: RetuneConfig) {
               <IconCursor1 size={20} />
             </button>
           </Tooltip>
-          <Tooltip content="Comment mode" shortcut="C" side="top">
+          <Tooltip content="Comment" shortcut="C" side="top">
             <button
               className={`retune-toolbar-btn${mode === "comment" ? " active" : ""}`}
               onClick={() => { setMode("comment"); setSelectedElement(null); setSelectedElements([]); selectedElementsRef.current = []; }}
@@ -4188,7 +4188,7 @@ function RetuneInner(props: RetuneConfig) {
               <IconComment size={20} />
             </button>
           </Tooltip>
-          <Tooltip content="Copy changes" shortcut="⌘C" side="top">
+          <Tooltip content="Copy" shortcut="⌘C" side="top">
             <button
               className={`retune-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleCopy}
