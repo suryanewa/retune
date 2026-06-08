@@ -2,11 +2,14 @@
   "name": "retune",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "playground"
   ],
   "scripts": {
     "build": "npm run build --workspaces",
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "npm run build -w retune && npm run dev -w retune & npm run dev -w playground",
+    "dev:overlay": "npm run dev -w retune",
+    "dev:playground": "npm run dev -w playground",
     "clean": "rm -rf packages/*/dist",
     "test": "vitest run",
     "test:watch": "vitest"

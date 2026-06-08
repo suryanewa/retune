@@ -217,11 +217,19 @@ React, TypeScript. Single package with two entry points:
 
 ## Development
 
+This fork is a monorepo:
+
+- `packages/overlay` — the `retune` npm package
+- `playground` — the [Retune marketing site](https://github.com/khadgi-sujan/retune-site), wired to the local overlay
+
 ```bash
 npm install
-npm run build
-npm run dev    # Watch mode
+npm run build -w retune
+npm run dev              # overlay watch + playground at http://localhost:3001
+npm run dev:playground   # playground only
 ```
+
+The playground imports `retune` from `file:../packages/overlay`, so site changes exercise your local overlay build instead of the published package.
 
 ## License
 
