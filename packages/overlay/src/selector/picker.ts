@@ -2209,14 +2209,14 @@ export function createPicker(
       return;
     }
 
-    const gap = 4;
+    const gap = 8;
     labelEl.textContent = text;
     labelEl.style.background = PICKER_OUTLINE_COLOR;
     labelEl.style.left = `${rect.left + rect.width / 2}px`;
 
     // Prefer above the selection so the action bar can sit below without overlap.
     // Anchor the label's bottom edge to rect.top - gap via translateY(-100%).
-    if (rect.top - gap >= 14) {
+    if (rect.top - gap >= 18) {
       labelEl.style.top = `${rect.top - gap}px`;
       labelEl.style.transform = "translate(-50%, -100%)";
     } else {
