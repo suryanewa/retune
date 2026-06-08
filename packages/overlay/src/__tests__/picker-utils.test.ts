@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { computeCanvasDropIndex, isEffectiveNoOp, formatSelectionLabel } from "../selector/picker";
+import { computeCanvasDropIndex, isEffectiveNoOp, formatSelectionLabel, SELECTION_COLORS } from "../selector/picker";
 
 // ── DOMRect polyfill for Node ──
 
@@ -150,5 +150,13 @@ describe("formatSelectionLabel", () => {
 
   it("handles sub-pixel values", () => {
     expect(formatSelectionLabel(100.4, 50.5)).toBe("100 × 51");
+  });
+});
+
+describe("SELECTION_COLORS", () => {
+  it("provides distinct colors for multi-select outlines", () => {
+    expect(SELECTION_COLORS.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(SELECTION_COLORS).size).toBe(SELECTION_COLORS.length);
+    expect(SELECTION_COLORS[0]).toBe("#0D99FF");
   });
 });

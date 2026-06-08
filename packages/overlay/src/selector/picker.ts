@@ -1,23 +1,48 @@
 /**
  * Element picker: hover to highlight, click to select.
  *
- * Uses a fixed-position overlay with pointer-events:none so
- * elementFromPoint() returns the real element underneath.
- * All event listeners use capture phase to intercept before page handlers.
+ * A full-viewport capture layer in the shadow root receives pointer events
+ * so page elements never get mousedown (:active, focus). Hover/selection use
+ * document.elementsFromPoint() at the cursor. Retune UI stays clickable above
+ * the capture layer via pointer-events:auto.
  *
  * Selection persists until a new element is selected or picker is deactivated.
  * Hover box becomes solid. Parent indicator uses dotted.
  */
 
 import { canFill, type SizingContext } from "../ui/sizing-utils";
+import {
+  computeSelectionChromeLayout,
+  measureDimensionLabelWidth,
+  type SelectionChromeLayout,
+} from "./selection-chrome-layout";
 
 const PICKER_OUTLINE_COLOR = "#0D99FF";
 /** Light fill on the selected element — same hue as the outline, much lower opacity. */
 const SELECTION_FILL_ALPHA = "0.08";
 
+/** Distinct outline colors for multi-select (index 0 = primary). */
+export const SELECTION_COLORS = [
+  "#0D99FF",
+  "#FF6B6B",
+  "#51CF66",
+  "#FAB005",
+  "#845EF7",
+  "#FF922B",
+  "#20C997",
+  "#F06595",
+] as const;
+
+const MULTI_SELECT_POOL_SIZE = 20;
+
+export interface SelectEventMeta {
+  shiftKey: boolean;
+  selectedElements: Element[];
+}
+
 export interface PickerCallbacks {
   onHover: (element: Element, rect: DOMRect) => void;
-  onSelect: (element: Element) => void;
+  onSelect: (element: Element, meta?: SelectEventMeta) => void;
   onCancel: () => void;
   /** If provided, called before processing a click. Return true to block the click entirely. */
   shouldBlockClick?: () => boolean;
@@ -72,6 +97,19 @@ export function createPicker(
   shadowRoot: ShadowRoot,
   callbacks: PickerCallbacks
 ) {
+  // Full-viewport layer — intercepts pointer events before they reach the page.
+  const captureLayer = document.createElement("div");
+  captureLayer.setAttribute("data-retune-capture", "");
+  captureLayer.style.cssText = `
+    position: fixed;
+    inset: 0;
+    pointer-events: auto;
+    z-index: 2147483638;
+    background: transparent;
+    display: none;
+  `;
+  shadowRoot.appendChild(captureLayer);
+
   // Hover highlight
   const highlight = document.createElement("div");
   highlight.setAttribute("data-retune-highlight", "");
@@ -89,6 +127,23 @@ export function createPicker(
   const selectionLabel = document.createElement("div");
   selectionLabel.setAttribute("data-retune-selection-label", "");
   shadowRoot.appendChild(selectionLabel);
+
+  // Additional selection boxes for shift multi-select
+  const multiSelectPool: HTMLDivElement[] = [];
+  for (let i = 0; i < MULTI_SELECT_POOL_SIZE; i++) {
+    const box = document.createElement("div");
+    box.setAttribute("data-retune-multi-selection", "");
+    box.style.cssText = `
+      position: fixed;
+      pointer-events: none;
+      z-index: 2147483644;
+      box-sizing: border-box;
+      display: none;
+      outline: none;
+    `;
+    shadowRoot.appendChild(box);
+    multiSelectPool.push(box);
+  }
 
   // Aspect ratio lock indicator (diagonal dashed line inside selection box)
   const aspectLine = document.createElement("div");
@@ -351,7 +406,9 @@ export function createPicker(
   let suspended = false; // temporarily suppress hover (e.g. during text editing)
   let hoveredElement: Element | null = null;
   let selectedElement: Element | null = null;
+  let selectedElements: Element[] = [];
   let selectionLabelHidden = false;
+  let syncedChromeLayout: SelectionChromeLayout | null = null;
   let trackingRaf: number | null = null;
   let resizeObserver: ResizeObserver | null = null;
   let hoverTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1047,8 +1104,13 @@ export function createPicker(
 
     // Update selection box and handles
     const newRect = selectedElement.getBoundingClientRect();
-    positionBox(selection, newRect, "solid", SELECTION_FILL_ALPHA);
-    positionSelectionLabel(selectionLabel, newRect, formatLabel(selectedElement));
+    const color = selectionColorForElement(selectedElement);
+    positionColoredBox(selection, newRect, "solid", SELECTION_FILL_ALPHA, color);
+    if (shouldShowDimensionLabel()) {
+      positionSelectionLabel(selectionLabel, newRect, formatLabel(selectedElement), color);
+    } else {
+      selectionLabel.style.display = "none";
+    }
     positionHandles(newRect);
 
     // Show/hide snap guides
@@ -1097,8 +1159,13 @@ export function createPicker(
 
     // Refresh selection box
     const newRect = selectedElement.getBoundingClientRect();
-    positionBox(selection, newRect, "solid", SELECTION_FILL_ALPHA);
-    positionSelectionLabel(selectionLabel, newRect, formatLabel(selectedElement));
+    const color = selectionColorForElement(selectedElement);
+    positionColoredBox(selection, newRect, "solid", SELECTION_FILL_ALPHA, color);
+    if (shouldShowDimensionLabel()) {
+      positionSelectionLabel(selectionLabel, newRect, formatLabel(selectedElement), color);
+    } else {
+      selectionLabel.style.display = "none";
+    }
     positionHandles(newRect);
     refreshPinLines();
   }
@@ -1439,11 +1506,11 @@ export function createPicker(
     const ghost = reorderDrag?.ghost;
     if (ghost) ghost.style.display = "none";
     (draggedEl as HTMLElement).style.visibility = "";
-    const hit = document.elementFromPoint(x, y);
+    const hit = pageElementAtPoint(x, y);
     (draggedEl as HTMLElement).style.visibility = "hidden";
     if (ghost) ghost.style.display = "";
 
-    if (!hit || isOverlayElement(hit)) return null;
+    if (!hit) return null;
 
     // Walk up from the hit element to find a valid container
     let current: Element | null = hit;
@@ -1679,7 +1746,8 @@ export function createPicker(
 
       if (selectedElement !== reorderDrag.element) {
         selectedElement = reorderDrag.element;
-        callbacks.onSelect(reorderDrag.element);
+        selectedElements = [reorderDrag.element];
+        notifySelect(reorderDrag.element, false);
       }
 
       // Hide selection chrome
@@ -1893,18 +1961,16 @@ export function createPicker(
         selection.style.display = "none";
         selectionLabel.style.display = "none";
         hideHandles();
-        const hit = document.elementFromPoint(clickX, clickY);
-        if (hit && hit !== clickElement && !hit.hasAttribute("data-retune-host")) {
+        const hit = pageElementAtPoint(clickX, clickY);
+        if (hit && hit !== clickElement) {
           selectedElement = hit;
+          selectedElements = [hit];
           selectionLabelHidden = false;
-          if (resizeObserver) {
-            resizeObserver.disconnect();
-            resizeObserver.observe(hit);
-          }
+          observeSelectedElements();
           showSelection();
           hideHighlight();
           hoveredElement = null;
-          callbacks.onSelect(hit);
+          notifySelect(hit, false);
         } else {
           selection.style.display = "";
           showSelection();
@@ -1999,7 +2065,7 @@ export function createPicker(
     selection.style.display = "none";
     selectionLabel.style.display = "none";
     hideHandles();
-    const hit = document.elementFromPoint(e.clientX, e.clientY);
+    const hit = pageElementAtPoint(e.clientX, e.clientY);
     selection.style.display = "";
     showSelection();
 
@@ -2203,27 +2269,126 @@ export function createPicker(
     }
   }
 
-  function positionSelectionLabel(labelEl: HTMLElement, rect: DOMRect, text: string) {
+  function selectionColorForIndex(index: number): string {
+    return SELECTION_COLORS[index % SELECTION_COLORS.length];
+  }
+
+  function selectionColorForElement(el: Element): string {
+    const index = selectedElements.indexOf(el);
+    return selectionColorForIndex(index >= 0 ? index : 0);
+  }
+
+  function hexToRgb(hex: string): { r: number; g: number; b: number } {
+    const normalized = hex.replace("#", "");
+    return {
+      r: parseInt(normalized.slice(0, 2), 16),
+      g: parseInt(normalized.slice(2, 4), 16),
+      b: parseInt(normalized.slice(4, 6), 16),
+    };
+  }
+
+  function positionColoredBox(
+    box: HTMLElement,
+    rect: DOMRect,
+    borderStyle: string,
+    bgAlpha: string,
+    color: string,
+  ) {
+    const { r, g, b } = hexToRgb(color);
+    box.style.top = `${rect.top}px`;
+    box.style.left = `${rect.left}px`;
+    box.style.width = `${rect.width}px`;
+    box.style.height = `${rect.height}px`;
+    box.style.border = `1px ${borderStyle} ${color}`;
+    box.style.background = `rgba(${r}, ${g}, ${b}, ${bgAlpha})`;
+    box.style.display = "";
+  }
+
+  function hideMultiSelectBoxes() {
+    for (const box of multiSelectPool) {
+      box.style.display = "none";
+    }
+  }
+
+  function observeSelectedElements() {
+    resizeObserver?.disconnect();
+    for (const el of selectedElements) {
+      resizeObserver?.observe(el);
+    }
+  }
+
+  function notifySelect(element: Element, shiftKey: boolean) {
+    callbacks.onSelect(element, {
+      shiftKey,
+      selectedElements: [...selectedElements],
+    });
+  }
+
+  function shouldShowDimensionLabel(): boolean {
+    return !selectionLabelHidden && selectedElements.length <= 1;
+  }
+
+  function updateMultiSelectBoxes() {
+    if (selectedElements.length === 0) return;
+
+    let poolIndex = 0;
+    for (let i = 0; i < selectedElements.length; i++) {
+      const el = selectedElements[i];
+      const rect = el.getBoundingClientRect();
+      const color = selectionColorForIndex(i);
+      if (el === selectedElement) {
+        positionColoredBox(selection, rect, "solid", SELECTION_FILL_ALPHA, color);
+      } else {
+        const box = multiSelectPool[poolIndex++];
+        positionColoredBox(box, rect, "solid", SELECTION_FILL_ALPHA, color);
+      }
+    }
+    for (; poolIndex < multiSelectPool.length; poolIndex++) {
+      multiSelectPool[poolIndex].style.display = "none";
+    }
+  }
+
+  function applyDimensionChromeLayout(
+    labelEl: HTMLElement,
+    rect: DOMRect,
+    text: string,
+    color: string,
+    layout?: SelectionChromeLayout | null,
+  ) {
     if (!text) {
       labelEl.style.display = "none";
       return;
     }
 
-    const gap = 8;
     labelEl.textContent = text;
-    labelEl.style.background = PICKER_OUTLINE_COLOR;
-    labelEl.style.left = `${rect.left + rect.width / 2}px`;
+    labelEl.style.background = color;
 
-    // Prefer above the selection so the action bar can sit below without overlap.
-    // Anchor the label's bottom edge to rect.top - gap via translateY(-100%).
-    if (rect.top - gap >= 18) {
-      labelEl.style.top = `${rect.top - gap}px`;
-      labelEl.style.transform = "translate(-50%, -100%)";
-    } else {
-      labelEl.style.top = `${rect.bottom + gap}px`;
-      labelEl.style.transform = "translateX(-50%)";
-    }
+    const chrome = layout ?? computeSelectionChromeLayout(
+      rect,
+      { width: window.innerWidth, height: window.innerHeight },
+      measureDimensionLabelWidth(text),
+    );
+    labelEl.style.top = `${chrome.dimension.top}px`;
+    labelEl.style.left = `${chrome.dimension.left}px`;
+    labelEl.style.transform = chrome.dimension.transform;
     labelEl.style.display = "";
+  }
+
+  function positionSelectionLabel(labelEl: HTMLElement, rect: DOMRect, text: string, color: string) {
+    applyDimensionChromeLayout(labelEl, rect, text, color, syncedChromeLayout);
+  }
+
+  function setChromeLayout(layout: SelectionChromeLayout | null) {
+    syncedChromeLayout = layout;
+    if (!selectedElement || !shouldShowDimensionLabel()) return;
+    const rect = selectedElement.getBoundingClientRect();
+    applyDimensionChromeLayout(
+      selectionLabel,
+      rect,
+      formatLabel(selectedElement),
+      selectionColorForElement(selectedElement),
+      layout,
+    );
   }
 
   function positionBox(box: HTMLElement, rect: DOMRect, borderStyle: string, bgAlpha: string) {
@@ -2243,12 +2408,12 @@ export function createPicker(
   }
 
   function showSelection() {
-    if (!selectedElement) return;
+    if (!selectedElement || selectedElements.length === 0) return;
     // Don't show selection during canvas reorder drag
     if (reorderDragActive) return;
 
+    updateMultiSelectBoxes();
     const rect = selectedElement.getBoundingClientRect();
-    positionBox(selection, rect, "solid", SELECTION_FILL_ALPHA);
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
 
     // When suspended (e.g. text editing), only update the border position — no handles, badge, or indicators
@@ -2258,8 +2423,13 @@ export function createPicker(
       return;
     }
 
-    if (!selectionLabelHidden) {
-      positionSelectionLabel(selectionLabel, rect, formatLabel(selectedElement));
+    if (shouldShowDimensionLabel()) {
+      positionSelectionLabel(
+        selectionLabel,
+        rect,
+        formatLabel(selectedElement),
+        selectionColorForElement(selectedElement),
+      );
     } else {
       selectionLabel.style.display = "none";
     }
@@ -2306,27 +2476,32 @@ export function createPicker(
 
   // Lightweight position-only update for scroll/resize tracking
   function trackSelection() {
-    if (!selectedElement || reorderDrag?.active) return;
+    if (!selectedElement || selectedElements.length === 0 || reorderDrag?.active) return;
     const rect = selectedElement.getBoundingClientRect();
-    // Skip if nothing moved
-    if (
+    const primaryMoved = !(
       rect.top === lastSelRect.top &&
       rect.left === lastSelRect.left &&
       rect.width === lastSelRect.width &&
       rect.height === lastSelRect.height
-    ) return;
+    );
 
-    selection.style.top = `${rect.top}px`;
-    selection.style.left = `${rect.left}px`;
-    selection.style.width = `${rect.width}px`;
-    selection.style.height = `${rect.height}px`;
+    updateMultiSelectBoxes();
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
 
     if (suspended) return;
 
-    if (!selectionLabelHidden) {
-      positionSelectionLabel(selectionLabel, rect, formatLabel(selectedElement));
+    if (shouldShowDimensionLabel()) {
+      positionSelectionLabel(
+        selectionLabel,
+        rect,
+        formatLabel(selectedElement),
+        selectionColorForElement(selectedElement),
+      );
+    } else {
+      selectionLabel.style.display = "none";
     }
+
+    if (!primaryMoved && selectedElements.length === 1) return;
 
     if (!propertyEditMode) return;
 
@@ -2365,6 +2540,7 @@ export function createPicker(
     selectionLabel.style.display = "none";
     selection.style.pointerEvents = "none";
     selection.style.cursor = "";
+    hideMultiSelectBoxes();
     parentIndicator.style.display = "none";
     hidePinLines();
     cachedPinState = null;
@@ -2395,7 +2571,7 @@ export function createPicker(
     window.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     window.addEventListener("resize", scheduleTrack, { passive: true });
     resizeObserver = new ResizeObserver(scheduleTrack);
-    if (selectedElement) resizeObserver.observe(selectedElement);
+    observeSelectedElements();
     // Initial position update
     trackSelection();
   }
@@ -2433,7 +2609,7 @@ export function createPicker(
     hoveredElement = el;
     lastAltState = altKey;
 
-    if (el === selectedElement) {
+    if (selectedElements.includes(el)) {
       hideHighlight();
       hideSpacing();
       hideSiblingOutlines();
@@ -2470,11 +2646,7 @@ export function createPicker(
     // our shadow tree via getRootNode().
     const hoverShadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
     if (hoverShadowHit && hoverShadowHit.getRootNode() === shadowRoot) {
-      // Ignore hits on selection/highlight boxes — they're not interactive UI
-      const isPickerOverlay = hoverShadowHit === selection || hoverShadowHit === selectionLabel
-        || hoverShadowHit === highlight || hoverShadowHit === label
-        || hoverShadowHit === parentIndicator;
-      if (!isPickerOverlay) {
+      if (!isPickerChromeElement(hoverShadowHit)) {
         // Cursor is over Retune UI (toolbar, panel) — clear hover highlight
         if (hoveredElement) {
           hoveredElement = null;
@@ -2483,14 +2655,8 @@ export function createPicker(
         return;
       }
     }
-    // Temporarily hide selection box pointer events so elementFromPoint reaches page elements
-    const selPE = selection.style.pointerEvents;
-    selection.style.pointerEvents = "none";
-    const raw = document.elementFromPoint(e.clientX, e.clientY);
-    selection.style.pointerEvents = selPE;
-    if (!raw || isOverlayElement(raw)) return;
-    const el = resolveElement(raw);
-    if (!el || isOverlayElement(el)) return;
+    const el = pageElementAtPoint(e.clientX, e.clientY);
+    if (!el) return;
     if (el === hoveredElement) return;
 
     // If moving to an ancestor of the current hover target, debounce
@@ -2501,12 +2667,17 @@ export function createPicker(
       hoverTimer = setTimeout(() => {
         hoverTimer = null;
         // Re-check — cursor may have moved to a sibling by now
-        const current = document.elementFromPoint(e.clientX, e.clientY);
+        const current = pageElementAtPoint(e.clientX, e.clientY);
         if (current === el) applyHover(el, e.altKey);
       }, 50);
     } else {
       applyHover(el, e.altKey);
     }
+  }
+
+  /** Topmost page element at a point, excluding Retune overlay nodes. */
+  function pageElementAtPoint(x: number, y: number): Element | null {
+    return buildElementStack(x, y)[0] ?? null;
   }
 
   /** Build the element stack at a point, from deepest child to document body */
@@ -2526,20 +2697,49 @@ export function createPicker(
     return stack;
   }
 
+  function isPickerChromeElement(el: Element): boolean {
+    if (el === captureLayer) return true;
+    if (el === highlight || el === label || el === parentIndicator) return true;
+    if (el === selection || el === selectionLabel) {
+      return getComputedStyle(el).pointerEvents === "none";
+    }
+    return multiSelectPool.includes(el as HTMLDivElement)
+      || siblingOutlinePool.includes(el as HTMLDivElement);
+  }
+
+  function isRetuneOverlayEvent(e: Event): boolean {
+    const { clientX, clientY } = e as MouseEvent;
+    const shadowHit = shadowRoot.elementFromPoint(clientX, clientY);
+    if (!shadowHit || shadowHit.getRootNode() !== shadowRoot) return false;
+    if (isPickerChromeElement(shadowHit)) return false;
+    return getComputedStyle(shadowHit).pointerEvents !== "none";
+  }
+
+  /** Block pointer/mouse down from reaching page elements (prevents :active and focus). */
+  function blockPagePointerDown(e: Event) {
+    if (!active || suspended) return;
+    if (isRetuneOverlayEvent(e)) return;
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+  }
+
+  function blurPageFocus() {
+    const focused = document.activeElement;
+    if (
+      focused instanceof HTMLElement
+      && focused !== document.body
+      && focused !== document.documentElement
+      && !focused.closest("[data-retune-host]")
+      && !focused.hasAttribute("data-retune-host")
+    ) {
+      focused.blur();
+    }
+  }
+
   function handleClick(e: MouseEvent) {
     if (!active) return;
 
-    // Ignore clicks that originate from inside the overlay (panel buttons, inputs, dropdowns).
-    // Check 1: composedPath includes the shadow host (standard shadow DOM retargeting)
-    const path = e.composedPath();
-    const host = shadowRoot.host;
-    if (path.includes(host)) return;
-    // Check 2: the click point lands on an interactive overlay UI element inside the shadow root.
-    const shadowHit = shadowRoot.elementFromPoint(e.clientX, e.clientY);
-    if (shadowHit && shadowHit.getRootNode() === shadowRoot) {
-      const pe = getComputedStyle(shadowHit).pointerEvents;
-      if (pe !== "none") return;
-    }
+    if (isRetuneOverlayEvent(e)) return;
 
     // Block page element clicks if popover has unsaved changes (after overlay checks)
     if (callbacks.shouldBlockClick?.()) {
@@ -2584,28 +2784,48 @@ export function createPicker(
       // In comment mode: just call onSelect (no selection UI)
       hideHighlight();
       hoveredElement = null;
-      callbacks.onSelect(el);
+      callbacks.onSelect(el, { shiftKey: e.shiftKey, selectedElements: [el] });
       return;
     }
 
-    selectedElement = el;
-    selectionLabelHidden = false;
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver.observe(el);
+    const shiftKey = e.shiftKey;
+    if (shiftKey && selectedElements.length > 0) {
+      const existingIndex = selectedElements.indexOf(el);
+      if (existingIndex >= 0) {
+        selectedElements = selectedElements.filter((_, i) => i !== existingIndex);
+        if (selectedElements.length === 0) {
+          selectedElement = null;
+          selectionLabelHidden = false;
+          hideSelection();
+          hideHighlight();
+          hoveredElement = null;
+          notifySelect(el, true);
+          return;
+        }
+        selectedElement = selectedElements[selectedElements.length - 1];
+      } else if (selectedElements.length < MULTI_SELECT_POOL_SIZE + 1) {
+        selectedElements = [...selectedElements, el];
+        selectedElement = el;
+      } else {
+        return;
+      }
+    } else {
+      selectedElements = [el];
+      selectedElement = el;
     }
+
+    selectionLabelHidden = false;
+    observeSelectedElements();
     showSelection();
     hideHighlight();
     hoveredElement = null;
-    callbacks.onSelect(el);
+    blurPageFocus();
+    notifySelect(el, shiftKey);
   }
 
   function handleDblClick(e: MouseEvent) {
     if (!active || !selectedElement) return;
-    // Don't intercept double-clicks inside Retune's own UI (same check as handleClick)
-    const path = e.composedPath();
-    const host = shadowRoot.host;
-    if (path.includes(host)) return;
+    if (isRetuneOverlayEvent(e)) return;
     e.preventDefault();
     e.stopPropagation();
 
@@ -2615,16 +2835,7 @@ export function createPicker(
       reorderClickTimer = null;
     }
 
-    // Hide overlay elements so elementFromPoint returns the real page element
-    // (selection box with pointer-events:auto would intercept otherwise)
-    const selDisplay = selection.style.display;
-    selection.style.display = "none";
-    selectionLabel.style.display = "none";
-    hideHandles();
-    const deepest = document.elementFromPoint(e.clientX, e.clientY);
-    selection.style.display = selDisplay;
-    if (selectedElement) showSelection();
-
+    const deepest = pageElementAtPoint(e.clientX, e.clientY);
     callbacks.onDoubleClick?.(deepest || selectedElement);
   }
 
@@ -2642,6 +2853,10 @@ export function createPicker(
     if (e.key === "Alt" && hoveredElement && selectedElement) {
       applyHover(hoveredElement, true);
     }
+    // Shift surfaces focus rings on the last focused page element — clear it
+    if (e.key === "Shift") {
+      blurPageFocus();
+    }
   }
 
   function handleKeyUp(e: KeyboardEvent) {
@@ -2652,14 +2867,36 @@ export function createPicker(
     }
   }
 
-  // Global cursor override when Retune is active
+  // Global cursor + selection overrides when Retune is active
   const cursorStyle = document.createElement("style");
   cursorStyle.setAttribute("data-retune-cursor", "");
 
+  const ACTIVE_PAGE_STYLES = `
+    * { cursor: default !important; user-select: none !important; -webkit-user-select: none !important; }
+    *:focus, *:focus-visible { outline: none !important; }
+    html[data-retune-active] *:active {
+      transform: none !important;
+    }
+  `;
+  const SUSPENDED_PAGE_STYLES = `
+    * { user-select: none !important; -webkit-user-select: none !important; }
+    [contenteditable="true"] {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      cursor: text !important;
+    }
+  `;
+
   function activate() {
     active = true;
-    cursorStyle.textContent = "* { cursor: default !important; }";
+    document.documentElement.setAttribute("data-retune-active", "");
+    cursorStyle.textContent = ACTIVE_PAGE_STYLES;
     document.head.appendChild(cursorStyle);
+    captureLayer.style.display = "block";
+    captureLayer.addEventListener("pointerdown", blockPagePointerDown, true);
+    captureLayer.addEventListener("mousedown", blockPagePointerDown, true);
+    document.addEventListener("pointerdown", blockPagePointerDown, true);
+    document.addEventListener("mousedown", blockPagePointerDown, true);
     document.addEventListener("mousemove", handleMouseMove, true);
     document.addEventListener("click", handleClick, true);
     document.addEventListener("dblclick", handleDblClick, true);
@@ -2671,10 +2908,19 @@ export function createPicker(
   function deactivate() {
     active = false;
     propertyEditMode = false;
+    document.documentElement.removeAttribute("data-retune-active");
+    document.documentElement.removeAttribute("data-retune-suspended");
     cursorStyle.textContent = "";
     cursorStyle.remove();
+    captureLayer.style.display = "none";
+    captureLayer.removeEventListener("pointerdown", blockPagePointerDown, true);
+    captureLayer.removeEventListener("mousedown", blockPagePointerDown, true);
+    document.removeEventListener("pointerdown", blockPagePointerDown, true);
+    document.removeEventListener("mousedown", blockPagePointerDown, true);
     hoveredElement = null;
     selectedElement = null;
+    selectedElements = [];
+    syncedChromeLayout = null;
     selectionLabelHidden = false;
     elementStack = [];
     stackIndex = -1;
@@ -2692,6 +2938,8 @@ export function createPicker(
 
   function clearSelection() {
     selectedElement = null;
+    selectedElements = [];
+    syncedChromeLayout = null;
     propertyEditMode = false;
     selectionLabelHidden = false;
     elementStack = [];
@@ -2702,10 +2950,12 @@ export function createPicker(
 
   function destroy() {
     deactivate();
+    captureLayer.remove();
     highlight.remove();
     label.remove();
     selection.remove();
     selectionLabel.remove();
+    for (const box of multiSelectPool) box.remove();
     spacingContainer.remove();
     parentIndicator.remove();
     for (const line of Object.values(pinLines)) line.remove();
@@ -2716,15 +2966,13 @@ export function createPicker(
   /** Programmatically select an element (e.g. from the element tree) */
   function selectElement(el: Element) {
     selectedElement = el;
+    selectedElements = [el];
     selectionLabelHidden = false;
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver.observe(el);
-    }
+    observeSelectedElements();
     showSelection();
     hideHighlight();
     hoveredElement = null;
-    callbacks.onSelect(el);
+    notifySelect(el, false);
   }
 
   /** Programmatically show hover highlight on an element */
@@ -2738,6 +2986,8 @@ export function createPicker(
 
   function suspend() {
     suspended = true;
+    document.documentElement.setAttribute("data-retune-suspended", "");
+    captureLayer.style.display = "none";
     hideHighlight();
     // Keep selection border visible but hide handles, badge, parent indicator
     selectionLabel.style.display = "none";
@@ -2746,12 +2996,14 @@ export function createPicker(
     parentIndicator.style.display = "none";
     hidePinLines();
     hideHandles();
-    // Remove cursor override to allow text cursor during editing
-    cursorStyle.textContent = "";
+    // Allow text selection only on the inline-edited element
+    cursorStyle.textContent = SUSPENDED_PAGE_STYLES;
   }
   function resume() {
     suspended = false;
-    cursorStyle.textContent = "* { cursor: default !important; }";
+    document.documentElement.removeAttribute("data-retune-suspended");
+    cursorStyle.textContent = ACTIVE_PAGE_STYLES;
+    captureLayer.style.display = "block";
     if (selectedElement) showSelection();
   }
 
@@ -2792,5 +3044,5 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode };
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setChromeLayout };
 }

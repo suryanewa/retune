@@ -58,6 +58,7 @@ function isRetuneElement(el: Element): boolean {
   if (el.hasAttribute("data-retune-selection")) return true;
   if (el.hasAttribute("data-retune-label")) return true;
   if (el.hasAttribute("data-retune-selection-label")) return true;
+  if (el.hasAttribute("data-retune-multi-selection")) return true;
   return false;
 }
 

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconSquareBehindSquare6 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconSquareBehindSquare6";
 import { IconCheckCircle2 } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCheckCircle2";
 import { IconPencil } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconPencil";
 import { Tooltip } from "./tooltip";
+import { computeSelectionChromeLayout, type SelectionChromeLayout } from "../selector/selection-chrome-layout";
 
 function IconComment({ size = 18 }: { size?: number }) {
   return (
@@ -17,57 +18,87 @@ function IconComment({ size = 18 }: { size?: number }) {
 }
 
 export interface SelectionActionBarProps {
-  anchorElement: Element | null;
+  anchorElements: Element[];
+  /** Measured width of the dimension badge — keeps row layout in sync with the picker. */
+  dimensionLabelWidth?: number;
   editMode: boolean;
   copied: boolean;
   onComment: () => void;
   onCopy: () => void;
   onToggleEdit: () => void;
+  onChromeLayout?: (layout: SelectionChromeLayout) => void;
+}
+
+function getAnchorRect(elements: Element[]) {
+  const rects = elements.map((el) => el.getBoundingClientRect());
+  const top = Math.min(...rects.map((r) => r.top));
+  const left = Math.min(...rects.map((r) => r.left));
+  const right = Math.max(...rects.map((r) => r.right));
+  const bottom = Math.max(...rects.map((r) => r.bottom));
+  return { top, left, right, bottom, centerX: (left + right) / 2 };
 }
 
 export function SelectionActionBar({
-  anchorElement,
+  anchorElements,
+  dimensionLabelWidth,
   editMode,
   copied,
   onComment,
   onCopy,
   onToggleEdit,
+  onChromeLayout,
 }: SelectionActionBarProps) {
+  const barRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   useEffect(() => {
-    if (!anchorElement) {
+    if (anchorElements.length === 0) {
       setPos(null);
       return;
     }
 
-    const barHeight = 36;
     const gap = 8;
+    const multiSelect = anchorElements.length > 1;
 
     function update() {
-      const rect = anchorElement!.getBoundingClientRect();
-      const viewportH = window.innerHeight;
-      const below = rect.bottom + gap + barHeight < viewportH;
-      const top = below ? rect.bottom + gap : rect.top - gap - barHeight;
-      setPos({ top, left: rect.left + rect.width / 2 });
+      const anchor = getAnchorRect(anchorElements);
+
+      if (multiSelect) {
+        setPos({ top: anchor.bottom + gap, left: anchor.centerX });
+        return;
+      }
+
+      const el = anchorElements[0];
+      const rect = el.getBoundingClientRect();
+      const barWidth = barRef.current?.offsetWidth;
+      const layout = computeSelectionChromeLayout(
+        rect,
+        { width: window.innerWidth, height: window.innerHeight },
+        dimensionLabelWidth,
+        barWidth,
+      );
+      setPos(layout.actionBar);
+      onChromeLayout?.(layout);
     }
 
     update();
     document.addEventListener("scroll", update, true);
     window.addEventListener("resize", update);
     const observer = new ResizeObserver(update);
-    observer.observe(anchorElement);
+    for (const el of anchorElements) observer.observe(el);
+    if (barRef.current) observer.observe(barRef.current);
     return () => {
       document.removeEventListener("scroll", update, true);
       window.removeEventListener("resize", update);
       observer.disconnect();
     };
-  }, [anchorElement]);
+  }, [anchorElements, dimensionLabelWidth, onChromeLayout]);
 
-  if (!anchorElement || !pos) return null;
+  if (anchorElements.length === 0 || !pos) return null;
 
   return (
     <div
+      ref={barRef}
       className="retune-selection-action-bar"
       style={{ top: pos.top, left: pos.left }}
       onPointerDown={(e) => e.stopPropagation()}

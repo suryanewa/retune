@@ -15,7 +15,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import type { RetuneConfig, InspectedElement } from "../types";
 import { mountOverlay, unmountOverlay } from "./mount";
-import { createPicker } from "../selector/picker";
+import { createPicker, formatSelectionLabel } from "../selector/picker";
+import { measureDimensionLabelWidth, type SelectionChromeLayout } from "../selector/selection-chrome-layout";
 import { PreviewBridge } from "../ui/preview-bridge";
 import { PreviewBridgeContext } from "../ui/preview-bridge-context";
 import { LivePreviewEngine } from "../engine/live-preview";
@@ -835,6 +836,7 @@ function RetuneInner(props: RetuneConfig) {
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [mode, setMode] = useState<"edit" | "comment">("edit");
   const [selectedElement, setSelectedElement] = useState<InspectedElement | null>(null);
+  const [selectedElements, setSelectedElements] = useState<InspectedElement[]>([]);
   const [changeCount, setChangeCount] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
@@ -999,6 +1001,8 @@ function RetuneInner(props: RetuneConfig) {
   const bridgeRef = useRef<BridgeClient | null>(null);
   const selectedElementRef = useRef<InspectedElement | null>(null);
   selectedElementRef.current = selectedElement;
+  const selectedElementsRef = useRef<InspectedElement[]>([]);
+  selectedElementsRef.current = selectedElements;
   const syncTrackerStateRef = useRef<() => void>(() => {});
   const refreshSelectedElementRef = useRef<() => void>(() => {});
 
@@ -1122,7 +1126,9 @@ function RetuneInner(props: RetuneConfig) {
           // Deselect — DOM nodes may have been restructured by React reconciliation
           // after the source code change, making the old selection reference unreliable
           setSelectedElement(null);
+          setSelectedElements([]);
           selectedElementRef.current = null;
+          selectedElementsRef.current = [];
           pickerRef.current?.clearSelection();
           syncTrackerStateRef.current();
           setChangeRevision((r) => r + 1);
@@ -1309,7 +1315,19 @@ function RetuneInner(props: RetuneConfig) {
     const picker = createPicker(mount.root, {
       onHover: () => {},
       shouldBlockClick: () => shouldBlockForPopoverRef.current(),
-      onSelect: (element) => {
+      onSelect: (element, meta) => {
+        const selectedEls = meta?.selectedElements ?? [element];
+
+        if (selectedEls.length === 0) {
+          setSelectedElement(null);
+          setSelectedElements([]);
+          selectedElementRef.current = null;
+          selectedElementsRef.current = [];
+          setEditPanelOpen(false);
+          pickerRef.current?.setPropertyEditMode(false);
+          return;
+        }
+
         // In comment mode, create a comment instead of selecting for editing
         if (modeRef.current === "comment") {
           // Skip if area drag just ended or popover is already open
@@ -1367,6 +1385,7 @@ function RetuneInner(props: RetuneConfig) {
 
         setEditPanelOpen(false);
         pickerRef.current?.setPropertyEditMode(false);
+        pickerRef.current?.setChromeLayout(null);
 
         // Apply scoped styles if a class selector is the default (skip for parent-scoped selectors)
         const isParentScoped = newActiveSelector && newActiveSelector.includes(' ');
@@ -1393,7 +1412,10 @@ function RetuneInner(props: RetuneConfig) {
           }
         }
 
+        const multiInspected = selectedEls.map((el) => (el === element ? inspected : inspectElement(el)));
+
         setSelectedElement(inspected);
+        setSelectedElements(multiInspected);
         if (!manifestLoadedRef.current && inspected.reactProps) tryLoadManifest();
         setSettingsOpen(false);
         setSettingsVisible(false);
@@ -1401,6 +1423,7 @@ function RetuneInner(props: RetuneConfig) {
         // Eagerly update the ref so the MCP bridge handler sees the value
         // immediately, without waiting for React to re-render.
         selectedElementRef.current = inspected;
+        selectedElementsRef.current = multiInspected;
         tracker.track(
           inspected.selector,
           inspected.tagName,
@@ -1681,7 +1704,9 @@ function RetuneInner(props: RetuneConfig) {
     setActive(false);
     setEditPanelOpen(false);
     setSelectedElement(null);
+    setSelectedElements([]);
     selectedElementRef.current = null;
+    selectedElementsRef.current = [];
     setSettingsOpen(false);
     setSettingsVisible(false);
     setSettingsExiting(false);
@@ -1694,7 +1719,9 @@ function RetuneInner(props: RetuneConfig) {
         if (forcedStateRef.current) clearForcedInlineStyles();
         setEditPanelOpen(false);
         setSelectedElement(null);
+        setSelectedElements([]);
         selectedElementRef.current = null;
+        selectedElementsRef.current = [];
         setSettingsOpen(false);
         setSettingsVisible(false);
         setSettingsExiting(false);
@@ -1822,7 +1849,9 @@ function RetuneInner(props: RetuneConfig) {
     setEditPanelOpen((prev) => {
       const next = !prev;
       pickerRef.current?.setPropertyEditMode(next);
-      if (!next) {
+      if (next) {
+        pickerRef.current?.setChromeLayout(null);
+      } else {
         pickerRef.current?.hideScopeHighlights();
       }
       return next;
@@ -1841,7 +1870,9 @@ function RetuneInner(props: RetuneConfig) {
     pickerRef.current?.setPropertyEditMode(false);
     pickerRef.current?.clearSelection();
     setSelectedElement(null);
+    setSelectedElements([]);
     selectedElementRef.current = null;
+    selectedElementsRef.current = [];
   }, [buildElementCommentDraft]);
 
   useEffect(() => {
@@ -1907,6 +1938,8 @@ function RetuneInner(props: RetuneConfig) {
         e.preventDefault();
         setMode("comment");
         setSelectedElement(null);
+        setSelectedElements([]);
+        selectedElementsRef.current = [];
         pickerRef.current?.setCommentMode(true);
       }
     };
@@ -2520,7 +2553,9 @@ function RetuneInner(props: RetuneConfig) {
     el.element.remove();
 
     setSelectedElement(null);
+    setSelectedElements([]);
     selectedElementRef.current = null;
+    selectedElementsRef.current = [];
     pickerRef.current?.refreshSelection();
     syncTrackerStateRef.current();
     setChangeRevision((r) => r + 1);
@@ -2722,7 +2757,9 @@ function RetuneInner(props: RetuneConfig) {
         });
         entry.element.remove();
         setSelectedElement(null);
+        setSelectedElements([]);
         selectedElementRef.current = null;
+        selectedElementsRef.current = [];
         pickerRef.current?.refreshSelection();
       }
       syncTrackerStateRef.current();
@@ -3925,10 +3962,24 @@ function RetuneInner(props: RetuneConfig) {
   }, [fidelity]);
 
   const handleSelectionCopy = useCallback(() => {
-    const el = selectedElementRef.current;
-    if (!el) return;
-    const selector = activeSelectorRef.current ?? el.selector;
-    navigator.clipboard.writeText(formatElementInfo(el, { selector }));
+    const primary = selectedElementRef.current;
+    const elements = selectedElementsRef.current.length > 0
+      ? selectedElementsRef.current
+      : primary
+        ? [primary]
+        : [];
+    if (elements.length === 0) return;
+
+    const blocks = elements.map((el, index) => {
+      const selector = el === primary ? (activeSelectorRef.current ?? el.selector) : el.selector;
+      const info = formatElementInfo(el, { selector });
+      return elements.length > 1 ? `Element ${index + 1}:\n\n${info}` : info;
+    });
+    const text = elements.length > 1
+      ? `${elements.length} selected elements from Retune:\n\n${blocks.join("\n\n---\n\n")}`
+      : blocks[0];
+
+    navigator.clipboard.writeText(text);
     setCopied(true);
     if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
@@ -3937,6 +3988,21 @@ function RetuneInner(props: RetuneConfig) {
   const handleClose = useCallback(() => {
     deactivateOverlay();
   }, [deactivateOverlay]);
+
+  const selectionActionBarAnchors = useMemo(
+    () => (selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : []).map((el) => el.element),
+    [selectedElements, selectedElement],
+  );
+
+  const selectionChromeLabelWidth = useMemo(() => {
+    if (!selectedElement || selectedElements.length > 1) return undefined;
+    const { width, height } = selectedElement.position;
+    return measureDimensionLabelWidth(formatSelectionLabel(width, height));
+  }, [selectedElement, selectedElements]);
+
+  const handleChromeLayout = useCallback((layout: SelectionChromeLayout) => {
+    pickerRef.current?.setChromeLayout(layout);
+  }, []);
 
   // Expose global API for external agents (MCP, Claude Code, Cursor, etc.)
   useEffect(() => {
@@ -4044,7 +4110,7 @@ function RetuneInner(props: RetuneConfig) {
           <Tooltip content="Comment mode" shortcut="C" side="top">
             <button
               className={`retune-toolbar-btn${mode === "comment" ? " active" : ""}`}
-              onClick={() => { setMode("comment"); setSelectedElement(null); }}
+              onClick={() => { setMode("comment"); setSelectedElement(null); setSelectedElements([]); selectedElementsRef.current = []; }}
             >
               <IconComment size={20} />
             </button>
@@ -4109,12 +4175,14 @@ function RetuneInner(props: RetuneConfig) {
 
       {active && selectedElement && mode === "edit" && !editPanelOpen && !settingsOpen && !toolbarDragging && (
         <SelectionActionBar
-          anchorElement={selectedElement.element}
+          anchorElements={selectionActionBarAnchors}
+          dimensionLabelWidth={selectionChromeLabelWidth}
           editMode={editPanelOpen}
           copied={copied}
           onComment={handleSelectionComment}
           onCopy={handleSelectionCopy}
           onToggleEdit={toggleSelectionEditMode}
+          onChromeLayout={handleChromeLayout}
         />
       )}
 
