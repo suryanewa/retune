@@ -35,6 +35,25 @@ export const SELECTION_COLORS = [
 
 const MULTI_SELECT_POOL_SIZE = 20;
 
+/** Padding around selected element bounds for click-outside deselect. */
+export const SELECTION_CLICK_PAD = 8;
+
+/** True when (x, y) lies inside any selected element's bounds (plus pad). */
+export function isPointInsideSelectionBounds(
+  x: number,
+  y: number,
+  elements: Element[],
+  pad = SELECTION_CLICK_PAD,
+): boolean {
+  for (const el of elements) {
+    const r = el.getBoundingClientRect();
+    if (x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface SelectEventMeta {
   shiftKey: boolean;
   selectedElements: Element[];
@@ -43,6 +62,8 @@ export interface SelectEventMeta {
 export interface PickerCallbacks {
   onHover: (element: Element, rect: DOMRect) => void;
   onSelect: (element: Element, meta?: SelectEventMeta) => void;
+  /** Called when selection is cleared without deactivating the overlay. */
+  onDeselect?: () => void;
   onCancel: () => void;
   /** If provided, called before processing a click. Return true to block the click entirely. */
   shouldBlockClick?: () => boolean;
@@ -2777,8 +2798,36 @@ export function createPicker(
       lastClickPos = { x, y };
     }
 
-    if (elementStack.length === 0) return;
+    if (elementStack.length === 0) {
+      if (!commentMode && selectedElements.length > 0 && !e.shiftKey) {
+        deselect();
+      }
+      return;
+    }
     const el = elementStack[stackIndex];
+
+    // Click outside selected bounds → deselect, or select a different element under the cursor
+    if (!commentMode && selectedElements.length > 0 && !e.shiftKey) {
+      if (!isPointInsideSelectionBounds(x, y, selectedElements)) {
+        const targetIsSelected = selectedElements.includes(el);
+        clearSelection();
+        hideHighlight();
+        hoveredElement = null;
+        selectionLabelHidden = false;
+
+        if (!targetIsSelected) {
+          selectedElements = [el];
+          selectedElement = el;
+          observeSelectedElements();
+          showSelection();
+          blurPageFocus();
+          notifySelect(el, false);
+        } else {
+          callbacks.onDeselect?.();
+        }
+        return;
+      }
+    }
 
     if (commentMode) {
       // In comment mode: just call onSelect (no selection UI)
@@ -2847,6 +2896,14 @@ export function createPicker(
       if (commentMode) return; // In comment mode, Escape exits comment mode (handled by Retune.tsx)
       e.preventDefault();
       e.stopPropagation();
+      if (selectedElements.length > 0) {
+        if (e.shiftKey) {
+          deselect();
+        } else {
+          deselectMostRecent();
+        }
+        return;
+      }
       callbacks.onCancel();
     }
     // Alt/Option pressed — show spacing if hovering
@@ -2948,6 +3005,29 @@ export function createPicker(
     hideScopeHighlights();
   }
 
+  function deselect() {
+    clearSelection();
+    hideHighlight();
+    hoveredElement = null;
+    callbacks.onDeselect?.();
+  }
+
+  /** Remove the most recently shift-selected element; clear all when only one remains. */
+  function deselectMostRecent() {
+    if (selectedElements.length === 0) return;
+    if (selectedElements.length === 1) {
+      deselect();
+      return;
+    }
+    selectedElements = selectedElements.slice(0, -1);
+    selectedElement = selectedElements[selectedElements.length - 1];
+    selectionLabelHidden = false;
+    observeSelectedElements();
+    showSelection();
+    blurPageFocus();
+    notifySelect(selectedElement!, false);
+  }
+
   function destroy() {
     deactivate();
     captureLayer.remove();
@@ -3044,5 +3124,5 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setChromeLayout };
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, deselect, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setChromeLayout };
 }

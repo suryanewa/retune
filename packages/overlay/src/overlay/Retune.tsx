@@ -1652,6 +1652,16 @@ function RetuneInner(props: RetuneConfig) {
       onCanvasReparent: (element: Element, newParent: Element, insertIndex: number) => {
         handleTreeReparent(element, newParent, insertIndex);
       },
+      onDeselect: () => {
+        if (forcedStateRef.current) clearForcedInlineStyles();
+        setEditPanelOpen(false);
+        setSelectedElement(null);
+        setSelectedElements([]);
+        selectedElementRef.current = null;
+        selectedElementsRef.current = [];
+        pickerRef.current?.setPropertyEditMode(false);
+        pickerRef.current?.setChromeLayout(null);
+      },
       onCancel: () => {
         deactivateOverlay();
       },
@@ -3989,6 +3999,10 @@ function RetuneInner(props: RetuneConfig) {
     deactivateOverlay();
   }, [deactivateOverlay]);
 
+  const handleSelectionDeselect = useCallback(() => {
+    pickerRef.current?.deselect();
+  }, []);
+
   const selectionActionBarAnchors = useMemo(
     () => (selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : []).map((el) => el.element),
     [selectedElements, selectedElement],
@@ -4182,6 +4196,7 @@ function RetuneInner(props: RetuneConfig) {
           onComment={handleSelectionComment}
           onCopy={handleSelectionCopy}
           onToggleEdit={toggleSelectionEditMode}
+          onDeselect={handleSelectionDeselect}
           onChromeLayout={handleChromeLayout}
         />
       )}

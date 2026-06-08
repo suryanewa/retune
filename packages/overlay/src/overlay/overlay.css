@@ -3514,6 +3514,13 @@ input, textarea, [contenteditable] {
   pointer-events: none;
 }
 
+.retune-selection-action-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--retune-border);
+  flex-shrink: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .retune-toolbar,
   .retune-toolbar-collapse-btn,

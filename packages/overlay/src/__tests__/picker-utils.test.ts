@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { computeCanvasDropIndex, isEffectiveNoOp, formatSelectionLabel, SELECTION_COLORS } from "../selector/picker";
+import {
+  computeCanvasDropIndex,
+  isEffectiveNoOp,
+  formatSelectionLabel,
+  SELECTION_COLORS,
+  isPointInsideSelectionBounds,
+  SELECTION_CLICK_PAD,
+} from "../selector/picker";
 
 // ── DOMRect polyfill for Node ──
 
@@ -158,5 +165,36 @@ describe("SELECTION_COLORS", () => {
     expect(SELECTION_COLORS.length).toBeGreaterThanOrEqual(2);
     expect(new Set(SELECTION_COLORS).size).toBe(SELECTION_COLORS.length);
     expect(SELECTION_COLORS[0]).toBe("#0D99FF");
+  });
+});
+
+describe("isPointInsideSelectionBounds", () => {
+  function mockEl(rect: { left: number; top: number; width: number; height: number }): Element {
+    return {
+      getBoundingClientRect: () => new DOMRect(rect.left, rect.top, rect.width, rect.height),
+    } as unknown as Element;
+  }
+
+  it("returns true for points inside an element", () => {
+    const el = mockEl({ left: 100, top: 100, width: 20, height: 20 });
+    expect(isPointInsideSelectionBounds(110, 110, [el])).toBe(true);
+  });
+
+  it("returns true within padding of bounds", () => {
+    const el = mockEl({ left: 100, top: 100, width: 20, height: 20 });
+    expect(isPointInsideSelectionBounds(100 - SELECTION_CLICK_PAD, 110, [el])).toBe(true);
+  });
+
+  it("returns false for points clearly outside", () => {
+    const el = mockEl({ left: 100, top: 100, width: 20, height: 20 });
+    expect(isPointInsideSelectionBounds(50, 50, [el])).toBe(false);
+  });
+
+  it("checks union of multiple selected elements", () => {
+    const a = mockEl({ left: 0, top: 0, width: 10, height: 10 });
+    const b = mockEl({ left: 100, top: 100, width: 10, height: 10 });
+    expect(isPointInsideSelectionBounds(5, 5, [a, b])).toBe(true);
+    expect(isPointInsideSelectionBounds(105, 105, [a, b])).toBe(true);
+    expect(isPointInsideSelectionBounds(50, 50, [a, b])).toBe(false);
   });
 });
