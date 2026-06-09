@@ -751,6 +751,228 @@ function createInlinePlaceholderSpan(): HTMLSpanElement {
   return span;
 }
 
+function findPrecedingMention(range: Range): { mention: HTMLElement; trailingTextNode?: Text; offsetInTrailing?: number } | null {
+  let node: Node | null = range.startContainer;
+  let offset = range.startOffset;
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    const textNode = node as Text;
+    const textContent = textNode.textContent ?? "";
+    const textBeforeCaret = textContent.slice(0, offset);
+    if (/[^\s\u200b\u00a0]/.test(textBeforeCaret)) {
+      return null;
+    }
+    const prev = textNode.previousSibling;
+    if (prev instanceof HTMLElement && prev.dataset.mention === "true") {
+      return { mention: prev, trailingTextNode: textNode, offsetInTrailing: offset };
+    }
+    if (textContent.replace(/[\s\u200b\u00a0]/g, "") === "") {
+      let sib = textNode.previousSibling;
+      while (sib && sib.nodeType === Node.TEXT_NODE && (sib.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+        sib = sib.previousSibling;
+      }
+      if (sib instanceof HTMLElement && sib.dataset.mention === "true") {
+        return { mention: sib, trailingTextNode: textNode, offsetInTrailing: offset };
+      }
+    }
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const parent = node as HTMLElement;
+    if (offset > 0) {
+      const prev = parent.childNodes[offset - 1];
+      if (prev instanceof HTMLElement && prev.dataset.mention === "true") {
+        return { mention: prev };
+      }
+      if (prev.nodeType === Node.TEXT_NODE && (prev.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+        let prevSib: Node | null = prev.previousSibling;
+        while (prevSib && prevSib.nodeType === Node.TEXT_NODE && (prevSib.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+          prevSib = prevSib.previousSibling;
+        }
+        if (prevSib instanceof HTMLElement && prevSib.dataset.mention === "true") {
+          return { mention: prevSib };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function findSucceedingMention(range: Range): { mention: HTMLElement; leadingTextNode?: Text; offsetInLeading?: number } | null {
+  let node: Node | null = range.startContainer;
+  let offset = range.startOffset;
+
+  if (node.nodeType === Node.TEXT_NODE) {
+    const textNode = node as Text;
+    const textContent = textNode.textContent ?? "";
+    const textAfterCaret = textContent.slice(offset);
+    if (/[^\s\u200b\u00a0]/.test(textAfterCaret)) {
+      return null;
+    }
+    const next = textNode.nextSibling;
+    if (next instanceof HTMLElement && next.dataset.mention === "true") {
+      return { mention: next, leadingTextNode: textNode, offsetInLeading: offset };
+    }
+    if (textContent.replace(/[\s\u200b\u00a0]/g, "") === "") {
+      let sib = textNode.nextSibling;
+      while (sib && sib.nodeType === Node.TEXT_NODE && (sib.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+        sib = sib.nextSibling;
+      }
+      if (sib instanceof HTMLElement && sib.dataset.mention === "true") {
+        return { mention: sib, leadingTextNode: textNode, offsetInLeading: offset };
+      }
+    }
+  } else if (node.nodeType === Node.ELEMENT_NODE) {
+    const parent = node as HTMLElement;
+    if (offset < parent.childNodes.length) {
+      const next = parent.childNodes[offset];
+      if (next instanceof HTMLElement && next.dataset.mention === "true") {
+        return { mention: next };
+      }
+      if (next.nodeType === Node.TEXT_NODE && (next.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+        let nextSib: Node | null = next.nextSibling;
+        while (nextSib && nextSib.nodeType === Node.TEXT_NODE && (nextSib.textContent ?? "").replace(/[\s\u200b\u00a0]/g, "") === "") {
+          nextSib = nextSib.nextSibling;
+        }
+        if (nextSib instanceof HTMLElement && nextSib.dataset.mention === "true") {
+          return { mention: nextSib };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function deletePrecedingMention(
+  editor: HTMLElement,
+  found: { mention: HTMLElement; trailingTextNode?: Text; offsetInTrailing?: number }
+) {
+  const mention = found.mention;
+  const prevSibling = mention.previousSibling;
+  const nextSibling = mention.nextSibling;
+
+  let caretNode: Node;
+  let caretOffset: number;
+
+  if (prevSibling && prevSibling.parentNode) {
+    if (prevSibling.nodeType === Node.TEXT_NODE) {
+      const prevText = prevSibling as Text;
+      const originalText = prevText.textContent ?? "";
+      prevText.textContent = originalText.replace(/[\s\u200b\u00a0]+$/g, "");
+      caretNode = prevSibling;
+      caretOffset = prevText.textContent.length;
+    } else {
+      const textNode = document.createTextNode("");
+      editor.insertBefore(textNode, mention);
+      caretNode = textNode;
+      caretOffset = 0;
+    }
+  } else if (nextSibling && nextSibling.parentNode) {
+    if (nextSibling.nodeType === Node.TEXT_NODE) {
+      caretNode = nextSibling;
+      caretOffset = 0;
+    } else {
+      const textNode = document.createTextNode("");
+      editor.insertBefore(textNode, nextSibling);
+      caretNode = textNode;
+      caretOffset = 0;
+    }
+  } else {
+    const textNode = document.createTextNode("");
+    editor.appendChild(textNode);
+    caretNode = textNode;
+    caretOffset = 0;
+  }
+
+  mention.remove();
+
+  if (found.trailingTextNode && found.trailingTextNode.parentNode) {
+    const textNode = found.trailingTextNode;
+    const offset = found.offsetInTrailing ?? 0;
+    const originalText = textNode.textContent ?? "";
+    textNode.textContent = originalText.slice(offset).replace(/^[\s\u200b\u00a0]+/g, "");
+    if (textNode.textContent === "" && textNode !== caretNode) {
+      textNode.remove();
+    }
+  }
+
+  normalizeCommentEditor(editor);
+
+  const range = document.createRange();
+  if (caretNode.parentNode) {
+    const finalOffset = Math.min(caretOffset, (caretNode.textContent ?? "").length);
+    range.setStart(caretNode, finalOffset);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+}
+
+function deleteSucceedingMention(
+  editor: HTMLElement,
+  found: { mention: HTMLElement; leadingTextNode?: Text; offsetInLeading?: number }
+) {
+  const mention = found.mention;
+  const prevSibling = mention.previousSibling;
+  const nextSibling = mention.nextSibling;
+
+  let caretNode: Node;
+  let caretOffset: number;
+
+  if (prevSibling && prevSibling.parentNode) {
+    if (prevSibling.nodeType === Node.TEXT_NODE) {
+      caretNode = prevSibling;
+      caretOffset = (prevSibling.textContent ?? "").length;
+    } else {
+      const textNode = document.createTextNode("");
+      editor.insertBefore(textNode, mention);
+      caretNode = textNode;
+      caretOffset = 0;
+    }
+  } else if (nextSibling && nextSibling.parentNode) {
+    if (nextSibling.nodeType === Node.TEXT_NODE) {
+      const nextText = nextSibling as Text;
+      const originalText = nextText.textContent ?? "";
+      nextText.textContent = originalText.replace(/^[\s\u200b\u00a0]+/g, "");
+      caretNode = nextSibling;
+      caretOffset = 0;
+    } else {
+      const textNode = document.createTextNode("");
+      editor.insertBefore(textNode, nextSibling);
+      caretNode = textNode;
+      caretOffset = 0;
+    }
+  } else {
+    const textNode = document.createTextNode("");
+    editor.appendChild(textNode);
+    caretNode = textNode;
+    caretOffset = 0;
+  }
+
+  mention.remove();
+
+  if (found.leadingTextNode && found.leadingTextNode.parentNode) {
+    const textNode = found.leadingTextNode;
+    const offset = found.offsetInLeading ?? 0;
+    const originalText = textNode.textContent ?? "";
+    textNode.textContent = originalText.slice(0, offset).replace(/[\s\u200b\u00a0]+$/g, "");
+    if (textNode.textContent === "" && textNode !== caretNode) {
+      textNode.remove();
+    }
+  }
+
+  normalizeCommentEditor(editor);
+
+  const range = document.createRange();
+  if (caretNode.parentNode) {
+    const finalOffset = Math.min(caretOffset, (caretNode.textContent ?? "").length);
+    range.setStart(caretNode, finalOffset);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+  }
+}
+
 const CARET_ANCHOR = "\u200b";
 const INSERTION_SPACE = " \u200b";
 
@@ -1201,6 +1423,31 @@ function CommentPopover({
       removeInlinePlaceholder(editor);
       placeCaretAtEditorEnd(editor);
     }
+
+    if (editor && (e.key === "Backspace" || e.key === "Delete")) {
+      const sel = window.getSelection();
+      if (sel && sel.isCollapsed && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        if (e.key === "Backspace") {
+          const found = findPrecedingMention(range);
+          if (found) {
+            e.preventDefault();
+            deletePrecedingMention(editor, found);
+            syncFromEditor();
+            return;
+          }
+        } else {
+          const found = findSucceedingMention(range);
+          if (found) {
+            e.preventDefault();
+            deleteSucceedingMention(editor, found);
+            syncFromEditor();
+            return;
+          }
+        }
+      }
+    }
+
     if (e.key === "Enter") {
       e.preventDefault();
       handleSubmit();
