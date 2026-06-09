@@ -3470,12 +3470,6 @@ input, textarea, [contenteditable] {
   line-height: 1.4;
   white-space: nowrap;
 }
-.retune-comment-mention + .retune-comment-mention,
-.retune-comment-mention + .retune-comment-inline-placeholder,
-.retune-comment-mention + .retune-comment-user-text,
-.retune-comment-user-text + .retune-comment-mention {
-  margin-left: 0.25em;
-}
 .retune-comment-inline-placeholder {
   color: var(--retune-text-tertiary);
   font-size: 13px;

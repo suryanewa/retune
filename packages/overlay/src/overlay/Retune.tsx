@@ -752,6 +752,11 @@ function createInlinePlaceholderSpan(): HTMLSpanElement {
 }
 
 const CARET_ANCHOR = "\u200b";
+const INSERTION_SPACE = " \u200b";
+
+function normalizeEditorText(text: string): string {
+  return text.replace(/[ \t\r\n\f\v]+/g, " ");
+}
 
 function hasVisibleText(text: string | null | undefined): boolean {
   return !!text?.replace(/[\s\u200b]/g, "");
@@ -795,11 +800,50 @@ function removeInlinePlaceholder(editor: HTMLElement) {
   editor.querySelector('[data-placeholder="true"]')?.remove();
 }
 
-/** Strip whitespace-only text nodes — spacing is CSS-only between mentions and draft tail. */
+function unwrapUserTextSpans(editor: HTMLElement) {
+  for (const span of [...editor.querySelectorAll(".retune-comment-user-text")]) {
+    span.replaceWith(document.createTextNode(span.textContent?.replace(/\u200b/g, "") ?? ""));
+  }
+}
+
+/** Keep contenteditable output as inline mention spans plus text nodes. */
 function normalizeCommentEditor(editor: HTMLElement) {
+  unwrapUserTextSpans(editor);
   for (const node of [...editor.childNodes]) {
-    if (node.nodeType === Node.TEXT_NODE && !node.textContent?.replace(/\s/g, "")) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const normalized = normalizeEditorText(node.textContent ?? "");
+      if (node.textContent !== normalized) {
+        node.textContent = normalized;
+      }
+      continue;
+    }
+    if (node.nodeName === "BR") {
       node.remove();
+      continue;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      const isRetuneInline =
+        el.dataset.mention === "true"
+        || el.dataset.placeholder === "true"
+        || el.classList.contains("retune-comment-user-text");
+      if (!isRetuneInline && !hasVisibleText(el.textContent)) {
+        el.remove();
+      }
+    }
+  }
+
+  while (editor.firstChild?.nodeType === Node.TEXT_NODE && !hasVisibleText(editor.firstChild.textContent)) {
+    editor.firstChild.remove();
+  }
+
+  editor.normalize();
+  for (const node of [...editor.childNodes]) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const normalized = normalizeEditorText(node.textContent ?? "");
+      if (node.textContent !== normalized) {
+        node.textContent = normalized;
+      }
     }
   }
 }
@@ -819,7 +863,7 @@ function normalizeUserTextNodes(editor: HTMLElement) {
       break;
     }
     if (!seenMention) continue;
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.replace(/\s/g, "")) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.replace(/[\s\u200b]/g, "")) {
       nodesToWrap.push(node);
     }
   }
@@ -879,7 +923,7 @@ function placeCaretInUserTextSpan(editor: HTMLElement) {
 }
 
 function placeCaretAtEditorEnd(editor: HTMLElement) {
-  placeCaretInUserTextSpan(editor);
+  placeCaretAtEnd(editor);
 }
 
 function placeCaretInDraft(editor: HTMLElement) {
@@ -901,31 +945,29 @@ function placeCaretInDraft(editor: HTMLElement) {
 }
 
 function insertMentionInDraft(editor: HTMLElement, name: string, color: string, selector: string) {
+  editor.focus();
+  removeInlinePlaceholder(editor);
   normalizeCommentEditor(editor);
-  normalizeUserTextNodes(editor);
-  const span = createMentionSpan(name, color, selector);
-  const userText = editor.querySelector(".retune-comment-user-text");
 
-  if (userTextHasContent(editor) && userText) {
-    if (userText.nextSibling) {
-      editor.insertBefore(span, userText.nextSibling);
+  if (hasVisibleText(editor.textContent) || editor.querySelector('[data-mention="true"]')) {
+    const last = editor.lastChild;
+    if (last?.nodeType === Node.TEXT_NODE) {
+      last.textContent = `${(last.textContent ?? "").replace(/[\s\u200b]+$/g, "")}${INSERTION_SPACE}`;
     } else {
-      editor.appendChild(span);
-    }
-  } else {
-    removeInlinePlaceholder(editor);
-    const tail = getDraftTail(editor);
-    if (tail) {
-      editor.insertBefore(span, tail);
-      if (tail.dataset.placeholder === "true") tail.remove();
-    } else {
-      editor.appendChild(span);
+      editor.appendChild(document.createTextNode(INSERTION_SPACE));
     }
   }
 
-  const tail = ensureTailUserTextAfterMention(editor);
-  editor.focus();
-  placeCaretInSpan(tail);
+  editor.appendChild(createMentionSpan(name, color, selector));
+  const trailingSpace = document.createTextNode(INSERTION_SPACE);
+  editor.appendChild(trailingSpace);
+
+  const range = document.createRange();
+  range.setStart(trailingSpace, trailingSpace.textContent.length);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel?.removeAllRanges();
+  sel?.addRange(range);
 }
 
 function getEditorPlainText(editor: HTMLElement): string {
@@ -935,6 +977,15 @@ function getEditorPlainText(editor: HTMLElement): string {
 }
 
 function placeCaretAtEnd(editor: HTMLElement) {
+  const last = editor.lastChild;
+  if (last?.nodeType === Node.TEXT_NODE) {
+    const text = last.textContent ?? "";
+    if (!text.endsWith(INSERTION_SPACE) && /\s$/.test(text.replace(/\u200b/g, ""))) {
+      last.textContent = `${text.replace(/[\s\u200b]+$/g, "")}${INSERTION_SPACE}`;
+    }
+  } else if (last instanceof HTMLElement && last.dataset.mention === "true") {
+    editor.appendChild(document.createTextNode(INSERTION_SPACE));
+  }
   const range = document.createRange();
   range.selectNodeContents(editor);
   range.collapse(false);
@@ -965,7 +1016,7 @@ function editorHasUserText(editor: HTMLElement): boolean {
   for (const node of editor.childNodes) {
     if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).dataset.placeholder === "true") continue;
     if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains("retune-comment-user-text")) continue;
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.replace(/\s/g, "")) return true;
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.replace(/[\s\u200b]/g, "")) return true;
     if (
       node.nodeType === Node.ELEMENT_NODE
       && (node as HTMLElement).dataset.mention !== "true"
@@ -1018,7 +1069,7 @@ function CommentPopover({
   const mentions = useMemo(() => {
     if (!elementInfo) return [];
     const spanCount = spanMentionCount ?? 1;
-    if (elementInfo.selectedElements && elementInfo.selectedElements.length > 0) {
+    if (elementInfo.selectedElements) {
       return elementInfo.selectedElements.slice(0, spanCount).map((target, idx) => ({
         name: getMentionName(target.tagName, target.componentName),
         color: SELECTION_COLORS[idx % SELECTION_COLORS.length],
@@ -1036,7 +1087,6 @@ function CommentPopover({
     const editor = editorRef.current;
     if (!editor) return;
     normalizeCommentEditor(editor);
-    normalizeUserTextNodes(editor);
     if (editorHasUserText(editor)) {
       removeInlinePlaceholder(editor);
     }
@@ -1066,6 +1116,7 @@ function CommentPopover({
     editor.innerHTML = "";
     for (const mention of mentions) {
       editor.appendChild(createMentionSpan(mention.name, mention.color, mention.selector));
+      editor.appendChild(document.createTextNode(INSERTION_SPACE));
     }
     if (initialText.trim()) {
       editor.appendChild(document.createTextNode(initialText));
@@ -1081,6 +1132,30 @@ function CommentPopover({
       if (popoverElRef.current) popoverElRef.current.style.animation = "none";
     }, 200);
   }, [mentions, initialText, syncFromEditor]);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor?.dataset.initialized) return;
+
+    const allowedSelectors = new Set(mentions.map((mention) => mention.selector));
+    let removed = false;
+    for (const node of [...editor.querySelectorAll('[data-mention="true"]')]) {
+      const selector = (node as HTMLElement).dataset.mentionSelector;
+      if (!selector || !allowedSelectors.has(selector)) {
+        node.remove();
+        removed = true;
+      }
+    }
+    if (!removed) return;
+
+    normalizeCommentEditor(editor);
+    syncFromEditor();
+    requestAnimationFrame(() => {
+      if (!editorRef.current) return;
+      editorRef.current.focus();
+      placeCaretAtEditorEnd(editorRef.current);
+    });
+  }, [mentions, syncFromEditor]);
 
   useEffect(() => {
     if (!insertRequest?.token) return;
@@ -1110,7 +1185,8 @@ function CommentPopover({
     e.nativeEvent.stopImmediatePropagation();
     const editor = editorRef.current;
     if (editor?.querySelector('[data-placeholder="true"]') && e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      placeCaretInUserTextSpan(editor);
+      removeInlinePlaceholder(editor);
+      placeCaretAtEditorEnd(editor);
     }
     if (e.key === "Enter") {
       e.preventDefault();
@@ -1771,7 +1847,13 @@ function RetuneInner(props: RetuneConfig) {
         // Append newly selected elements to an open element comment draft
         if (commentDraftRef.current?.type === "element" && popoverOpenRef.current) {
           if (areaDragJustEndedRef.current) return;
-          appendElementsToCommentDraft([inspectElement(element)]);
+          if (meta?.altKey) {
+            removeElementsFromCommentDraft([element]);
+            return;
+          }
+          if (meta?.shiftKey) {
+            appendElementsToCommentDraft([inspectElement(element)]);
+          }
           return;
         }
 
@@ -2437,7 +2519,9 @@ function RetuneInner(props: RetuneConfig) {
     const draft = commentDraftRef.current;
     if (!draft || draft.type !== "element" || !popoverOpenRef.current) return;
 
-    const existing = getDraftElementTargets(draft);
+    const existing = selectedElementsRef.current.length > 0
+      ? selectedElementsRef.current.map(buildCommentTargetFromInspected)
+      : getDraftElementTargets(draft);
     const knownElements = new Set(selectedElementsRef.current.map((t) => t.element));
     const knownSelectors = new Set(existing.map((t) => t.selector));
     const novel = inspectedTargets.filter(
@@ -2445,9 +2529,9 @@ function RetuneInner(props: RetuneConfig) {
     );
     if (novel.length === 0) return;
 
+    const multiInspected = [...selectedElementsRef.current, ...novel];
     const newTargets = [
-      ...existing,
-      ...novel.map(buildCommentTargetFromInspected),
+      ...multiInspected.map(buildCommentTargetFromInspected),
     ];
     const primaryTarget = newTargets[0];
 
@@ -2455,6 +2539,7 @@ function RetuneInner(props: RetuneConfig) {
       if (!prev || prev.type !== "element") return prev;
       return {
         ...prev,
+        spanMentionCount: newTargets.length,
         elementInfo: {
           ...prev.elementInfo!,
           tagName: primaryTarget.tagName,
@@ -2477,7 +2562,6 @@ function RetuneInner(props: RetuneConfig) {
     mentionInsertTokenRef.current += 1;
     setMentionInsert({ mentions: inserts, token: mentionInsertTokenRef.current });
 
-    const multiInspected = [...selectedElementsRef.current, ...novel];
     selectedElementsRef.current = multiInspected;
     selectedElementRef.current = selectedElementRef.current ?? multiInspected[0] ?? null;
     setSelectedElement(selectedElementRef.current);
@@ -2488,6 +2572,54 @@ function RetuneInner(props: RetuneConfig) {
       selectedElementRef.current?.element,
     );
   }, [buildCommentTargetFromInspected, getDraftElementTargets]);
+
+  const removeElementsFromCommentDraft = useCallback((elementsToRemove: Element[]) => {
+    const draft = commentDraftRef.current;
+    if (!draft || draft.type !== "element" || !popoverOpenRef.current) return;
+
+    const removeSet = new Set(elementsToRemove);
+    const remainingInspected = selectedElementsRef.current.filter((target) => !removeSet.has(target.element));
+    const remainingTargets = remainingInspected.map(buildCommentTargetFromInspected);
+    const primaryTarget = remainingTargets[0];
+
+    setCommentDraft((prev) => {
+      if (!prev || prev.type !== "element" || !prev.elementInfo) return prev;
+      if (!primaryTarget) {
+        return {
+          ...prev,
+          spanMentionCount: 0,
+          elementInfo: {
+            ...prev.elementInfo,
+            selectedElements: [],
+          },
+        };
+      }
+      return {
+        ...prev,
+        spanMentionCount: remainingTargets.length,
+        elementInfo: {
+          ...prev.elementInfo,
+          tagName: primaryTarget.tagName,
+          componentName: primaryTarget.componentName,
+          componentPath: primaryTarget.componentPath ?? [],
+          classes: primaryTarget.classes,
+          textContent: primaryTarget.textContent,
+          source: primaryTarget.source,
+          domPath: primaryTarget.domPath,
+          selectedElements: remainingTargets,
+        },
+      };
+    });
+
+    selectedElementsRef.current = remainingInspected;
+    selectedElementRef.current = remainingInspected[0] ?? null;
+    setSelectedElements(remainingInspected);
+    setSelectedElement(remainingInspected[0] ?? null);
+    pickerRef.current?.showSelectionOutline(
+      remainingInspected.map((target) => target.element),
+      remainingInspected[0]?.element,
+    );
+  }, [buildCommentTargetFromInspected]);
 
   const syncCommentDraftMentionsFromEditor = useCallback((selectors: string[]) => {
     const draft = commentDraftRef.current;
@@ -2506,6 +2638,7 @@ function RetuneInner(props: RetuneConfig) {
       if (remainingTargets.length === 0) {
         return {
           ...prev,
+          spanMentionCount: 0,
           elementInfo: {
             ...prev.elementInfo,
             selectedElements: [],
@@ -2514,6 +2647,7 @@ function RetuneInner(props: RetuneConfig) {
       }
       return {
         ...prev,
+        spanMentionCount: remainingTargets.length,
         elementInfo: {
           ...prev.elementInfo,
           tagName: primaryTarget.tagName,

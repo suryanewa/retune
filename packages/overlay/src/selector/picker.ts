@@ -63,6 +63,7 @@ export function isPointInsideSelectionBounds(
 
 export interface SelectEventMeta {
   shiftKey: boolean;
+  altKey?: boolean;
   selectedElements: Element[];
 }
 
@@ -3097,6 +3098,7 @@ export function createPicker(
 
   function handleMarqueePointerDown(e: PointerEvent) {
     if (!active || commentMode || suspended) return;
+    if (commentDraftActive) return;
     if (isRetuneOverlayEvent(e)) return;
     if (callbacks.shouldBlockClick?.()) return;
     // Document listeners see a Shadow DOM-retargeted host as e.target, so use
@@ -3181,12 +3183,39 @@ export function createPicker(
     }
     const el = elementStack[stackIndex];
 
-    // Comment draft: add clicked element without mutating picker selection state here
-    if (commentDraftActive) {
+    if (!commentMode && !commentDraftActive && e.altKey) {
+      const existingIndex = selectedElements.indexOf(el);
+      if (existingIndex < 0) return;
+
+      selectedElements = selectedElements.filter((_, i) => i !== existingIndex);
+      if (selectedElements.length === 0) {
+        deselect();
+        return;
+      }
+
+      if (!selectedElement || selectedElement === el || !selectedElements.includes(selectedElement)) {
+        selectedElement = selectedElements[selectedElements.length - 1];
+      }
+      selectionLabelHidden = false;
+      observeSelectedElements();
+      showSelection();
       hideHighlight();
       hoveredElement = null;
       blurPageFocus();
-      callbacks.onSelect(el, { shiftKey: e.shiftKey, selectedElements: [el] });
+      notifySelect(selectedElement, false);
+      return;
+    }
+
+    // Comment draft: add clicked element without mutating picker selection state here
+    if (commentDraftActive) {
+      if (!e.shiftKey && !e.altKey) {
+        showSelection();
+        return;
+      }
+      hideHighlight();
+      hoveredElement = null;
+      blurPageFocus();
+      callbacks.onSelect(el, { shiftKey: e.shiftKey, altKey: e.altKey, selectedElements: [el] });
       return;
     }
 
@@ -3217,7 +3246,7 @@ export function createPicker(
       // In comment mode: just call onSelect (no selection UI)
       hideHighlight();
       hoveredElement = null;
-      callbacks.onSelect(el, { shiftKey: e.shiftKey, selectedElements: [el] });
+      callbacks.onSelect(el, { shiftKey: e.shiftKey, altKey: e.altKey, selectedElements: [el] });
       return;
     }
 
