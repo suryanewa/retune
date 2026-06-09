@@ -2498,25 +2498,11 @@ function RetuneInner(props: RetuneConfig) {
   }, [buildCommentTargetFromInspected, getQuickSelector]);
 
   const getCommentOutlineElements = useCallback((): Element[] => {
-    const fromSelection = selectedElementsRef.current.length > 0
+    return selectedElementsRef.current.length > 0
       ? selectedElementsRef.current.map((t) => t.element)
       : selectedElementRef.current
         ? [selectedElementRef.current.element]
         : [];
-
-    const scope = activeSelectorRef.current;
-    const level = scopeLevelsRef.current[activeLevelIndexRef.current];
-    if (!scope || !level || level.count <= 1) return fromSelection;
-
-    try {
-      const scoped = Array.from(document.querySelectorAll(scope)).filter((el) => {
-        if (el.closest("[data-retune-host]")) return false;
-        const cs = getComputedStyle(el);
-        return cs.display !== "none" && cs.visibility !== "hidden";
-      });
-      if (scoped.length > fromSelection.length) return scoped;
-    } catch { /* invalid selector */ }
-    return fromSelection;
   }, []);
 
   const getDraftElementTargets = useCallback((draft: NonNullable<typeof commentDraft>): CommentElementTarget[] => {
