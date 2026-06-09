@@ -31,9 +31,9 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@xenova/transformers": ">=2.17.0",
     "react": ">=18",
-    "react-dom": ">=18",
-    "@xenova/transformers": ">=2.17.0"
+    "react-dom": ">=18"
   },
   "peerDependenciesMeta": {
     "@xenova/transformers": {
@@ -41,8 +41,10 @@
     }
   },
   "dependencies": {
+    "@lexical/react": "^0.45.0",
     "@medv/finder": "^3.2.0",
     "@modelcontextprotocol/sdk": "^1.12.1",
+    "lexical": "^0.45.0",
     "parsel-js": "^1.2.2",
     "react-speech-recognition": "^4.0.1",
     "ws": "^8.18.0",

@@ -3550,30 +3550,15 @@ input, textarea, [contenteditable] {
 .retune-comment-editor:empty {
   min-height: 1.4em;
 }
+.retune-comment-editor p {
+  margin: 0;
+}
 .retune-comment-mention {
   display: inline;
   font-size: 13px;
   font-weight: 400;
   line-height: 1.4;
   white-space: nowrap;
-}
-.retune-comment-inline-placeholder {
-  color: var(--retune-text-tertiary);
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.4;
-  white-space: nowrap;
-  pointer-events: none;
-  user-select: none;
-}
-.retune-comment-user-text {
-  display: inline;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.4;
-  white-space: pre-wrap;
-  overflow-wrap: break-word;
-  word-break: break-word;
 }
 .retune-comment-pill-actions {
   display: flex;
