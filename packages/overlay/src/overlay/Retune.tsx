@@ -1225,6 +1225,7 @@ function CommentPopover({
   insertRequest?: { mentions: Array<{ name: string; color: string; selector: string }>; token: number };
 }) {
   const [text, setText] = useState(initialText);
+  const [hasUserText, setHasUserText] = useState(!!initialText.trim());
   const [showPlaceholder, setShowPlaceholder] = useState(!initialText.trim());
   const editorRef = useRef<HTMLDivElement>(null);
   const mentionSelectorsRef = useRef<string[]>([]);
@@ -1259,6 +1260,7 @@ function CommentPopover({
       removeInlinePlaceholder(editor);
     }
     const plain = getEditorPlainText(editor);
+    setHasUserText(editorHasUserText(editor));
     setText(plain);
     onTextChange?.(plain);
     const nextMentionSelectors = getEditorMentionSelectors(editor);
@@ -1428,7 +1430,8 @@ function CommentPopover({
 
   // Position: offset from marker, clamped to viewport
   const popoverWidth = 360;
-  const popoverHeight = 40;
+  const hasContent = hasUserText;
+  const popoverHeight = hasContent ? 76 : 40;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
@@ -1459,79 +1462,123 @@ function CommentPopover({
   return (
     <div
       ref={popoverElRef}
-      className="retune-comment-popover"
+      className={`retune-comment-popover${hasContent ? " has-content" : ""}`}
       style={style}
       onPointerDownCapture={(e) => e.stopPropagation()}
       onClickCapture={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="retune-comment-input-wrap"
-        onPointerDown={() => editorRef.current?.focus()}
-      >
-        {showPlaceholder && mentions.length === 0 && (
-          <span className="retune-comment-placeholder" aria-hidden="true">
-            Describe the change
-          </span>
-        )}
+      <div className="retune-comment-top-row">
         <div
-          ref={editorRef}
-          className="retune-comment-editor"
-          contentEditable
-          role="textbox"
-          aria-label="Describe the change"
-          onFocus={handleEditorFocus}
-          onInput={syncFromEditor}
-          onKeyDown={handleKeyDown}
-        />
-      </div>
-      <div className="retune-comment-pill-actions">
-        <button
-          type="button"
-          className={`retune-comment-circular-btn dictate${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
-          onPointerUp={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleDictation();
-          }}
-          title={dictationTitle}
-          aria-pressed={isDictating}
-          aria-label={dictationTitle}
+          className="retune-comment-input-wrap"
+          onPointerDown={() => editorRef.current?.focus()}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-            <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-            <line x1="12" y1="19" x2="12" y2="22" />
-          </svg>
-        </button>
+          {showPlaceholder && mentions.length === 0 && (
+            <span className="retune-comment-placeholder" aria-hidden="true">
+              Describe the change
+            </span>
+          )}
+          <div
+            ref={editorRef}
+            className="retune-comment-editor"
+            contentEditable
+            role="textbox"
+            aria-label="Describe the change"
+            onFocus={handleEditorFocus}
+            onInput={syncFromEditor}
+            onKeyDown={handleKeyDown}
+          />
+        </div>
 
-        {isEdit && (
-          <button
-            className="retune-comment-circular-btn delete"
-            onPointerUp={onDelete}
-            title="Delete comment"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18" />
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-              <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
-            </svg>
-          </button>
+        {!hasContent && (
+          <div className="retune-comment-pill-actions">
+            {isEdit && (
+              <button
+                className="retune-comment-circular-btn delete"
+                onPointerUp={onDelete}
+                title="Delete comment"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
+                </svg>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className={`retune-comment-circular-btn dictate-blue-circle${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleDictation();
+              }}
+              title={dictationTitle}
+              aria-pressed={isDictating}
+              aria-label={dictationTitle}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+              </svg>
+            </button>
+          </div>
         )}
-
-        <button
-          className="retune-comment-circular-btn send"
-          onPointerUp={handleSubmit}
-          disabled={!text.trim()}
-          title="Send comment"
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 10 4 15 9 20" />
-            <path d="M20 4v7a4 4 0 0 1-4 4H4" />
-          </svg>
-        </button>
       </div>
+
+      {hasContent && (
+        <div className="retune-comment-bottom-row">
+          <div className="retune-comment-bottom-actions-right">
+            {isEdit && (
+              <button
+                className="retune-comment-circular-btn delete"
+                onPointerUp={onDelete}
+                title="Delete comment"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                  <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
+                </svg>
+              </button>
+            )}
+
+            <button
+              type="button"
+              className={`retune-comment-circular-btn dictate-icon-only${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
+              onPointerUp={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                toggleDictation();
+              }}
+              title={dictationTitle}
+              aria-pressed={isDictating}
+              aria-label={dictationTitle}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                <line x1="12" y1="19" x2="12" y2="22" />
+              </svg>
+            </button>
+
+            <button
+              className="retune-comment-circular-btn send"
+              onPointerUp={handleSubmit}
+              disabled={!text.trim()}
+              title="Send comment"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5" />
+                <polyline points="5 12 12 5 19 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
