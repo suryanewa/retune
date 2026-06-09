@@ -772,17 +772,11 @@ function ensureCaretAnchorInSpan(span: HTMLSpanElement) {
 function placeCaretInSpan(span: HTMLElement) {
   ensureCaretAnchorInSpan(span as HTMLSpanElement);
   const node = span.firstChild;
-  const range = document.createRange();
   if (node?.nodeType === Node.TEXT_NODE) {
-    range.setStart(node, node.textContent?.length ?? 0);
+    setEditorCaret(span, node, node.textContent?.length ?? 0);
   } else {
-    range.selectNodeContents(span);
-    range.collapse(false);
+    setEditorCaret(span, span, span.childNodes.length);
   }
-  range.collapse(true);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
 }
 
 function getTailUserTextSpan(editor: HTMLElement): HTMLSpanElement | null {
@@ -934,12 +928,13 @@ function placeCaretInDraft(editor: HTMLElement) {
     return;
   }
   if (tail) {
-    const range = document.createRange();
-    range.setStartBefore(tail);
-    range.collapse(true);
-    const sel = window.getSelection();
-    sel?.removeAllRanges();
-    sel?.addRange(range);
+    const prev = tail.previousSibling;
+    if (prev && prev.nodeType === Node.TEXT_NODE) {
+      setEditorCaret(editor, prev, prev.textContent?.length ?? 0);
+    } else {
+      const idx = Array.prototype.indexOf.call(editor.childNodes, tail);
+      setEditorCaret(editor, editor, Math.max(0, idx));
+    }
     return;
   }
   placeCaretAtEnd(editor);
@@ -963,12 +958,7 @@ function insertMentionInDraft(editor: HTMLElement, name: string, color: string, 
   const trailingSpace = document.createTextNode(INSERTION_SPACE);
   editor.appendChild(trailingSpace);
 
-  const range = document.createRange();
-  range.setStart(trailingSpace, trailingSpace.textContent.length);
-  range.collapse(true);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
+  setEditorCaret(editor, trailingSpace, trailingSpace.textContent.length);
 }
 
 function getEditorPlainText(editor: HTMLElement): string {
@@ -987,12 +977,12 @@ function placeCaretAtEnd(editor: HTMLElement) {
   } else if (last instanceof HTMLElement && last.dataset.mention === "true") {
     editor.appendChild(document.createTextNode(INSERTION_SPACE));
   }
-  const range = document.createRange();
-  range.selectNodeContents(editor);
-  range.collapse(false);
-  const sel = window.getSelection();
-  sel?.removeAllRanges();
-  sel?.addRange(range);
+  const tail = editor.lastChild;
+  if (tail?.nodeType === Node.TEXT_NODE) {
+    setEditorCaret(editor, tail, tail.textContent?.length ?? 0);
+  } else {
+    setEditorCaret(editor, editor, editor.childNodes.length);
+  }
 }
 
 function insertTextAtSelection(editor: HTMLElement, text: string) {
@@ -1001,12 +991,7 @@ function insertTextAtSelection(editor: HTMLElement, text: string) {
   const userSpan = ensureUserTextSpan(editor);
   const node = document.createTextNode(text);
   userSpan.appendChild(node);
-  const range = document.createRange();
-  range.setStartAfter(node);
-  range.collapse(true);
-  const sel = getEditorSelection(editor);
-  sel?.removeAllRanges();
-  sel?.addRange(range);
+  setEditorCaret(editor, node, node.textContent?.length ?? 0);
 }
 
 function editorHasUserText(editor: HTMLElement): boolean {
@@ -1064,6 +1049,38 @@ function getEditorSelection(editor: HTMLElement): Selection | null {
     return shadowGetSelection.call(root);
   }
   return window.getSelection();
+}
+
+/**
+ * Place a collapsed caret at (node, offset) inside an editor living in a shadow root.
+ *
+ * `removeAllRanges()` + `addRange(range)` silently drops the range in browsers without
+ * `ShadowRoot.getSelection` (Safari/Firefox): the document-scoped Selection can't hold a
+ * range whose nodes live inside a shadow tree, so rangeCount stays 0 and no caret renders.
+ * `Selection.collapse()` / `setBaseAndExtent()` address shadow nodes directly and succeed
+ * where `addRange` fails. Returns the resulting rangeCount.
+ */
+function setEditorCaret(contextEl: HTMLElement, node: Node, offset: number): number {
+  const sel = getEditorSelection(contextEl);
+  if (!sel) return -1;
+  try {
+    sel.collapse(node, offset);
+  } catch { /* fall through */ }
+  if (sel.rangeCount === 0) {
+    try {
+      sel.setBaseAndExtent(node, offset, node, offset);
+    } catch { /* fall through */ }
+  }
+  if (sel.rangeCount === 0) {
+    try {
+      const range = document.createRange();
+      range.setStart(node, offset);
+      range.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch { /* fall through */ }
+  }
+  return sel.rangeCount;
 }
 
 /** Collapsed caret Range that actually lives inside the editor, piercing shadow boundaries. */
@@ -1161,19 +1178,22 @@ function removeMentionBlock(editor: HTMLElement, mention: HTMLElement) {
     if (next.textContent && !caretText) nextText = next as Text;
   }
 
-  const range = document.createRange();
   if (caretText) {
-    range.setStart(caretText, caretText.textContent?.length ?? 0);
+    setEditorCaret(editor, caretText, caretText.textContent?.length ?? 0);
   } else if (nextText) {
-    range.setStart(nextText, 0);
+    setEditorCaret(editor, nextText, 0);
   } else {
-    range.selectNodeContents(editor);
-    range.collapse(false);
+    // No adjacent text node (e.g. mention sat between other mentions). Insert a
+    // caret-bearing separator at the deletion site instead of collapsing to the
+    // editor end, which would jump the caret past a trailing placeholder.
+    const spacer = document.createTextNode(INSERTION_SPACE);
+    if (next && next.parentNode === editor) {
+      editor.insertBefore(spacer, next);
+    } else {
+      editor.appendChild(spacer);
+    }
+    setEditorCaret(editor, spacer, spacer.textContent?.length ?? 0);
   }
-  range.collapse(true);
-  const sel = getEditorSelection(editor);
-  sel?.removeAllRanges();
-  sel?.addRange(range);
 }
 
 function CommentPopover({
@@ -1230,10 +1250,11 @@ function CommentPopover({
     }];
   }, [elementInfo, spanMentionCount, primarySelector]);
 
-  const syncFromEditor = useCallback(() => {
+  // Read editor content into React state WITHOUT mutating/normalizing the DOM.
+  // Safe to call right after a manual caret placement (won't disturb selection).
+  const syncStateFromEditor = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
-    normalizeCommentEditor(editor);
     if (editorHasUserText(editor)) {
       removeInlinePlaceholder(editor);
     }
@@ -1250,6 +1271,13 @@ function CommentPopover({
     }
     setShowPlaceholder(!editorHasUserText(editor) && mentions.length === 0);
   }, [onTextChange, onMentionsChange, mentions.length]);
+
+  const syncFromEditor = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    normalizeCommentEditor(editor);
+    syncStateFromEditor();
+  }, [syncStateFromEditor]);
 
   const handleEditorFocus = useCallback(() => {
     const editor = editorRef.current;
@@ -1288,11 +1316,18 @@ function CommentPopover({
     editor.dataset.initialized = "true";
     mentionSelectorsRef.current = getEditorMentionSelectors(editor);
     syncFromEditor();
-    setTimeout(() => {
-      editor.focus();
-      placeCaretInDraft(editor);
+    // Focus synchronously so the field is editable immediately (no dead window where
+    // early keystrokes/clicks are lost), then re-assert on the next frame so the caret
+    // survives the popover's entry animation.
+    editor.focus();
+    placeCaretInDraft(editor);
+    requestAnimationFrame(() => {
+      const el = editorRef.current;
+      if (!el) return;
+      el.focus();
+      placeCaretInDraft(el);
       if (popoverElRef.current) popoverElRef.current.style.animation = "none";
-    }, 200);
+    });
   }, [mentions, initialText, syncFromEditor]);
 
   useEffect(() => {
@@ -1368,7 +1403,9 @@ function CommentPopover({
       if (mention) {
         e.preventDefault();
         removeMentionBlock(editor, mention);
-        syncFromEditor();
+        // Read state without normalizing the DOM so the caret placed by
+        // removeMentionBlock survives (normalize() would clear the selection).
+        syncStateFromEditor();
         return;
       }
     }
