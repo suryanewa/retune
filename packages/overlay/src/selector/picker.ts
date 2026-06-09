@@ -3209,8 +3209,10 @@ export function createPicker(
     // Comment draft: add clicked element without mutating picker selection state here
     if (commentDraftActive) {
       if (!e.shiftKey && !e.altKey) {
-        showSelection();
-        return;
+        if (!commentMode) {
+          showSelection();
+          return;
+        }
       }
       hideHighlight();
       hoveredElement = null;

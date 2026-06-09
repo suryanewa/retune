@@ -1853,8 +1853,11 @@ function RetuneInner(props: RetuneConfig) {
           }
           if (meta?.shiftKey) {
             appendElementsToCommentDraft([inspectElement(element)]);
+            return;
           }
-          return;
+          if (modeRef.current !== "comment") {
+            return;
+          }
         }
 
         // In comment mode, create a comment instead of selecting for editing
@@ -5374,6 +5377,7 @@ function RetuneInner(props: RetuneConfig) {
       {/* Comment popover for new comment draft */}
       {active && commentDraft && !activeCommentId && (
         <CommentPopover
+          key={`draft-${commentDraft.position.x}-${commentDraft.position.y}-${commentDraft.selector}`}
           position={commentDraft.position}
           initialText=""
           elementInfo={commentDraft.elementInfo}
