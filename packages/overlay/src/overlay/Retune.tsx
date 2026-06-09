@@ -967,6 +967,36 @@ function getEditorPlainText(editor: HTMLElement): string {
   return clone.innerText.replace(/\u00a0/g, " ").replace(/\u200b/g, "").trim();
 }
 
+function getEditorUserTypedText(editor: HTMLElement): string {
+  let text = "";
+  for (const span of editor.querySelectorAll(".retune-comment-user-text")) {
+    text += (span.textContent ?? "").replace(/\u200b/g, "");
+  }
+  for (const node of editor.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += (node.textContent ?? "").replace(/\u200b/g, "");
+    }
+  }
+  return normalizeEditorText(text).trim();
+}
+
+function setEditorUserTypedText(editor: HTMLElement, text: string) {
+  editor.querySelectorAll(".retune-comment-user-text").forEach((node) => node.remove());
+  for (const node of [...editor.childNodes]) {
+    if (node.nodeType === Node.TEXT_NODE) node.remove();
+  }
+  removeInlinePlaceholder(editor);
+
+  if (text) {
+    const span = document.createElement("span");
+    span.className = "retune-comment-user-text";
+    span.textContent = text;
+    editor.appendChild(span);
+  } else if (!editor.querySelector('[data-mention="true"]')) {
+    editor.appendChild(createInlinePlaceholderSpan());
+  }
+}
+
 function placeCaretAtEnd(editor: HTMLElement) {
   const last = editor.lastChild;
   if (last?.nodeType === Node.TEXT_NODE) {
@@ -1196,78 +1226,160 @@ function removeMentionBlock(editor: HTMLElement, mention: HTMLElement) {
   }
 }
 
-function AudioWaveform({ isDictating }: { isDictating: boolean }) {
+function AudioWaveform({
+  isDictating,
+  mediaStream,
+  useSharedMicOnly,
+}: {
+  isDictating: boolean;
+  mediaStream?: MediaStream | null;
+  /** When true, only visualize `mediaStream` (no extra getUserMedia). */
+  useSharedMicOnly?: boolean;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const ownedStreamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number | null>(null);
   const historyRef = useRef<number[]>([]);
+
+  const drawIdleBars = useCallback((canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const width = rect.width;
+    const height = rect.height;
+    const barWidth = 2;
+    const barGap = 2;
+    const totalBarWidth = barWidth + barGap;
+    const numBars = Math.floor(width / totalBarWidth);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = window.getComputedStyle(canvas).color || "rgb(120, 120, 120)";
+    ctx.globalAlpha = 0.3;
+    for (let i = 0; i < numBars; i++) {
+      const x = i * totalBarWidth;
+      const normalizedHeight = 2;
+      const y = (height - normalizedHeight) / 2;
+      ctx.beginPath();
+      if (typeof ctx.roundRect === "function") {
+        ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
+      } else {
+        ctx.rect(x, y, barWidth, normalizedHeight);
+      }
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }, []);
 
   useEffect(() => {
     if (!isDictating) {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      if (ownedStreamRef.current) {
+        ownedStreamRef.current.getTracks().forEach((track) => track.stop());
+        ownedStreamRef.current = null;
       }
       historyRef.current = [];
       const canvas = canvasRef.current;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          const dpr = window.devicePixelRatio || 1;
-          const rect = canvas.getBoundingClientRect();
-          canvas.width = rect.width * dpr;
-          canvas.height = rect.height * dpr;
-          ctx.scale(dpr, dpr);
-
-          const width = canvas.width / dpr;
-          const height = canvas.height / dpr;
-
-          ctx.clearRect(0, 0, width, height);
-
-          const barWidth = 2;
-          const barGap = 2;
-          const totalBarWidth = barWidth + barGap;
-          const numBars = Math.floor(width / totalBarWidth);
-
-          ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-
-          for (let i = 0; i < numBars; i++) {
-            const x = i * totalBarWidth;
-            const normalizedHeight = 2; // Flat 2px height when idle
-            const y = (height - normalizedHeight) / 2;
-
-            ctx.beginPath();
-            if (typeof ctx.roundRect === "function") {
-              ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
-            } else {
-              ctx.rect(x, y, barWidth, normalizedHeight);
-            }
-            ctx.fill();
-          }
-        }
-      }
+      if (canvas) drawIdleBars(canvas);
       return;
     }
 
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     let active = true;
+    let lastHistoryUpdate = 0;
+    const frameInterval = 60;
+    let syntheticPhase = 0;
+    let layoutWidth = 0;
+    let layoutHeight = 0;
+    const barWidth = 2;
+    const barGap = 2;
+    const totalBarWidth = barWidth + barGap;
+
+    let barColor = window.getComputedStyle(canvas).color || "rgb(120, 120, 120)";
+
+    const measureCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width < 1 || rect.height < 1) return 0;
+      const dpr = window.devicePixelRatio || 1;
+      if (rect.width !== layoutWidth || rect.height !== layoutHeight) {
+        layoutWidth = rect.width;
+        layoutHeight = rect.height;
+        canvas.width = Math.floor(layoutWidth * dpr);
+        canvas.height = Math.floor(layoutHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      return Math.floor(layoutWidth / totalBarWidth);
+    };
+
+    const renderBars = (amplitude: number, pushHistory: boolean) => {
+      const numBars = measureCanvas();
+      if (numBars <= 0) return;
+      if (pushHistory) {
+        historyRef.current.push(amplitude);
+        if (historyRef.current.length > numBars) historyRef.current.shift();
+      }
+      ctx.clearRect(0, 0, layoutWidth, layoutHeight);
+      for (let i = 0; i < numBars; i++) {
+        const x = i * totalBarWidth;
+        const historyIndex = historyRef.current.length - numBars + i;
+        const amp = historyIndex >= 0 ? historyRef.current[historyIndex] : 0;
+        const normalizedHeight = Math.max(2, amp * layoutHeight);
+        const y = (layoutHeight - normalizedHeight) / 2;
+        ctx.fillStyle = barColor;
+        ctx.globalAlpha = amp > 0.05 ? 1 : 0.3;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === "function") {
+          ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
+        } else {
+          ctx.rect(x, y, barWidth, normalizedHeight);
+        }
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    };
+
+    let readAmplitude: (() => number) | null = null;
+
+    const resizeObserver = new ResizeObserver(() => {
+      barColor = window.getComputedStyle(canvas).color || barColor;
+      renderBars(0, false);
+    });
+    resizeObserver.observe(canvas);
 
     async function initAudio() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        let stream = mediaStream ?? null;
+        let ownsStream = false;
+        if (!stream && !useSharedMicOnly) {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          ownsStream = true;
+          ownedStreamRef.current = stream;
+        }
         if (!active) {
-          stream.getTracks().forEach((track) => track.stop());
+          if (ownsStream) stream?.getTracks().forEach((track) => track.stop());
           return;
         }
-        streamRef.current = stream;
+        if (!stream) return;
 
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextClass) return;
         const audioContext = new AudioContextClass();
         audioContextRef.current = audioContext;
+        await audioContext.resume();
 
         const source = audioContext.createMediaStreamSource(stream);
         const analyser = audioContext.createAnalyser();
@@ -1277,99 +1389,59 @@ function AudioWaveform({ isDictating }: { isDictating: boolean }) {
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        canvas.width = rect.width * dpr;
-        canvas.height = rect.height * dpr;
-        ctx.scale(dpr, dpr);
-
-        let lastTime = 0;
-        const frameInterval = 60; // Update history roughly every 60ms (slower, calmer scroll)
-
-        function draw(timestamp: number) {
-          if (!active) return;
-          animationRef.current = requestAnimationFrame(draw);
-
-          if (!analyserRef.current || !canvas || !ctx) return;
-          analyserRef.current.getByteTimeDomainData(dataArray);
-
-          const width = canvas.width / dpr;
-          const height = canvas.height / dpr;
-
-          const barWidth = 2;
-          const barGap = 2;
-          const totalBarWidth = barWidth + barGap;
-          const numBars = Math.floor(width / totalBarWidth);
-
-          // Only update history at the specified interval
-          if (timestamp - lastTime >= frameInterval) {
-            // Calculate current frame volume/amplitude
-            let sum = 0;
-            for (let i = 0; i < bufferLength; i++) {
-              sum += Math.abs(dataArray[i] - 128);
-            }
-            const average = sum / bufferLength; // 0 to 128
-
-            // Normalize average to 0..1 range
-            const amplitude = Math.min(1, average / 40);
-
-            // Maintain scrolling history
-            historyRef.current.push(amplitude);
-            if (historyRef.current.length > numBars) {
-              historyRef.current.shift();
-            }
-            lastTime = timestamp;
+        readAmplitude = () => {
+          analyser.getByteTimeDomainData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += Math.abs(dataArray[i] - 128);
           }
-
-          ctx.clearRect(0, 0, width, height);
-
-          for (let i = 0; i < numBars; i++) {
-            const x = i * totalBarWidth;
-
-            // Get amplitude from history, fallback to 0 (flat line) if history doesn't reach here yet
-            const historyIndex = historyRef.current.length - numBars + i;
-            const amp = historyIndex >= 0 ? historyRef.current[historyIndex] : 0;
-
-            const normalizedHeight = Math.max(2, amp * height);
-            const y = (height - normalizedHeight) / 2;
-
-            ctx.fillStyle = amp > 0.05 ? "#ffffff" : "rgba(255, 255, 255, 0.3)";
-
-            ctx.beginPath();
-            if (typeof ctx.roundRect === "function") {
-              ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
-            } else {
-              ctx.rect(x, y, barWidth, normalizedHeight);
-            }
-            ctx.fill();
-          }
-        }
-
-        animationRef.current = requestAnimationFrame(draw);
+          return Math.min(1, (sum / bufferLength) / 40);
+        };
       } catch (err) {
         console.error("Error initializing audio visualizer:", err);
       }
     }
 
-    initAudio();
+    void initAudio();
+
+    const tick = (timestamp: number) => {
+      if (!active) return;
+      animationRef.current = requestAnimationFrame(tick);
+      if (measureCanvas() <= 0) return;
+
+      if (timestamp - lastHistoryUpdate >= frameInterval) {
+        let amplitude = 0.05;
+        if (readAmplitude) {
+          amplitude = readAmplitude();
+        } else {
+          syntheticPhase += 0.12;
+          amplitude = 0.08 + (Math.sin(syntheticPhase) + 1) * 0.12;
+        }
+        renderBars(amplitude, true);
+        lastHistoryUpdate = timestamp;
+      } else {
+        renderBars(0, false);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(tick);
 
     return () => {
       active = false;
+      resizeObserver?.disconnect();
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
       if (audioContextRef.current) {
         audioContextRef.current.close().catch(() => {});
+        audioContextRef.current = null;
       }
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+      if (ownedStreamRef.current) {
+        ownedStreamRef.current.getTracks().forEach((track) => track.stop());
+        ownedStreamRef.current = null;
       }
+      analyserRef.current = null;
     };
-  }, [isDictating]);
+  }, [drawIdleBars, isDictating, mediaStream, useSharedMicOnly]);
 
   return (
     <canvas
@@ -1478,13 +1550,49 @@ function CommentPopover({
     syncFromEditor();
   }, [syncFromEditor]);
 
+  const dictationSnapshotRef = useRef("");
+
   const {
     isDictating,
     isTranscribing,
     usesWhisperFallback,
     dictationError,
+    visualizationStream,
     toggleDictation,
+    confirmDictation,
+    cancelDictation,
   } = useCommentDictation(handleDictationDelta);
+
+  const snapshotDictationText = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    dictationSnapshotRef.current = getEditorUserTypedText(editor);
+  }, []);
+
+  const restoreDictationSnapshot = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    setEditorUserTypedText(editor, dictationSnapshotRef.current);
+    syncFromEditor();
+  }, [syncFromEditor]);
+
+  const handleStartDictation = useCallback(() => {
+    snapshotDictationText();
+    toggleDictation();
+  }, [snapshotDictationText, toggleDictation]);
+
+  const handleCancelDictation = useCallback(() => {
+    cancelDictation();
+    restoreDictationSnapshot();
+  }, [cancelDictation, restoreDictationSnapshot]);
+
+  const handleConfirmDictation = useCallback(() => {
+    confirmDictation();
+  }, [confirmDictation]);
+
+  useEffect(() => () => {
+    cancelDictation();
+  }, [cancelDictation]);
 
   useEffect(() => {
     if (!isDictating) {
@@ -1618,6 +1726,10 @@ function CommentPopover({
     }
     if (e.key === "Escape") {
       e.preventDefault();
+      if (isDictating) {
+        handleCancelDictation();
+        return;
+      }
       onCancel();
     }
   };
@@ -1714,7 +1826,11 @@ function CommentPopover({
               onPointerUp={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                toggleDictation();
+                if (isDictating) {
+                  handleConfirmDictation();
+                } else {
+                  handleStartDictation();
+                }
               }}
               title={dictationTitle}
               aria-pressed={isDictating}
@@ -1734,7 +1850,11 @@ function CommentPopover({
         <div className="retune-comment-bottom-row">
           {isDictating ? (
             <div className="retune-comment-dictation-status">
-              <AudioWaveform isDictating={isDictating} />
+              <AudioWaveform
+                isDictating={isDictating}
+                mediaStream={usesWhisperFallback ? visualizationStream : null}
+                useSharedMicOnly={usesWhisperFallback}
+              />
               <span className="retune-comment-dictation-time">
                 {formatTime(dictationSeconds)}
               </span>
@@ -1750,7 +1870,7 @@ function CommentPopover({
                   onPointerUp={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    toggleDictation();
+                    handleCancelDictation();
                   }}
                   title="Cancel dictation"
                 >
@@ -1765,7 +1885,7 @@ function CommentPopover({
                   onPointerUp={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    toggleDictation();
+                    handleConfirmDictation();
                   }}
                   title="Confirm dictation"
                 >
@@ -1796,7 +1916,11 @@ function CommentPopover({
                   onPointerUp={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    toggleDictation();
+                    if (isDictating) {
+                      handleConfirmDictation();
+                    } else {
+                      handleStartDictation();
+                    }
                   }}
                   title={dictationTitle}
                   aria-pressed={isDictating}

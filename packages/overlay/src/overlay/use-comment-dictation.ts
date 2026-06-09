@@ -11,15 +11,21 @@ export type CommentDictationState = {
   isTranscribing: boolean;
   usesWhisperFallback: boolean;
   dictationError: string | null;
+  visualizationStream: MediaStream | null;
   toggleDictation: () => void;
+  confirmDictation: () => void;
+  cancelDictation: () => void;
 };
 
 export function useCommentDictation(onTranscriptDelta: (text: string) => void): CommentDictationState {
   const insertedLengthRef = useRef(0);
   const recordingStopRef = useRef<(() => Promise<Blob>) | null>(null);
+  const sessionRef = useRef(0);
+  const transcriptionGenerationRef = useRef(0);
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [dictationError, setDictationError] = useState<string | null>(null);
+  const [visualizationStream, setVisualizationStream] = useState<MediaStream | null>(null);
 
   const {
     transcript,
@@ -43,25 +49,48 @@ export function useCommentDictation(onTranscriptDelta: (text: string) => void): 
     flushPendingTranscript();
   }, [listening, transcript, flushPendingTranscript]);
 
+  const clearVisualizationStream = useCallback(() => {
+    setVisualizationStream(null);
+  }, []);
+
+  const abortWhisperRecording = useCallback(async () => {
+    const stop = recordingStopRef.current;
+    if (!stop) return;
+    recordingStopRef.current = null;
+    setIsRecording(false);
+    clearVisualizationStream();
+    try {
+      await stop();
+    } catch {
+      // Discard recording blob on cancel.
+    }
+  }, [clearVisualizationStream]);
+
   const stopWhisperRecording = useCallback(async () => {
     const stop = recordingStopRef.current;
     if (!stop) return;
     recordingStopRef.current = null;
     setIsRecording(false);
+    clearVisualizationStream();
+    const generation = transcriptionGenerationRef.current;
     setIsTranscribing(true);
     try {
       const blob = await stop();
       const text = await transcribeRecordedAudio(blob);
+      if (generation !== transcriptionGenerationRef.current) return;
       if (text) onTranscriptDelta(text.endsWith(" ") ? text : `${text} `);
     } catch (error) {
+      if (generation !== transcriptionGenerationRef.current) return;
       const message = error instanceof Error ? error.message : "Transcription failed.";
       setDictationError(message);
     } finally {
-      setIsTranscribing(false);
+      if (generation === transcriptionGenerationRef.current) {
+        setIsTranscribing(false);
+      }
     }
-  }, [onTranscriptDelta]);
+  }, [clearVisualizationStream, onTranscriptDelta]);
 
-  const stopDictation = useCallback(() => {
+  const confirmDictation = useCallback(() => {
     if (listening) {
       flushPendingTranscript();
       insertedLengthRef.current = 0;
@@ -73,7 +102,25 @@ export function useCommentDictation(onTranscriptDelta: (text: string) => void): 
     }
   }, [flushPendingTranscript, listening, stopWhisperRecording]);
 
+  const cancelDictation = useCallback(() => {
+    sessionRef.current += 1;
+    transcriptionGenerationRef.current += 1;
+    insertedLengthRef.current = 0;
+    resetTranscript();
+    setDictationError(null);
+    setIsTranscribing(false);
+
+    if (listening) {
+      void SpeechRecognition.stopListening();
+    }
+    if (recordingStopRef.current) {
+      void abortWhisperRecording();
+    }
+  }, [abortWhisperRecording, listening, resetTranscript]);
+
   const startDictation = useCallback(async () => {
+    const session = sessionRef.current + 1;
+    sessionRef.current = session;
     setDictationError(null);
 
     if (browserSupportsSpeechRecognition) {
@@ -81,17 +128,28 @@ export function useCommentDictation(onTranscriptDelta: (text: string) => void): 
       resetTranscript();
       try {
         await SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+        if (session !== sessionRef.current) {
+          void SpeechRecognition.stopListening();
+        }
       } catch {
-        setDictationError("Could not start speech recognition. Check microphone permissions.");
+        if (session === sessionRef.current) {
+          setDictationError("Could not start speech recognition. Check microphone permissions.");
+        }
       }
       return;
     }
 
     try {
-      const session = await startAudioRecording();
-      recordingStopRef.current = session.stop;
+      const recorderSession = await startAudioRecording();
+      if (session !== sessionRef.current) {
+        void recorderSession.stop().catch(() => {});
+        return;
+      }
+      recordingStopRef.current = recorderSession.stop;
+      setVisualizationStream(recorderSession.stream);
       setIsRecording(true);
     } catch (error) {
+      if (session !== sessionRef.current) return;
       const message = error instanceof Error ? error.message : "Microphone unavailable.";
       setDictationError(message);
     }
@@ -99,22 +157,31 @@ export function useCommentDictation(onTranscriptDelta: (text: string) => void): 
 
   const toggleDictation = useCallback(() => {
     if (listening || isRecording || isTranscribing) {
-      stopDictation();
+      confirmDictation();
       return;
     }
     void startDictation();
-  }, [isRecording, isTranscribing, listening, startDictation, stopDictation]);
+  }, [confirmDictation, isRecording, isTranscribing, listening, startDictation]);
 
   useEffect(() => () => {
-    SpeechRecognition.stopListening();
-    recordingStopRef.current = null;
-  }, []);
+    sessionRef.current += 1;
+    transcriptionGenerationRef.current += 1;
+    void SpeechRecognition.stopListening();
+    if (recordingStopRef.current) {
+      void abortWhisperRecording();
+    } else {
+      clearVisualizationStream();
+    }
+  }, [abortWhisperRecording, clearVisualizationStream]);
 
   return {
     isDictating: listening || isRecording || isTranscribing,
     isTranscribing,
     usesWhisperFallback,
     dictationError,
+    visualizationStream,
     toggleDictation,
+    confirmDictation,
+    cancelDictation,
   };
 }

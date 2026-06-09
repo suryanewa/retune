@@ -5,8 +5,9 @@
 
 const WHISPER_MODEL = "Xenova/whisper-tiny.en";
 
-type AudioRecorderSession = {
+export type AudioRecorderSession = {
   stop: () => Promise<Blob>;
+  stream: MediaStream;
 };
 
 export async function startAudioRecording(): Promise<AudioRecorderSession> {
@@ -46,7 +47,7 @@ export async function startAudioRecording(): Promise<AudioRecorderSession> {
   });
 
   recorder.start();
-  return { stop };
+  return { stop, stream };
 }
 
 async function decodeAudioBlob(blob: Blob): Promise<{ audio: Float32Array; sampling_rate: number }> {
