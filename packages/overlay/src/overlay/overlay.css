@@ -3435,6 +3435,67 @@ input, textarea, [contenteditable] {
   align-items: center;
   gap: 4px;
 }
+.retune-comment-dictation-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--retune-text-secondary);
+  font-size: 12px;
+  font-family: inherit;
+  flex: 1;
+  min-width: 0;
+}
+.retune-comment-waveform-canvas {
+  flex: 1;
+  height: 24px;
+  min-width: 80px;
+  display: block;
+}
+.retune-comment-dictation-time {
+  margin-right: 10px;
+}
+
+.retune-comment-circular-btn.dictate-icon-only,
+.retune-comment-circular-btn.dictate-cancel,
+.retune-comment-circular-btn.dictate-confirm {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--retune-text-secondary);
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+  border-radius: 0;
+}
+.retune-comment-circular-btn.dictate-icon-only:hover,
+.retune-comment-circular-btn.dictate-cancel:hover,
+.retune-comment-circular-btn.dictate-confirm:hover {
+  color: var(--retune-text);
+  transform: none !important;
+}
+.retune-comment-circular-btn.dictate-icon-only:active,
+.retune-comment-circular-btn.dictate-cancel:active,
+.retune-comment-circular-btn.dictate-confirm:active {
+  opacity: 0.7;
+  transform: none !important;
+}
+.retune-comment-circular-btn.dictate-icon-only svg,
+.retune-comment-circular-btn.dictate-cancel svg,
+.retune-comment-circular-btn.dictate-confirm svg {
+  width: 12px;
+  height: 12px;
+}
+.retune-comment-circular-btn.dictate-cancel:hover {
+  color: var(--retune-red);
+}
+.retune-comment-circular-btn.dictate-confirm:hover {
+  color: var(--retune-blue);
+}
 @keyframes retune-popover-in {
   from {
     opacity: 0;

@@ -1196,6 +1196,189 @@ function removeMentionBlock(editor: HTMLElement, mention: HTMLElement) {
   }
 }
 
+function AudioWaveform({ isDictating }: { isDictating: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const animationRef = useRef<number | null>(null);
+  const historyRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    if (!isDictating) {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      historyRef.current = [];
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          const dpr = window.devicePixelRatio || 1;
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width * dpr;
+          canvas.height = rect.height * dpr;
+          ctx.scale(dpr, dpr);
+
+          const width = canvas.width / dpr;
+          const height = canvas.height / dpr;
+
+          ctx.clearRect(0, 0, width, height);
+
+          const barWidth = 2;
+          const barGap = 2;
+          const totalBarWidth = barWidth + barGap;
+          const numBars = Math.floor(width / totalBarWidth);
+
+          ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+
+          for (let i = 0; i < numBars; i++) {
+            const x = i * totalBarWidth;
+            const normalizedHeight = 2; // Flat 2px height when idle
+            const y = (height - normalizedHeight) / 2;
+
+            ctx.beginPath();
+            if (typeof ctx.roundRect === "function") {
+              ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
+            } else {
+              ctx.rect(x, y, barWidth, normalizedHeight);
+            }
+            ctx.fill();
+          }
+        }
+      }
+      return;
+    }
+
+    let active = true;
+
+    async function initAudio() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (!active) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioContext = new AudioContextClass();
+        audioContextRef.current = audioContext;
+
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyserRef.current = analyser;
+
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+
+        let lastTime = 0;
+        const frameInterval = 60; // Update history roughly every 60ms (slower, calmer scroll)
+
+        function draw(timestamp: number) {
+          if (!active) return;
+          animationRef.current = requestAnimationFrame(draw);
+
+          if (!analyserRef.current || !canvas || !ctx) return;
+          analyserRef.current.getByteTimeDomainData(dataArray);
+
+          const width = canvas.width / dpr;
+          const height = canvas.height / dpr;
+
+          const barWidth = 2;
+          const barGap = 2;
+          const totalBarWidth = barWidth + barGap;
+          const numBars = Math.floor(width / totalBarWidth);
+
+          // Only update history at the specified interval
+          if (timestamp - lastTime >= frameInterval) {
+            // Calculate current frame volume/amplitude
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+              sum += Math.abs(dataArray[i] - 128);
+            }
+            const average = sum / bufferLength; // 0 to 128
+
+            // Normalize average to 0..1 range
+            const amplitude = Math.min(1, average / 40);
+
+            // Maintain scrolling history
+            historyRef.current.push(amplitude);
+            if (historyRef.current.length > numBars) {
+              historyRef.current.shift();
+            }
+            lastTime = timestamp;
+          }
+
+          ctx.clearRect(0, 0, width, height);
+
+          for (let i = 0; i < numBars; i++) {
+            const x = i * totalBarWidth;
+
+            // Get amplitude from history, fallback to 0 (flat line) if history doesn't reach here yet
+            const historyIndex = historyRef.current.length - numBars + i;
+            const amp = historyIndex >= 0 ? historyRef.current[historyIndex] : 0;
+
+            const normalizedHeight = Math.max(2, amp * height);
+            const y = (height - normalizedHeight) / 2;
+
+            ctx.fillStyle = amp > 0.05 ? "#ffffff" : "rgba(255, 255, 255, 0.3)";
+
+            ctx.beginPath();
+            if (typeof ctx.roundRect === "function") {
+              ctx.roundRect(x, y, barWidth, normalizedHeight, 1);
+            } else {
+              ctx.rect(x, y, barWidth, normalizedHeight);
+            }
+            ctx.fill();
+          }
+        }
+
+        animationRef.current = requestAnimationFrame(draw);
+      } catch (err) {
+        console.error("Error initializing audio visualizer:", err);
+      }
+    }
+
+    initAudio();
+
+    return () => {
+      active = false;
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {});
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [isDictating]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className="retune-comment-waveform-canvas"
+    />
+  );
+}
+
 function CommentPopover({
   position,
   initialText,
@@ -1227,6 +1410,7 @@ function CommentPopover({
   const [text, setText] = useState(initialText);
   const [hasUserText, setHasUserText] = useState(!!initialText.trim());
   const [showPlaceholder, setShowPlaceholder] = useState(!initialText.trim());
+  const [dictationSeconds, setDictationSeconds] = useState(0);
   const editorRef = useRef<HTMLDivElement>(null);
   const mentionSelectorsRef = useRef<string[]>([]);
   const processedInsertTokenRef = useRef(0);
@@ -1301,6 +1485,23 @@ function CommentPopover({
     dictationError,
     toggleDictation,
   } = useCommentDictation(handleDictationDelta);
+
+  useEffect(() => {
+    if (!isDictating) {
+      setDictationSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setDictationSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isDictating]);
+
+  const formatTime = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -1430,8 +1631,8 @@ function CommentPopover({
 
   // Position: offset from marker, clamped to viewport
   const popoverWidth = 360;
-  const hasContent = hasUserText;
-  const popoverHeight = hasContent ? 76 : 40;
+  const isExpanded = hasUserText || isDictating;
+  const popoverHeight = isExpanded ? 76 : 40;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
@@ -1462,7 +1663,7 @@ function CommentPopover({
   return (
     <div
       ref={popoverElRef}
-      className={`retune-comment-popover${hasContent ? " has-content" : ""}`}
+      className={`retune-comment-popover${isExpanded ? " has-content" : ""}`}
       style={style}
       onPointerDownCapture={(e) => e.stopPropagation()}
       onClickCapture={(e) => e.stopPropagation()}
@@ -1491,7 +1692,7 @@ function CommentPopover({
           />
         </div>
 
-        {!hasContent && (
+        {!isExpanded && (
           <div className="retune-comment-pill-actions">
             {isEdit && (
               <button
@@ -1529,53 +1730,98 @@ function CommentPopover({
         )}
       </div>
 
-      {hasContent && (
+      {isExpanded && (
         <div className="retune-comment-bottom-row">
+          {isDictating ? (
+            <div className="retune-comment-dictation-status">
+              <AudioWaveform isDictating={isDictating} />
+              <span className="retune-comment-dictation-time">
+                {formatTime(dictationSeconds)}
+              </span>
+            </div>
+          ) : null}
+
           <div className="retune-comment-bottom-actions-right">
-            {isEdit && (
-              <button
-                className="retune-comment-circular-btn delete"
-                onPointerUp={onDelete}
-                title="Delete comment"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 6h18" />
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                  <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
-                </svg>
-              </button>
+            {isDictating ? (
+              <>
+                <button
+                  type="button"
+                  className="retune-comment-circular-btn dictate-cancel"
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleDictation();
+                  }}
+                  title="Cancel dictation"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="retune-comment-circular-btn dictate-confirm"
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleDictation();
+                  }}
+                  title="Confirm dictation"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <>
+                {isEdit && (
+                  <button
+                    className="retune-comment-circular-btn delete"
+                    onPointerUp={onDelete}
+                    title="Delete comment"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 6h18" />
+                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                      <path d="M8 6V4c0-1 1-2 2-2h8c1 0 2 1 2 2v2" />
+                    </svg>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={`retune-comment-circular-btn dictate-icon-only${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
+                  onPointerUp={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleDictation();
+                  }}
+                  title={dictationTitle}
+                  aria-pressed={isDictating}
+                  aria-label={dictationTitle}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
+                    <line x1="12" y1="19" x2="12" y2="22" />
+                  </svg>
+                </button>
+
+                <button
+                  className="retune-comment-circular-btn send"
+                  onPointerUp={handleSubmit}
+                  disabled={!text.trim()}
+                  title="Send comment"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5" />
+                    <polyline points="5 12 12 5 19 12" />
+                  </svg>
+                </button>
+              </>
             )}
-
-            <button
-              type="button"
-              className={`retune-comment-circular-btn dictate-icon-only${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
-              onPointerUp={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleDictation();
-              }}
-              title={dictationTitle}
-              aria-pressed={isDictating}
-              aria-label={dictationTitle}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                <path d="M19 10v1a7 7 0 0 1-14 0v-1" />
-                <line x1="12" y1="19" x2="12" y2="22" />
-              </svg>
-            </button>
-
-            <button
-              className="retune-comment-circular-btn send"
-              onPointerUp={handleSubmit}
-              disabled={!text.trim()}
-              title="Send comment"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5" />
-                <polyline points="5 12 12 5 19 12" />
-              </svg>
-            </button>
           </div>
         </div>
       )}
