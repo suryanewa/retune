@@ -53,6 +53,8 @@ import { SelectionActionBar } from "../ui/selection-action-bar";
 import {
   buildDrawingTargetsFromPaths,
   getDrawingOrderIndex,
+  resolveActiveDrawPaths,
+  resolveDrawPathsForDrawModeComment,
   scanContainedElements,
   areDraftElementTargetsEqual,
   syncDrawingTargetsInDraft,
@@ -914,9 +916,13 @@ function RetuneInner(props: RetuneConfig) {
   drawnPathAnchorsRef.current = drawnPathAnchors;
 
   const enrichCommentDraft = useCallback((draft: CommentDraft) => {
+    const drawingPaths = resolveActiveDrawPaths(
+      selectedDrawPathsRef.current,
+      drawnPathAnchorsRef.current,
+    );
     let enriched = syncDrawingTargetsInDraft(
       draft,
-      selectedDrawPathsRef.current,
+      drawingPaths,
       drawnPathAnchorsRef.current,
     );
     if (selectedElementsRef.current.length > 0) {
@@ -3798,10 +3804,20 @@ function RetuneInner(props: RetuneConfig) {
   );
 
   const handleDrawComment = useCallback(() => {
-    const area = getDrawnPathBounds(activeDrawPaths);
+    const pathsForComment = mode === "draw"
+      ? resolveDrawPathsForDrawModeComment(drawnPathAnchors)
+      : activeDrawPaths;
+    if (pathsForComment.length === 0) return;
+
+    const area = getDrawnPathBounds(pathsForComment);
     if (!area) return;
     const containedElements = scanContainedElements(area);
-    const drawingTargets = buildDrawingTargetsFromPaths(activeDrawPaths, drawnPathAnchors);
+    const drawingTargets = buildDrawingTargetsFromPaths(pathsForComment, drawnPathAnchors);
+
+    // Sync selection state before opening the draft so enrich + mention props see every path.
+    selectedDrawPathsRef.current = pathsForComment;
+    setSelectedDrawPaths(pathsForComment);
+
     openDraftPopover();
     const draft = enrichCommentDraft({
       position: { x: area.x + area.width / 2, y: area.y + area.height / 2 },
@@ -3821,7 +3837,7 @@ function RetuneInner(props: RetuneConfig) {
       },
     });
     setCommentDraft(draft);
-    pickerRef.current?.selectDrawPaths(activeDrawPaths);
+    pickerRef.current?.selectDrawPaths(pathsForComment);
     if (selectedElementsRef.current.length > 0) {
       pickerRef.current?.showSelectionOutline(
         selectedElementsRef.current.map((target) => target.element),
@@ -3833,7 +3849,7 @@ function RetuneInner(props: RetuneConfig) {
     setEditPanelOpen(false);
     pickerRef.current?.setPropertyEditMode(false);
     pickerRef.current?.setChromeLayout(null);
-  }, [activeDrawPaths, drawnPathAnchors, enrichCommentDraft, getDrawnPathBounds, openDraftPopover, setCommentDraft]);
+  }, [activeDrawPaths, drawnPathAnchors, enrichCommentDraft, getDrawnPathBounds, mode, openDraftPopover, setCommentDraft]);
 
   const handleCommentMentionsChange = useCallback((selectors: string[]) => {
     syncCommentDraftMentionsFromEditor(selectors);

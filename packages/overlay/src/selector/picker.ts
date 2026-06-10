@@ -3425,6 +3425,9 @@ export function createPicker(
     if (drag.appendToSelection && selectedDrawPaths.length < MULTI_SELECT_POOL_SIZE + 1) {
       selectedDrawPaths = [...selectedDrawPaths, drag.path];
       notifyDrawSelectionChange();
+    } else if (!drag.appendToSelection) {
+      selectedDrawPaths = [drag.path];
+      notifyDrawSelectionChange();
     }
     syncDrawingPathAppearance();
     syncDrawingLayerVisibility();

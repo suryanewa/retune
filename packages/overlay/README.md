@@ -93,7 +93,7 @@ Annotate elements (click) or areas (drag) with text notes. Comment markers follo
 
 The comment popover uses a Lexical editor with inline mention tokens inside the overlay's Shadow DOM. Documentation:
 
-- [Overlay Comment Mode: Session Postmortem](../../docs/overlay-comment-mode-postmortem.md) — full issue history (code quality, mention reinsert bug, draft/editor sync)
+- [Overlay Comment Mode: Session Postmortem](../../docs/overlay-comment-mode-postmortem.md) — full issue history (code quality, mention reinsert, mixed element/drawing sync, dashed outline suppression)
 - [Comment Editor: Lexical + Shadow DOM](../../docs/comment-editor-lexical-shadow-dom.md) — Lexical-specific pitfalls, fixes, and regression test matrix
 
 ### Manifest System (v2)

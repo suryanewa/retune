@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildDrawingCommentTarget,
   buildDrawingTargetsFromPaths,
+  resolveActiveDrawPaths,
+  resolveDrawPathsForDrawModeComment,
   getDrawingMentionName,
   getDrawingOrderIndex,
   getMentionName,
@@ -161,6 +163,49 @@ describe("orderTargetsBySelectors", () => {
   it("keeps only selectors from the snapshot in document order", () => {
     const ordered = orderTargetsBySelectors(targets, [".label", ".btn"]);
     expect(ordered.map((target) => target.selector)).toEqual([".label", ".btn"]);
+  });
+});
+
+describe("draw path resolution", () => {
+  it("falls back to all canvas paths when none are selected", () => {
+    const canvas = [{ id: "a" }, { id: "b" }] as SVGPathElement[];
+    expect(resolveActiveDrawPaths([], canvas)).toEqual(canvas);
+    expect(resolveDrawPathsForDrawModeComment(canvas)).toEqual(canvas);
+  });
+
+  it("prefers explicit draw selection when paths are selected", () => {
+    const canvas = [{ id: "a" }, { id: "b" }, { id: "c" }] as SVGPathElement[];
+    const selected = [canvas[1], canvas[2]];
+    expect(resolveActiveDrawPaths(selected, canvas)).toEqual(selected);
+  });
+
+  it("syncs all canvas paths into a draft when selection is empty", () => {
+    const canvas = [{}, {}, {}] as SVGPathElement[];
+    const synced = syncDrawingTargetsInDraft(
+      {
+        position: { x: 0, y: 0 },
+        type: "area",
+        fromDrawing: true,
+        spanMentionCount: 0,
+        elementInfo: {
+          tagName: "drawing",
+          componentName: null,
+          componentPath: [],
+          classes: [],
+          textContent: null,
+          selectedElements: [],
+        },
+      },
+      resolveActiveDrawPaths([], canvas),
+      canvas,
+    );
+
+    expect(getDraftElementTargets(synced).map((target) => target.selector)).toEqual([
+      "retune-drawing:1",
+      "retune-drawing:2",
+      "retune-drawing:3",
+    ]);
+    expect(synced.spanMentionCount).toBe(3);
   });
 });
 

@@ -1,6 +1,6 @@
 # Overlay Comment Mode: Session Postmortem
 
-This document records **all issues encountered during the comment-editor work session** (thermo-nuclear code review, Lexical/Shadow DOM fixes, mention-deletion bug, and debug instrumentation), how each was diagnosed and fixed, and how to avoid regressions.
+This document records **all issues encountered during the comment-editor work session** (thermo-nuclear code quality review, Lexical/Shadow DOM fixes, mention-deletion bugs, mixed element/drawing sync, dashed-outline regressions, and debug instrumentation), how each was diagnosed and fixed, and how to avoid regressions.
 
 It complements the deeper Lexical-specific guide: [Comment Editor: Lexical + Shadow DOM](./comment-editor-lexical-shadow-dom.md).
 
@@ -9,34 +9,36 @@ It complements the deeper Lexical-specific guide: [Comment Editor: Lexical + Sha
 | Commit | Summary |
 |---|---|
 | `c4db19d` | Restore reliable typing and deletion in the Lexical comment editor (Shadow DOM) |
-| `07f14bf` | Consolidate comment mention sync; fix deleted mentions reinserting (`main`) |
+| `07f14bf` | Consolidate comment mention sync; fix deleted mentions reinserting |
+| `09a7192` | Fix mixed mention clearing; suppress drawing area outlines (`fromDrawing` marker) |
 
 ---
 
 ## Scope of This Session
 
-The session had three phases:
+The session had four phases:
 
 1. **Thermo-nuclear code quality review** — audit comment-mode changes and adjacent overlay code; implement high-confidence cleanup without a risky full decomposition of mega-files.
 2. **Lexical + Shadow DOM stabilization** — fix typing, deletion, mention spacing, and focus inside the shadow-root comment editor (documented in detail in the Lexical postmortem).
-3. **Mention deletion regressions** — user reported that deleting the first inline selected-element mention added spaces instead of removing it, then that Cmd+A + Delete on mixed element/drawing mentions cleared drawings but left element outlines selected. Both were draft/editor/picker sync bugs, not core Lexical deletion bugs.
+3. **Mention deletion regressions** — user reported that deleting the first inline selected-element mention added spaces instead of removing it; then Cmd+A + Delete on mixed element/drawing mentions cleared drawings but left element outlines selected; then drawings remained visually selected.
+4. **Drawing area outline regressions** — dashed `retune-comment-area-outline` appeared around drawing-based comment drafts, including after deleting all inline element mentions from a mixed selection.
 
 ---
 
-## Architecture: Two Sources of Truth
+## Architecture: Three Sources of Truth
 
 Most bugs in this session came from **unclear ownership** between three layers:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Picker / DOM selection (Retune, picker.ts)                 │
-│  — which elements are visually selected on the page         │
+│  — element outlines, drawing path selection, SVG appearance │
 └──────────────────────────┬──────────────────────────────────┘
                            │ sync on pick / outline update
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Comment draft (comment-draft.ts, use-comment-mode.ts)      │
-│  — elementInfo.selectedElements, spanMentionCount, text     │
+│  — elementInfo.selectedElements, spanMentionCount, area     │
 └──────────────────────────┬──────────────────────────────────┘
                            │ mentions prop
                            ▼
@@ -46,7 +48,20 @@ Most bugs in this session came from **unclear ownership** between three layers:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Invariant after all fixes:** When the editor removes all inline mentions, `elementInfo.selectedElements` must be **`[]` (explicit empty array)**, and resolvers must treat that as authoritative — not as “missing data.”
+A fourth visual layer sits **outside** the picker:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  React chrome (Retune.tsx)                                  │
+│  — retune-comment-area-outline (dashed box for area drafts) │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Invariants after all fixes:**
+
+1. When the editor removes all inline mentions, `elementInfo.selectedElements` must be **`[]` (explicit empty array)**, and resolvers must treat that as authoritative — not as "missing data."
+2. When the editor removes all inline mentions, **both** React picker state **and** picker visual chrome must be updated for **each target type** (elements and drawings).
+3. Draw-derived area drafts must carry **`fromDrawing: true`** so the dashed React outline stays suppressed even after mention edits rewrite `elementInfo`.
 
 ---
 
@@ -192,7 +207,7 @@ if (Array.isArray(elementInfo.selectedElements)) return elementInfo.selectedElem
 
 When all mentions are removed, `applyTargetsToDraft()` with an empty target list also sets `selectedElements: []` and `spanMentionCount: 0`.
 
-**Commit:** `07f14bf` on `main`.
+**Commit:** `07f14bf`.
 
 ### Prevention
 
@@ -203,20 +218,7 @@ When all mentions are removed, `applyTargetsToDraft()` with an empty target list
 | Log `selectors` at the **prop reconciliation** boundary when debugging mention sync | Assume Lexical delete bugs when mentions "come back" — check draft resolver first |
 | Add unit test: `resolveCommentElementTargets({ ..., selectedElements: [] })` → `[]` | Rely on manual QA alone for editor ↔ draft sync |
 
-**Recommended unit test (not yet added):**
-
-```typescript
-it("returns empty array when selectedElements is explicitly empty", () => {
-  expect(getCommentElementTargets({
-    tagName: "button",
-    componentName: "Button",
-    componentPath: [],
-    classes: [],
-    textContent: "Save",
-    selectedElements: [],
-  })).toEqual([]);
-});
-```
+**Unit test added:** `comment-text-parse.test.ts` — `"treats an explicit empty selectedElements array as no targets"`.
 
 ---
 
@@ -240,7 +242,7 @@ Temporary logging called Lexical node helpers (e.g. walking the root for debug) 
 ### Fix
 
 1. Wrap debug reads in `editor.getEditorState().read(() => { ... })`.
-2. Remove all instrumentation after the fix was confirmed.
+2. Remove all instrumentation after fixes were confirmed.
 
 ### Prevention
 
@@ -251,32 +253,42 @@ Temporary logging called Lexical node helpers (e.g. walking the root for debug) 
 
 ## Part 5: Mixed Element + Drawing Select-All Delete (Issue 10)
 
-### Symptom
+This issue had **four distinct root causes** discovered iteratively. Each looked like the same bug from the user's perspective but required a separate fix.
 
-When an element mention and a drawing mention were both inserted inline in the chat input, **Cmd+A + Delete** removed and deselected the drawing, but the selected element outline stayed selected.
+### Symptom (overall)
 
-### Root cause
+When an element mention and a drawing mention were both inserted inline in the chat input, **Cmd+A + Delete** did not fully clear both target types and their visual chrome. The failure mode changed after each partial fix:
 
-`handleCommentMentionsChange()` had an explicit drawing path:
+1. Initially: drawings cleared, element outlines stayed selected.
+2. After element fix: editor text cleared, element outlines cleared, drawings stayed selected.
+3. After drawing selection fix: drawing **selection state** cleared, but paths still looked selected (filled stroke).
 
-1. Filter remaining drawing selectors from the editor snapshot.
-2. Call `pickerRef.current?.selectDrawPaths(remainingPaths)`.
+### Issue 10a: Picker delete shortcut stole Backspace from the editor
 
-Element mentions relied on `syncCommentDraftMentionsFromEditor()` in `use-comment-mode.ts`, which cleared React state (`selectedElementsRef`, `setSelectedElements`, `setSelectedElement`) but only updated picker visuals when at least one inspected element remained:
+**Symptom:** Cmd+A + Delete in the Lexical editor sometimes deleted drawings but not element mentions, or behaved inconsistently.
+
+**Root cause:** `picker.ts` registers a document-level `keydown` handler that deletes selected drawings on Delete/Backspace. It ran even when focus was inside the comment editor's `contentEditable` div, intercepting the keystroke before Lexical could process a range delete of all mentions.
+
+**Fix:** Guard the picker shortcut the same way Retune's document-level delete handler does:
 
 ```typescript
-if (remainingInspected.length > 0) {
-  pickerRef.current?.showSelectionOutline(...);
-}
+// picker.ts — drawing delete shortcut
+const target = e.composedPath()[0] as HTMLElement | undefined;
+if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
 ```
 
-When `remainingInspected` became `[]`, the picker was never told to clear its element outline. Drawings looked correct because they had an explicit empty-selection call; elements did not.
+**Prevention:** Any global keyboard shortcut in `picker.ts` or `Retune.tsx` must check `composedPath()[0]` for input/contenteditable targets before calling `preventDefault()`.
 
-### Fix
+### Issue 10b: Element outlines not cleared when all mentions removed
 
-Add an explicit zero-elements branch:
+**Symptom:** After Cmd+A + Delete, inline text and drawing selection cleared, but element selection outlines remained on the page.
+
+**Root cause:** `syncCommentDraftMentionsFromEditor()` updated React state (`selectedElementsRef`, `setSelectedElements`) but only called `pickerRef.current?.showSelectionOutline(...)` when `remainingInspected.length > 0`. Drawings had an explicit empty path via `selectDrawPaths([])` in `handleCommentMentionsChange()`; elements did not.
+
+**Fix:**
 
 ```typescript
+// use-comment-mode.ts
 if (remainingInspected.length > 0) {
   pickerRef.current?.showSelectionOutline(...);
 } else {
@@ -284,25 +296,141 @@ if (remainingInspected.length > 0) {
 }
 ```
 
-This clears only element comment-draft outlines and leaves drawing selection reconciliation to `handleCommentMentionsChange()`.
+**Prevention:** Every editor mention sync path must update **both** React state **and** picker visual state for empty and non-empty cases. Prefer type-specific clearing (`showSelectionOutline([])` for elements, `selectDrawPaths([])` for drawings) over `clearSelection()` in mixed flows.
 
-### Prevention
+### Issue 10c: Drawings looked selected after deselection (fill styling)
 
-- Every editor mention sync path must update both **React state** and **picker visual state** for empty and non-empty cases.
-- Avoid `pickerRef.current?.clearSelection()` in mixed element/drawing flows unless you intentionally want to clear both target types. Prefer type-specific reconciliation: `showSelectionOutline([])` for elements, `selectDrawPaths([])` for drawings.
-- Add manual coverage: insert one element mention and one drawing mention, Cmd+A + Delete, confirm both inline mentions and both picker selections are gone.
+**Symptom:** After clearing all inline mentions, drawing SVG paths retained a filled appearance as if still selected.
+
+**Root cause:** `syncDrawingPathAppearance()` applied fill to unselected paths when `drawMode` was true:
+
+```typescript
+path.setAttribute("fill", drawMode ? fillForColor(baseColor) : "none");
+```
+
+During an open comment draft, `drawMode` stays true (user may still be annotating), so deselected paths looked selected.
+
+**Fix:** Only apply draw-mode fill when not in an active comment draft:
+
+```typescript
+path.setAttribute("fill", drawMode && !commentDraftActive ? fillForColor(baseColor) : "none");
+```
+
+**Prevention:** Distinguish **draw tool active** from **path visually selected**. Fill/stroke styling must consider `commentDraftActive`, `selectedDrawPaths`, and `drawMode` together — not any one flag alone.
+
+### Issue 10d: `refreshSelectionVisuals()` skipped drawing appearance reset
+
+**Symptom:** Even after Issue 10c's fill fix, paths could retain stale appearance when both element and drawing selections became empty simultaneously.
+
+**Root cause:** `refreshSelectionVisuals()` called `hideSelection()` at the end but did not call `syncDrawingPathAppearance()` when both `selectedElements` and `selectedDrawPaths` were empty — even if drawing paths still existed on the canvas.
+
+**Fix:**
+
+```typescript
+// picker.ts — refreshSelectionVisuals()
+if (drawingSvg.childElementCount > 0) {
+  syncDrawingPathAppearance();
+}
+hideSelection();
+```
+
+**Prevention:** Any code path that clears selection state must also refresh **all** visual layers affected by that state — outlines, drawing stroke/fill, and React chrome are separate.
+
+**Commit:** `09a7192` (with Issue 11).
 
 ---
 
-## Part 6: State Ownership Rules
+## Part 6: Dashed Area Outline on Drawing-Based Drafts (Issue 11)
 
-These rules summarize lessons from Issues 1–10:
+### Symptom
+
+A dashed rectangle (`retune-comment-area-outline`) appeared around drawing-based comment drafts. This is **not** picker chrome — it is a React element rendered when `commentDraft.type === "area"`.
+
+Observed variants:
+
+1. **Immediately after opening chat from draw popup** — dashed box around the drawing's bounding box.
+2. **Mixed selection (elements + Shift+draw)** — dashed box around the combined bounding area.
+3. **After deleting all inline element mentions** — dashed box reappeared even though the draft was still drawing-derived.
+
+### Why it happens
+
+The draw tool creates an area draft: `type: "area"` with `area` set to the drawings' bounding box. `Retune.tsx` renders a dashed outline for any area draft. Drawing-based comments should show only the SVG paths, not an additional dashed box.
+
+### Failed fix attempts
+
+**Attempt 1:** Suppress when `elementInfo.tagName === "drawing"`.
+
+**Result:** Worked for pure drawing drafts, but failed for mixed selections where `enrichCommentDraft()` promoted a DOM element's tag (e.g. `"button"`) as the primary `tagName` while a drawing target remained in `selectedElements`.
+
+**Attempt 2:** Also suppress when any `selectedElements` entry has `tagName === "drawing"`.
+
+**Result:** Worked on initial open for mixed selections, but **failed after deleting all inline mentions**. Logs (session `2161c0`, H16 probe) showed:
+
+```json
+{
+  "primaryTagName": "button",
+  "selectedElementTagNames": [],
+  "hasArea": true
+}
+```
+
+After `applyTargetsToDraft(draft, [])`, `selectedElements` became `[]` but legacy primary fields (`tagName: "button"`) were preserved via spread. Neither suppression condition matched.
+
+### Actual fix
+
+Add a persistent top-level draft marker set once at draw-comment creation:
+
+```typescript
+// comment-draft.ts
+export type CommentDraft = {
+  // ...
+  /** Area derived from draw tool bounds, not a drag-to-area gesture */
+  fromDrawing?: boolean;
+};
+
+// Retune.tsx — handleDrawComment()
+const draft = enrichCommentDraft({
+  type: "area",
+  area,
+  fromDrawing: true,
+  // ...
+});
+
+// Retune.tsx — draft area outline render
+{active && commentDraft?.type === "area" && commentDraft.area
+  && !commentDraft.fromDrawing
+  && commentDraft.elementInfo?.tagName !== "drawing"
+  && !commentDraft.elementInfo?.selectedElements?.some(t => t.tagName === "drawing") && (
+  <div className="retune-comment-area-outline" ... />
+)}
+```
+
+`fromDrawing` survives `applyTargetsToDraft()` because that helper spreads `...draft` at the top level. The tagName/selectedElements checks remain as defense-in-depth for saved comments and drafts created before the marker existed.
+
+The same suppression logic was applied to **saved** area comments in `Retune.tsx`.
+
+**Commit:** `09a7192`.
+
+### Prevention
+
+| Do | Don't |
+|---|---|
+| Mark draft **provenance** (`fromDrawing`, `fromDragArea`) at creation time | Infer draft intent from `elementInfo.tagName` after enrichment rewrites it |
+| Put persistent flags on the **draft top level**, not inside `elementInfo` fields that get overwritten | Rely on `selectedElements.some(...)` alone when the array can become `[]` |
+| Suppress React chrome based on draft provenance **and** current target composition | Assume `type === "area"` always means "show dashed box" |
+
+---
+
+## Part 7: State Ownership Rules
+
+These rules summarize lessons from Issues 1–11:
 
 ### Editor → Draft (user edits text / deletes mentions)
 
 1. `CommentEditor` emits mention selector changes via `onMentionsChange`.
 2. `syncCommentDraftMentionsFromEditor` in `use-comment-mode.ts` maps selectors → targets → `applyTargetsToDraft()`.
 3. Result must include **`selectedElements: []`** when the last mention is removed — not `undefined`, not omitted.
+4. Also clear picker visuals: `showSelectionOutline([])` for elements; `selectDrawPaths([])` for drawings (via `handleCommentMentionsChange`).
 
 ### Draft → Editor (props drive mention chips)
 
@@ -322,19 +450,35 @@ Legacy comments stored a single element on `elementInfo` without `selectedElemen
 
 Once `selectedElements` exists on an object — **even as `[]`** — it is the sole source of truth for inline mentions.
 
+### Visual chrome is not one system
+
+| Visual | Owner | Cleared by |
+|---|---|---|
+| Element selection outlines | `picker.ts` | `showSelectionOutline([])` |
+| Drawing path stroke/fill | `picker.ts` | `syncDrawingPathAppearance()` |
+| Dashed area box | `Retune.tsx` React render | Suppress via `fromDrawing` / tag checks |
+| Inline mention chips | Lexical `CommentEditor` | Editor delete + prop reconciliation |
+
+A bug in one layer often looks like a bug in another. When debugging, log **which layer** still shows stale state.
+
 ---
 
-## Part 7: Verification Checklist
+## Part 8: Verification Checklist
 
 ### Automated
 
 ```bash
 cd packages/overlay
 npm test -- src/__tests__/comment-text-parse.test.ts src/__tests__/comment-store.test.ts src/__tests__/picker-utils.test.ts
-npm test   # full suite (~479 tests)
+npm test   # full suite
 ```
 
-### Manual (add to Lexical matrix)
+Key regression tests in `comment-text-parse.test.ts`:
+
+- `"treats an explicit empty selectedElements array as no targets"`
+- `"clears mixed element and drawing targets through the shared draft application path"`
+
+### Manual
 
 | Scenario | Expected |
 |---|---|
@@ -342,20 +486,45 @@ npm test   # full suite (~479 tests)
 | Delete all mentions one by one | Editor empty; draft `selectedElements: []`; no phantom mention |
 | Delete last remaining mention | Same as above; popover stays focused |
 | Type after deleting all mentions | Normal typing; no mention reappears |
-| Insert one element mention + one drawing mention, Cmd+A → Delete | Both mentions removed; both element and drawing selections cleared |
+| Insert one element mention + one drawing mention, Cmd+A → Delete | Both mentions removed; element outlines cleared; drawing paths deselected (no fill) |
+| Draw with draw tool, open comment from popup | No dashed area outline around drawing |
+| Select elements, Shift+draw, open comment | No dashed area outline |
+| Mixed draft: Cmd+A → Delete all inline mentions | No dashed area outline reappears |
+| Drag-to-area comment (not from draw tool) | Dashed area outline **does** appear |
 
 ---
 
-## Part 8: Deferred Work
+## Part 9: Debugging Methodology Used in This Session
+
+When comment-mode bugs recurred, the session followed a consistent loop:
+
+1. **Generate 3–5 falsifiable hypotheses** spanning editor, draft, picker, and React chrome layers.
+2. **Instrument at boundaries** — prop reconciliation, `syncCommentDraftMentionsFromEditor`, picker delete shortcuts, render decisions — not deep inside Lexical unless the layer is confirmed.
+3. **Reproduce once** with clean logs.
+4. **Evaluate each hypothesis** as CONFIRMED / REJECTED / PARTIAL with cited log lines.
+5. **Apply one minimal fix** per confirmed root cause.
+6. **Verify with a second log run** before removing instrumentation.
+7. **Revert speculative fixes** when logs reject the hypothesis — do not accumulate defensive guards.
+
+Common misdirection:
+
+- **"Lexical delete is broken"** → often draft resolver reinserting via props (Issue 9).
+- **"Selection state is wrong"** → often picker visuals not updated on empty branch (Issue 10b).
+- **"Drawing still selected"** → often SVG appearance not refreshed, not selection state (Issues 10c/10d).
+- **"Wrong outline showing"** → often React `retune-comment-area-outline`, not picker (Issue 11).
+
+---
+
+## Part 10: Deferred Work
 
 | Item | Rationale |
 |---|---|
 | Split `Retune.tsx` comment orchestration | Reduces merge conflicts; too large for bugfix pass |
 | Split `picker.ts` selection/outline module | Same |
-| Unit test for empty `selectedElements: []` resolution | Cheap guard for Issue 9 regression |
 | Lexical unit tests for `normalizeMentionSpacing` | Issues 7–8 |
-| Playwright spec for full comment matrix | Automate Lexical + draft sync |
+| Playwright spec for full comment matrix | Automate Lexical + draft sync + drawing flows |
 | Clear legacy primary fields when `selectedElements` becomes `[]` | Would make fallback path safer; not required once resolver is correct |
+| Persist `fromDrawing` on saved comments at submit time | Currently only needed on drafts; saved comments use tagName checks |
 
 ---
 
@@ -364,13 +533,14 @@ npm test   # full suite (~479 tests)
 | File | Role |
 |---|---|
 | `packages/overlay/src/ui/selection-colors.ts` | Canonical mention/selection palette |
-| `packages/overlay/src/overlay/comment/comment-draft.ts` | Draft model, target resolve/apply, text parse |
+| `packages/overlay/src/overlay/comment/comment-draft.ts` | Draft model, `fromDrawing`, target resolve/apply, text parse |
 | `packages/overlay/src/overlay/comment/use-comment-mode.ts` | Hook: draft state, editor ↔ picker sync |
 | `packages/overlay/src/overlay/comment/CommentEditor.tsx` | Lexical composer, input/delete, prop reconciliation |
 | `packages/overlay/src/overlay/comment/mention-node.ts` | Custom `MentionNode` |
 | `packages/overlay/src/engine/comment-store.ts` | Persisted comments + `patch()` API |
-| `packages/overlay/src/overlay/Retune.tsx` | Overlay shell, document keyboard guards, area resize |
-| `packages/overlay/src/selector/picker.ts` | DOM selection, outline colors |
+| `packages/overlay/src/overlay/Retune.tsx` | Overlay shell, dashed area outline, document keyboard guards |
+| `packages/overlay/src/selector/picker.ts` | DOM selection, drawing appearance, outline colors |
+| `packages/overlay/src/__tests__/comment-text-parse.test.ts` | Target resolution and draft sync regression tests |
 
 ---
 

@@ -454,7 +454,7 @@ These were not required for the fix but would reduce fragility:
 
 ## Related Reading
 
-- [Overlay Comment Mode: Session Postmortem](./overlay-comment-mode-postmortem.md) — code quality pass, mention reinsert bug (Issue 9), draft/editor state ownership
+- [Overlay Comment Mode: Session Postmortem](./overlay-comment-mode-postmortem.md) — code quality pass, mention reinsert bug (Issue 9), mixed element/drawing sync (Issue 10), dashed outline suppression (Issue 11), draft/editor/picker state ownership
 - [Lexical TextNode token mode](https://lexical.dev/docs/concepts/nodes#textnode)
 - [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect) — editor state should be mutated in event handlers, not synced via Effects
 - Retune comment architecture: `packages/overlay/src/overlay/comment/comment-draft.ts` (serialization of inline mentions)

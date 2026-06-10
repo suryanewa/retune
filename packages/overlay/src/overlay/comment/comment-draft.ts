@@ -66,6 +66,21 @@ export function buildDrawingTargetsFromPaths(
   );
 }
 
+/** Picker draw selection, falling back to every path on the canvas when none are selected. */
+export function resolveActiveDrawPaths(
+  selectedPaths: SVGPathElement[],
+  drawnPathsInOrder: SVGPathElement[],
+): SVGPathElement[] {
+  return selectedPaths.length > 0 ? selectedPaths : drawnPathsInOrder;
+}
+
+/** All paths on the canvas — used when opening a comment from draw mode. */
+export function resolveDrawPathsForDrawModeComment(
+  drawnPathsInOrder: SVGPathElement[],
+): SVGPathElement[] {
+  return drawnPathsInOrder;
+}
+
 export function areDraftElementTargetsEqual(
   left: CommentElementTarget[],
   right: CommentElementTarget[],
