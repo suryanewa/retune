@@ -17,6 +17,12 @@ import {
   measureDimensionLabelWidth,
   type SelectionChromeLayout,
 } from "./selection-chrome-layout";
+import {
+  buildClosedPath,
+  buildOpenPath,
+  finalizeDrawPoints,
+  type DrawPoint,
+} from "./path-utils";
 
 const PICKER_OUTLINE_COLOR = "#0D99FF";
 /** Light fill on the selected element — same hue as the outline, much lower opacity. */
@@ -42,6 +48,10 @@ export const SELECTION_CLICK_PAD = 8;
 const MARQUEE_DRAG_THRESHOLD = 5;
 const MARQUEE_MIN_SIZE = 10;
 const MARQUEE_SAMPLE_STEP = 16;
+const DRAW_DRAG_THRESHOLD = 3;
+const DRAW_MIN_POINTS = 3;
+const DRAW_FILL_ALPHA = "0.08";
+const DRAW_COLOR_ATTR = "data-retune-draw-color";
 const HOVER_TITLE_OFFSET_X = 12;
 const HOVER_TITLE_OFFSET_Y = 16;
 
@@ -87,6 +97,10 @@ export interface PickerCallbacks {
   onCanvasReorder?: (element: Element, fromIndex: number, toIndex: number) => void;
   /** Called when a flow element is reparented by dragging to a different container */
   onCanvasReparent?: (element: Element, newParent: Element, insertIndex: number) => void;
+  /** Called when draw-mode paths are created, cleared, or replaced. */
+  onDrawPathsChange?: (paths: SVGPathElement[]) => void;
+  /** Called when select-mode drawing selection changes. */
+  onDrawSelectionChange?: (paths: SVGPathElement[]) => void;
 }
 
 /** Compute drop index using filtered rects (dragged element excluded).
@@ -151,6 +165,20 @@ export function createPicker(
     display: none;
   `;
   shadowRoot.appendChild(marqueeBox);
+
+  const drawingSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  drawingSvg.setAttribute("data-retune-drawing-layer", "");
+  drawingSvg.style.cssText = `
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 2147483643;
+    overflow: visible;
+    display: none;
+  `;
+  shadowRoot.appendChild(drawingSvg);
 
   // Hover highlight
   const highlight = document.createElement("div");
@@ -312,7 +340,7 @@ export function createPicker(
     });
 
     refreshScopeHighlights();
-    if (propertyEditMode) updateMultiSelectBoxes();
+    if (propertyEditMode) updateAllSelectionBoxes();
   }
 
   function refreshScopeHighlights() {
@@ -461,6 +489,9 @@ export function createPicker(
   let hoveredElement: Element | null = null;
   let selectedElement: Element | null = null;
   let selectedElements: Element[] = [];
+  let drawMode = false;
+  const elementSelectionColors = new WeakMap<Element, string>();
+  const drawingSelectionColors = new WeakMap<SVGPathElement, string>();
   let selectionLabelHidden = false;
   let syncedChromeLayout: SelectionChromeLayout | null = null;
   /** Shift was held for a shift-click selection and should not turn the next Escape into Shift+Escape. */
@@ -2334,12 +2365,50 @@ export function createPicker(
   }
 
   function selectionColorForIndex(index: number): string {
-    return SELECTION_COLORS[index % SELECTION_COLORS.length];
+    if (index < SELECTION_COLORS.length) return SELECTION_COLORS[index];
+    const hue = (index * 137.508) % 360;
+    return `hsl(${hue.toFixed(1)} 78% 52%)`;
+  }
+
+  function getUsedSelectionColors(): Set<string> {
+    const used = new Set<string>();
+    for (const path of drawingSvg.querySelectorAll("path")) {
+      used.add(getDrawingBaseColor(path));
+    }
+    for (const path of selectedDrawPaths) {
+      const color = drawingSelectionColors.get(path);
+      if (color) used.add(color);
+    }
+    for (const el of selectedElements) {
+      const color = elementSelectionColors.get(el);
+      if (color) used.add(color);
+    }
+    return used;
+  }
+
+  function nextSelectionColor(): string {
+    return nextAvailableSelectionColor(getUsedSelectionColors());
+  }
+
+  function nextAvailableSelectionColor(used: Set<string>): string {
+    for (let i = 0; i < used.size + SELECTION_COLORS.length + 1; i++) {
+      const color = selectionColorForIndex(i);
+      if (!used.has(color)) return color;
+    }
+    return selectionColorForIndex(used.size);
   }
 
   function selectionColorForElement(el: Element): string {
-    const index = selectedElements.indexOf(el);
-    return selectionColorForIndex(index >= 0 ? index : 0);
+    let color = elementSelectionColors.get(el);
+    if (!color) {
+      color = nextSelectionColor();
+      elementSelectionColors.set(el, color);
+    }
+    return color;
+  }
+
+  function nextDrawingColor(): string {
+    return nextSelectionColor();
   }
 
   function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -2430,14 +2499,16 @@ export function createPicker(
   }
 
   function updateCommentDraftOutlines() {
-    if (selectedElements.length === 0) return;
+    if (selectedElements.length === 0 && selectedDrawPaths.length === 0) return;
+
+    syncDrawingPathAppearance();
 
     let poolIndex = 0;
     for (let i = 0; i < selectedElements.length; i++) {
       const el = selectedElements[i];
       const rect = el.getBoundingClientRect();
       const box = getCommentDraftBox(poolIndex++);
-      positionColoredBox(box, rect, "solid", SELECTION_FILL_ALPHA, selectionColorForIndex(i));
+      positionColoredBox(box, rect, "solid", SELECTION_FILL_ALPHA, selectionColorForElement(el));
     }
     for (; poolIndex < 1 + multiSelectPool.length + scopeHighlightPool.length + commentDraftPool.length; poolIndex++) {
       getCommentDraftBox(poolIndex).style.display = "none";
@@ -2463,26 +2534,62 @@ export function createPicker(
     return !selectionLabelHidden && selectedElements.length <= 1;
   }
 
-  function updateMultiSelectBoxes() {
-    if (selectedElements.length === 0) return;
+  function updateAllSelectionBoxes() {
+    const hasElements = selectedElements.length > 0 && selectedElement;
+    const hasDraws = selectedDrawPaths.length > 0;
+    if (drawingSvg.childElementCount > 0) {
+      syncDrawingPathAppearance();
+    }
+    if (!hasElements && !hasDraws) return;
 
     let poolIndex = 0;
-    for (let i = 0; i < selectedElements.length; i++) {
-      const el = selectedElements[i];
-      const rect = el.getBoundingClientRect();
-      const color = selectionColorForIndex(i);
-      if (el === selectedElement) {
-        const isNewElement = el !== lastSelectedElement;
-        positionColoredBox(selection, rect, "solid", SELECTION_FILL_ALPHA, color, isNewElement);
-      } else {
-        const box = multiSelectPool[poolIndex++];
-        positionColoredBox(box, rect, "solid", SELECTION_FILL_ALPHA, color);
+
+    if (hasElements) {
+      for (let i = 0; i < selectedElements.length; i++) {
+        const el = selectedElements[i];
+        const rect = el.getBoundingClientRect();
+        const color = selectionColorForElement(el);
+        if (el === selectedElement) {
+          const isNewElement = el !== lastSelectedElement;
+          positionColoredBox(selection, rect, "solid", SELECTION_FILL_ALPHA, color, isNewElement);
+        } else if (poolIndex < multiSelectPool.length) {
+          positionColoredBox(multiSelectPool[poolIndex++], rect, "solid", SELECTION_FILL_ALPHA, color);
+        }
       }
+      lastSelectedElement = selectedElement;
+    } else {
+      selection.style.display = "none";
+      hideMultiSelectBoxes();
     }
+
     for (; poolIndex < multiSelectPool.length; poolIndex++) {
       multiSelectPool[poolIndex].style.display = "none";
     }
-    lastSelectedElement = selectedElement;
+
+    if (!hasElements && hasDraws) {
+      selectionLabel.style.display = "none";
+      selection.style.pointerEvents = "none";
+      selection.style.cursor = "";
+      parentIndicator.style.display = "none";
+      hidePinLines();
+      hideHandles();
+    }
+  }
+
+  function refreshSelectionVisuals() {
+    if (commentDraftActive && (selectedElements.length > 0 || selectedDrawPaths.length > 0)) {
+      updateCommentDraftOutlines();
+      return;
+    }
+    if (selectedElements.length > 0 && selectedElement) {
+      showSelection();
+      return;
+    }
+    if (selectedDrawPaths.length > 0) {
+      updateAllSelectionBoxes();
+      return;
+    }
+    hideSelection();
   }
 
   function applyDimensionChromeLayout(
@@ -2545,7 +2652,7 @@ export function createPicker(
   }
 
   function updateHoverTitle(el: Element) {
-    if (commentMode || suspended || marqueeDrag?.dragging) {
+    if (commentMode || drawMode || suspended || marqueeDrag?.dragging || drawDrag?.dragging) {
       hideHoverTitle();
       return;
     }
@@ -2594,7 +2701,7 @@ export function createPicker(
       return;
     }
 
-    updateMultiSelectBoxes();
+    updateAllSelectionBoxes();
     const rect = selectedElement.getBoundingClientRect();
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
 
@@ -2658,7 +2765,17 @@ export function createPicker(
 
   // Lightweight position-only update for scroll/resize tracking
   function trackSelection() {
-    if (!selectedElement || selectedElements.length === 0 || reorderDrag?.active) return;
+    if (reorderDrag?.active) return;
+    if ((!selectedElement || selectedElements.length === 0) && selectedDrawPaths.length === 0) return;
+    if (selectedDrawPaths.length > 0 && (!selectedElement || selectedElements.length === 0)) {
+      if (commentDraftActive) {
+        updateCommentDraftOutlines();
+      } else {
+        updateAllSelectionBoxes();
+      }
+      return;
+    }
+    if (!selectedElement || selectedElements.length === 0) return;
     const rect = selectedElement.getBoundingClientRect();
     const primaryMoved = !(
       rect.top === lastSelRect.top &&
@@ -2673,7 +2790,7 @@ export function createPicker(
       return;
     }
 
-    updateMultiSelectBoxes();
+    updateAllSelectionBoxes();
     lastSelRect = { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
 
     if (suspended) return;
@@ -2689,7 +2806,7 @@ export function createPicker(
       selectionLabel.style.display = "none";
     }
 
-    if (!primaryMoved && selectedElements.length === 1) return;
+    if (!primaryMoved && selectedElements.length === 1 && selectedDrawPaths.length === 0) return;
 
     if (!propertyEditMode) return;
 
@@ -2735,6 +2852,30 @@ export function createPicker(
     repositionAxes = null;
     hideHandles();
     lastSelectedElement = null;
+    if (drawingSvg.childElementCount > 0) {
+      syncDrawingPathAppearance();
+    }
+  }
+
+  function clearDrawSelection() {
+    if (selectedDrawPaths.length === 0) return;
+    selectedDrawPaths = [];
+    notifyDrawSelectionChange();
+    refreshSelectionVisuals();
+  }
+
+  function clearElementSelection() {
+    if (commentDraftActive) hideCommentDraftOutlines();
+    commentDraftActive = false;
+    selectedElement = null;
+    selectedElements = [];
+    syncedChromeLayout = null;
+    propertyEditMode = false;
+    selectionLabelHidden = false;
+    elementStack = [];
+    stackIndex = -1;
+    hideSelection(); // also hides handles
+    hideScopeHighlights();
   }
 
   // Debounce multiple events into a single rAF update
@@ -2742,11 +2883,13 @@ export function createPicker(
     if (trackingRaf !== null) return;
     trackingRaf = requestAnimationFrame(() => {
       trackingRaf = null;
+      syncDrawingLayerTransform();
       trackSelection();
     });
   }
 
   function handleScroll() {
+    syncDrawingLayerTransform();
     scheduleTrack();
     refreshScopeHighlights();
     if (hoveredElement) {
@@ -2757,11 +2900,12 @@ export function createPicker(
 
   // Keep selection box in sync on scroll/resize
   function startTracking() {
-    window.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+    document.addEventListener("scroll", handleScroll, { capture: true, passive: true });
     window.addEventListener("resize", scheduleTrack, { passive: true });
     resizeObserver = new ResizeObserver(scheduleTrack);
     observeSelectedElements();
     // Initial position update
+    syncDrawingLayerTransform();
     trackSelection();
   }
 
@@ -2770,7 +2914,7 @@ export function createPicker(
       cancelAnimationFrame(trackingRaf);
       trackingRaf = null;
     }
-    window.removeEventListener("scroll", handleScroll, true);
+    document.removeEventListener("scroll", handleScroll, true);
     window.removeEventListener("resize", scheduleTrack);
     resizeObserver?.disconnect();
     resizeObserver = null;
@@ -2829,7 +2973,7 @@ export function createPicker(
 
   function handleMouseMove(e: MouseEvent) {
     lastPointer = { x: e.clientX, y: e.clientY };
-    if (!active || suspended || commentMode || repositionDrag || resizeDrag || reorderDrag) return;
+    if (!active || suspended || commentMode || drawMode || repositionDrag || resizeDrag || reorderDrag) return;
     // Skip if cursor is over overlay UI (toolbar, panel) inside the shadow root.
     // elementFromPoint on a ShadowRoot falls through to page elements when no
     // shadow element is at the point, so we verify the hit actually belongs to
@@ -2957,6 +3101,342 @@ export function createPicker(
     startElement: Element | null;
   } | null = null;
   let marqueeDragJustEnded = false;
+  let drawDrag: {
+    pointerId: number;
+    points: DrawPoint[];
+    path: SVGPathElement;
+    color: string;
+    appendToSelection: boolean;
+    dragging: boolean;
+  } | null = null;
+  let selectedDrawPaths: SVGPathElement[] = [];
+
+  function fillForColor(color: string, alpha = DRAW_FILL_ALPHA): string {
+    const { r, g, b } = hexToRgb(color);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function getDrawingBaseColor(path: SVGPathElement): string {
+    return path.getAttribute(DRAW_COLOR_ATTR) ?? path.getAttribute("stroke") ?? SELECTION_COLORS[0];
+  }
+
+  /** Selected drawings get a palette fill; unselected drawings stay stroke-only. */
+  function syncDrawingPathAppearance() {
+    const selectedSet = new Set(selectedDrawPaths);
+    const paths = Array.from(drawingSvg.querySelectorAll("path"));
+    if (paths.length === 0) return;
+    const activeColors = new Set<string>();
+
+    for (const el of selectedElements) {
+      activeColors.add(selectionColorForElement(el));
+    }
+
+    for (const path of paths) {
+      const baseColor = getDrawingBaseColor(path);
+      if (!path.hasAttribute(DRAW_COLOR_ATTR)) {
+        path.setAttribute(DRAW_COLOR_ATTR, baseColor);
+      }
+
+      if (selectedSet.has(path)) {
+        let selectedColor = drawingSelectionColors.get(path) ?? baseColor;
+        if (activeColors.has(selectedColor)) {
+          selectedColor = nextAvailableSelectionColor(activeColors);
+          drawingSelectionColors.set(path, selectedColor);
+        }
+        activeColors.add(selectedColor);
+        path.setAttribute("stroke", selectedColor);
+        path.setAttribute("fill", fillForColor(selectedColor));
+      } else {
+        path.setAttribute("stroke", baseColor);
+        path.setAttribute("fill", drawMode ? fillForColor(baseColor) : "none");
+      }
+    }
+  }
+
+  function toPagePoint(clientX: number, clientY: number): DrawPoint {
+    return { x: clientX + window.scrollX, y: clientY + window.scrollY };
+  }
+
+  function syncDrawingLayerTransform() {
+    drawingSvg.style.transform = `translate(${-window.scrollX}px, ${-window.scrollY}px)`;
+    if (selectedDrawPaths.length > 0 || selectedElements.length > 0) updateAllSelectionBoxes();
+  }
+
+  function syncDrawingLayerVisibility() {
+    drawingSvg.style.display = drawMode || drawingSvg.childElementCount > 0 ? "block" : "none";
+  }
+
+  function removeDrawnPaths() {
+    drawingSvg.replaceChildren();
+    clearDrawSelection();
+    syncDrawingLayerVisibility();
+    callbacks.onDrawPathsChange?.([]);
+  }
+
+  function notifyDrawPathsChange() {
+    callbacks.onDrawPathsChange?.(Array.from(drawingSvg.querySelectorAll("path")));
+  }
+
+  function notifyDrawSelectionChange() {
+    callbacks.onDrawSelectionChange?.([...selectedDrawPaths]);
+  }
+
+  interface PathState {
+    d: string;
+    stroke: string;
+    drawColor: string;
+    strokeWidth: string;
+    strokeLinecap: string;
+    strokeLinejoin: string;
+    vectorEffect: string;
+    fill: string;
+  }
+  let undoStack: PathState[][] = [[]];
+  let redoStack: PathState[][] = [];
+
+  function getDrawingState(): PathState[] {
+    return Array.from(drawingSvg.querySelectorAll("path")).map((path) => ({
+      d: path.getAttribute("d") ?? "",
+      stroke: path.getAttribute("stroke") ?? "",
+      drawColor: getDrawingBaseColor(path),
+      strokeWidth: path.getAttribute("stroke-width") ?? "2",
+      strokeLinecap: path.getAttribute("stroke-linecap") ?? "round",
+      strokeLinejoin: path.getAttribute("stroke-linejoin") ?? "round",
+      vectorEffect: path.getAttribute("vector-effect") ?? "non-scaling-stroke",
+      fill: path.getAttribute("fill") ?? "none",
+    }));
+  }
+
+  function restoreDrawingState(state: PathState[]) {
+    drawingSvg.replaceChildren();
+    for (const p of state) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", p.d);
+      path.setAttribute("stroke", p.stroke);
+      path.setAttribute("stroke-width", p.strokeWidth);
+      path.setAttribute("stroke-linecap", p.strokeLinecap);
+      path.setAttribute("stroke-linejoin", p.strokeLinejoin);
+      path.setAttribute("vector-effect", p.vectorEffect);
+      path.setAttribute("fill", p.fill);
+      path.setAttribute(DRAW_COLOR_ATTR, p.drawColor ?? p.stroke);
+      drawingSvg.appendChild(path);
+    }
+    const currentPaths = Array.from(drawingSvg.querySelectorAll("path"));
+    selectedDrawPaths = selectedDrawPaths.filter((path) => currentPaths.includes(path));
+    syncDrawingLayerVisibility();
+    notifyDrawPathsChange();
+    notifyDrawSelectionChange();
+    refreshSelectionVisuals();
+  }
+
+  function pushState() {
+    const currentState = getDrawingState();
+    const top = undoStack[undoStack.length - 1];
+    if (top && JSON.stringify(top) === JSON.stringify(currentState)) {
+      return;
+    }
+    undoStack.push(currentState);
+    redoStack = [];
+  }
+
+  function undo() {
+    if (undoStack.length <= 1) return;
+    const current = undoStack.pop()!;
+    redoStack.push(current);
+    const previous = undoStack[undoStack.length - 1];
+    restoreDrawingState(previous);
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    const next = redoStack.pop()!;
+    undoStack.push(next);
+    restoreDrawingState(next);
+  }
+
+  function deleteSelectedDrawings() {
+    if (selectedDrawPaths.length === 0) return;
+    pushState();
+    for (const path of selectedDrawPaths) {
+      path.remove();
+    }
+    clearDrawSelection();
+    syncDrawingLayerVisibility();
+    notifyDrawPathsChange();
+  }
+
+  function hitTestDrawPath(clientX: number, clientY: number): SVGPathElement | null {
+    const paths = Array.from(drawingSvg.querySelectorAll("path")).reverse();
+    if (paths.length === 0) return null;
+
+    for (const path of paths) {
+      const rect = path.getBoundingClientRect();
+      const pad = SELECTION_CLICK_PAD;
+      if (
+        clientX < rect.left - pad ||
+        clientX > rect.right + pad ||
+        clientY < rect.top - pad ||
+        clientY > rect.bottom + pad
+      ) {
+        continue;
+      }
+
+      try {
+        const matrix = path.getScreenCTM()?.inverse();
+        if (!matrix) continue;
+        const point = drawingSvg.createSVGPoint();
+        point.x = clientX;
+        point.y = clientY;
+        const localPoint = point.matrixTransform(matrix);
+        if (path.isPointInFill(localPoint) || path.isPointInStroke(localPoint)) {
+          return path;
+        }
+      } catch {
+        return path;
+      }
+    }
+
+    return null;
+  }
+
+  function isPointInsideDrawSelectionBounds(x: number, y: number, pad = SELECTION_CLICK_PAD): boolean {
+    for (const path of selectedDrawPaths) {
+      const rect = path.getBoundingClientRect();
+      if (x >= rect.left - pad && x <= rect.right + pad && y >= rect.top - pad && y <= rect.bottom + pad) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function selectDrawPaths(paths: SVGPathElement[]) {
+    selectedDrawPaths = paths.slice(0, MULTI_SELECT_POOL_SIZE + 1);
+    hideHighlight();
+    hoveredElement = null;
+    blurPageFocus();
+    notifyDrawSelectionChange();
+    refreshSelectionVisuals();
+  }
+
+  function handleDrawPathClick(path: SVGPathElement, e: MouseEvent) {
+    if (e.altKey) {
+      const existingIndex = selectedDrawPaths.indexOf(path);
+      if (existingIndex < 0) return;
+      selectedDrawPaths = selectedDrawPaths.filter((_, i) => i !== existingIndex);
+      notifyDrawSelectionChange();
+      refreshSelectionVisuals();
+      return;
+    }
+
+    if (e.shiftKey) {
+      const existingIndex = selectedDrawPaths.indexOf(path);
+      if (existingIndex >= 0) {
+        selectedDrawPaths = selectedDrawPaths.filter((_, i) => i !== existingIndex);
+      } else if (selectedDrawPaths.length < MULTI_SELECT_POOL_SIZE + 1) {
+        selectedDrawPaths = [...selectedDrawPaths, path];
+      }
+
+      hideHighlight();
+      hoveredElement = null;
+      blurPageFocus();
+      notifyDrawSelectionChange();
+      refreshSelectionVisuals();
+      return;
+    }
+
+    selectDrawPaths([path]);
+  }
+
+  function startDrawPath(e: PointerEvent) {
+    if (!active || !drawMode || suspended || commentDraftActive) return;
+    if (isRetuneOverlayEvent(e)) return;
+    if (callbacks.shouldBlockClick?.()) return;
+    if (!e.composedPath().includes(captureLayer)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    if (!e.shiftKey) {
+      pushState();
+      removeDrawnPaths();
+    }
+
+    hideHighlight();
+    hideHoverTitle();
+    blurPageFocus();
+
+    const color = nextDrawingColor();
+    const point = toPagePoint(e.clientX, e.clientY);
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", buildOpenPath([point]));
+    path.setAttribute("fill", "none");
+    path.setAttribute(DRAW_COLOR_ATTR, color);
+    path.setAttribute("stroke", color);
+    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    path.setAttribute("vector-effect", "non-scaling-stroke");
+    syncDrawingLayerTransform();
+    drawingSvg.style.display = "block";
+    drawingSvg.appendChild(path);
+    drawDrag = {
+      pointerId: e.pointerId,
+      points: [point],
+      path,
+      color,
+      appendToSelection: e.shiftKey,
+      dragging: false,
+    };
+  }
+
+  function updateDrawPath(e: PointerEvent) {
+    const drag = drawDrag;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    const point = toPagePoint(e.clientX, e.clientY);
+    const last = drag.points[drag.points.length - 1];
+    const dx = point.x - last.x;
+    const dy = point.y - last.y;
+    if (Math.hypot(dx, dy) < DRAW_DRAG_THRESHOLD) return;
+
+    drag.dragging = true;
+    drag.points.push(point);
+    drag.path.setAttribute("d", buildOpenPath(drag.points));
+  }
+
+  function endDrawPath(e: PointerEvent) {
+    const drag = drawDrag;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    drawDrag = null;
+
+    if (!drag.dragging || drag.points.length < DRAW_MIN_POINTS) {
+      drag.path.remove();
+      if (drawingSvg.childElementCount === 0) drawingSvg.style.display = "none";
+      notifyDrawPathsChange();
+      return;
+    }
+
+    const finalPoints = finalizeDrawPoints(drag.points);
+    drag.path.setAttribute("d", buildClosedPath(finalPoints));
+    drag.path.setAttribute("fill", "none");
+    if (drag.appendToSelection && selectedDrawPaths.length < MULTI_SELECT_POOL_SIZE + 1) {
+      selectedDrawPaths = [...selectedDrawPaths, drag.path];
+      notifyDrawSelectionChange();
+    }
+    syncDrawingPathAppearance();
+    syncDrawingLayerVisibility();
+    notifyDrawPathsChange();
+    pushState();
+  }
 
   function hideMarqueeBox() {
     marqueeBox.style.display = "none";
@@ -3044,7 +3524,15 @@ export function createPicker(
       const next = selectedElements.filter((el) => !toRemove.has(el));
       if (next.length === selectedElements.length) return;
       if (next.length === 0) {
-        deselect();
+        const fallback = selectedElement ?? selectedElements[0];
+        clearElementSelection();
+        hideHighlight();
+        hoveredElement = null;
+        blurPageFocus();
+        if (fallback) {
+          callbacks.onSelect(fallback, { shiftKey: false, selectedElements: [] });
+        }
+        refreshSelectionVisuals();
         return;
       }
       selectedElements = next;
@@ -3097,7 +3585,7 @@ export function createPicker(
   }
 
   function handleMarqueePointerDown(e: PointerEvent) {
-    if (!active || commentMode || suspended) return;
+    if (!active || commentMode || drawMode || suspended) return;
     if (commentDraftActive) return;
     if (isRetuneOverlayEvent(e)) return;
     if (callbacks.shouldBlockClick?.()) return;
@@ -3117,6 +3605,14 @@ export function createPicker(
 
   function handleClick(e: MouseEvent) {
     if (!active) return;
+
+    if (drawMode && !commentDraftActive) {
+      if (isRetuneOverlayEvent(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
 
     if (marqueeDragJustEnded) {
       marqueeDragJustEnded = false;
@@ -3149,6 +3645,18 @@ export function createPicker(
     e.stopImmediatePropagation();
 
     const { clientX: x, clientY: y } = e;
+
+    if (!commentMode) {
+      const drawHit = hitTestDrawPath(x, y);
+      if (drawHit) {
+        handleDrawPathClick(drawHit, e);
+        return;
+      }
+
+      if (!commentDraftActive && selectedDrawPaths.length > 0 && !e.shiftKey && !isPointInsideDrawSelectionBounds(x, y)) {
+        clearDrawSelection();
+      }
+    }
 
     // Check if clicking the same spot — cycle through element stack
     const sameSpot =
@@ -3189,7 +3697,13 @@ export function createPicker(
 
       selectedElements = selectedElements.filter((_, i) => i !== existingIndex);
       if (selectedElements.length === 0) {
-        deselect();
+        selectedElement = null;
+        selectionLabelHidden = false;
+        hideHighlight();
+        hoveredElement = null;
+        blurPageFocus();
+        callbacks.onSelect(el, { shiftKey: false, selectedElements: [] });
+        refreshSelectionVisuals();
         return;
       }
 
@@ -3225,7 +3739,7 @@ export function createPicker(
     if (!commentMode && selectedElements.length > 0 && !e.shiftKey) {
       if (!isPointInsideSelectionBounds(x, y, selectedElements)) {
         const targetIsSelected = selectedElements.includes(el);
-        clearSelection();
+        clearElementSelection();
         hideHighlight();
         hoveredElement = null;
         selectionLabelHidden = false;
@@ -3238,7 +3752,8 @@ export function createPicker(
           blurPageFocus();
           notifySelect(el, false);
         } else {
-          callbacks.onDeselect?.();
+          refreshSelectionVisuals();
+          callbacks.onSelect(el, { shiftKey: false, selectedElements: [] });
         }
         return;
       }
@@ -3261,10 +3776,10 @@ export function createPicker(
         if (selectedElements.length === 0) {
           selectedElement = null;
           selectionLabelHidden = false;
-          hideSelection();
           hideHighlight();
           hoveredElement = null;
           notifySelect(el, true);
+          refreshSelectionVisuals();
           return;
         }
         selectedElement = selectedElements[selectedElements.length - 1];
@@ -3311,6 +3826,45 @@ export function createPicker(
 
   function handleKeyDown(e: KeyboardEvent) {
     if (!active) return;
+
+    const target = e.target as HTMLElement;
+    const isInput =
+      target &&
+      (target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable);
+
+    if (!isInput) {
+      const isMac = /Mac|iPod|iPad|iPhone/i.test(navigator.platform || navigator.userAgent);
+      const isUndo = e.key === "z" && (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey;
+      const isRedo =
+        (e.key === "z" && (isMac ? e.metaKey : e.ctrlKey) && e.shiftKey) ||
+        (e.key === "y" && (isMac ? e.metaKey : e.ctrlKey));
+
+      if (isUndo) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        undo();
+        return;
+      }
+      if (isRedo) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        redo();
+        return;
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedDrawPaths.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        deleteSelectedDrawings();
+        return;
+      }
+    }
+
     if (e.key === "Escape") {
       if (shadowRoot.querySelector(".retune-floating-dialog")) return;
       if (shadowRoot.querySelector(".retune-comment-popover")) return;
@@ -3318,7 +3872,13 @@ export function createPicker(
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      if (selectedElements.length > 0 || selectedElement) {
+      if (selectedDrawPaths.length > 0) {
+        if (e.shiftKey && !shiftHeldForSelection) {
+          clearDrawSelection();
+        } else {
+          deselectMostRecent();
+        }
+      } else if (selectedElements.length > 0 || selectedElement) {
         if (e.shiftKey && !shiftHeldForSelection) {
           deselect();
         } else {
@@ -3367,6 +3927,13 @@ export function createPicker(
       transform: none !important;
     }
   `;
+  const DRAW_PAGE_STYLES = `
+    * { cursor: crosshair !important; user-select: none !important; -webkit-user-select: none !important; }
+    *:focus, *:focus-visible { outline: none !important; }
+    html[data-retune-active] *:active {
+      transform: none !important;
+    }
+  `;
   const SUSPENDED_PAGE_STYLES = `
     * { user-select: none !important; -webkit-user-select: none !important; }
     html[data-retune-suspended] *:active {
@@ -3386,6 +3953,10 @@ export function createPicker(
     cursorStyle.textContent = ACTIVE_PAGE_STYLES;
     document.head.appendChild(cursorStyle);
     captureLayer.style.display = "block";
+    document.addEventListener("pointerdown", startDrawPath, true);
+    document.addEventListener("pointermove", updateDrawPath, true);
+    document.addEventListener("pointerup", endDrawPath, true);
+    document.addEventListener("pointercancel", endDrawPath, true);
     // Marquee must register before blockPagePointerDown — block stops propagation
     // in the document capture phase, so capture-layer-only listeners never run.
     document.addEventListener("pointerdown", handleMarqueePointerDown, true);
@@ -3412,12 +3983,19 @@ export function createPicker(
     shiftHeldForSelection = false;
     marqueeDrag = null;
     marqueeDragJustEnded = false;
+    drawMode = false;
+    drawDrag = null;
     hideMarqueeBox();
+    removeDrawnPaths();
     document.documentElement.removeAttribute("data-retune-active");
     document.documentElement.removeAttribute("data-retune-suspended");
     cursorStyle.textContent = "";
     cursorStyle.remove();
     captureLayer.style.display = "none";
+    document.removeEventListener("pointerdown", startDrawPath, true);
+    document.removeEventListener("pointermove", updateDrawPath, true);
+    document.removeEventListener("pointerup", endDrawPath, true);
+    document.removeEventListener("pointercancel", endDrawPath, true);
     document.removeEventListener("pointerdown", handleMarqueePointerDown, true);
     document.removeEventListener("pointermove", handleMarqueePointerMove, true);
     document.removeEventListener("pointerup", endMarqueeDrag, true);
@@ -3447,17 +4025,8 @@ export function createPicker(
   }
 
   function clearSelection() {
-    if (commentDraftActive) hideCommentDraftOutlines();
-    commentDraftActive = false;
-    selectedElement = null;
-    selectedElements = [];
-    syncedChromeLayout = null;
-    propertyEditMode = false;
-    selectionLabelHidden = false;
-    elementStack = [];
-    stackIndex = -1;
-    hideSelection(); // also hides handles
-    hideScopeHighlights();
+    clearElementSelection();
+    clearDrawSelection();
   }
 
   function deselect() {
@@ -3469,6 +4038,17 @@ export function createPicker(
 
   /** Remove the most recently shift-selected element; clear all when only one remains. */
   function deselectMostRecent() {
+    if (selectedDrawPaths.length > 0) {
+      if (selectedDrawPaths.length <= 1) {
+        clearDrawSelection();
+        return;
+      }
+      selectedDrawPaths = selectedDrawPaths.slice(0, -1);
+      notifyDrawSelectionChange();
+      refreshSelectionVisuals();
+      return;
+    }
+
     if (selectedElements.length === 0 && !selectedElement) return;
     if (selectedElements.length <= 1) {
       deselect();
@@ -3486,6 +4066,7 @@ export function createPicker(
   function destroy() {
     deactivate();
     marqueeBox.remove();
+    drawingSvg.remove();
     captureLayer.remove();
     highlight.remove();
     label.remove();
@@ -3572,6 +4153,38 @@ export function createPicker(
     if (selectedElement) showSelection();
   }
 
+  function setDrawMode(enabled: boolean) {
+    drawMode = enabled;
+    drawDrag = null;
+    if (enabled) {
+      hideMarqueeBox();
+      hideHighlight();
+      hideHoverTitle();
+      cursorStyle.textContent = DRAW_PAGE_STYLES;
+      syncDrawingLayerTransform();
+      syncDrawingPathAppearance();
+      syncDrawingLayerVisibility();
+    } else {
+      if (selectedDrawPaths.length > 0 && selectedElements.length === 0) {
+        clearDrawSelection();
+      }
+      syncDrawingPathAppearance();
+      syncDrawingLayerVisibility();
+      if (active && !commentMode && !suspended) {
+        cursorStyle.textContent = ACTIVE_PAGE_STYLES;
+      }
+    }
+  }
+
+  function clearDrawings() {
+    pushState();
+    removeDrawnPaths();
+  }
+
+  function getSelectedDrawPaths() {
+    return [...selectedDrawPaths];
+  }
+
   function setSelectionLabelHidden(hidden: boolean) {
     selectionLabelHidden = hidden;
     if (selectedElement) showSelection();
@@ -3611,6 +4224,8 @@ export function createPicker(
     if (!active) {
       hideCommentDraftOutlines();
       selectionLabelHidden = false;
+    } else if (selectedElements.length > 0 || selectedDrawPaths.length > 0) {
+      updateCommentDraftOutlines();
     }
   }
 
@@ -3640,12 +4255,14 @@ export function createPicker(
   function setCommentMode(enabled: boolean) {
     commentMode = enabled;
     if (enabled) {
+      drawMode = false;
+      drawDrag = null;
       clearSelection();
       cursorStyle.textContent = `* { cursor: ${commentCursorUrl} !important; user-select: none !important; -webkit-user-select: none !important; }`;
     } else if (active) {
-      cursorStyle.textContent = ACTIVE_PAGE_STYLES;
+      cursorStyle.textContent = drawMode ? DRAW_PAGE_STYLES : ACTIVE_PAGE_STYLES;
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, deselect, selectElement, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setSelectionLabelHidden, showSelectionOutline, setCommentDraftActive, restoreSelection, setChromeLayout };
+  return { activate, deactivate, destroy, hideHighlight, clearSelection, deselect, selectElement, selectDrawPaths, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setDrawMode, clearDrawings, clearDrawSelection, getSelectedDrawPaths, deleteSelectedDrawings, setSelectionLabelHidden, showSelectionOutline, setCommentDraftActive, restoreSelection, setChromeLayout };
 }

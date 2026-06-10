@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { orderTargetsBySelectors, parseCommentTextIntoParts } from "../overlay/comment/comment-draft";
+import {
+  buildDrawingCommentTarget,
+  buildDrawingTargetsFromPaths,
+  getDrawingMentionName,
+  getDrawingOrderIndex,
+  getMentionName,
+  orderTargetsBySelectors,
+  parseCommentTextIntoParts,
+  areDraftElementTargetsEqual,
+  syncDrawingTargetsInDraft,
+} from "../overlay/comment/comment-draft";
 
 const targets = [
   {
@@ -44,6 +54,71 @@ describe("parseCommentTextIntoParts", () => {
     expect(parseCommentTextIntoParts("@Button hello", [])).toEqual([
       { type: "text", text: "@Button hello" },
     ]);
+  });
+});
+
+describe("drawing mention names", () => {
+  it("names drawings by creation order", () => {
+    const paths = [{}, {}, {}] as SVGPathElement[];
+    expect(getDrawingOrderIndex(paths[1], paths)).toBe(2);
+    expect(getDrawingMentionName(2)).toBe("Drawing 2");
+    expect(buildDrawingCommentTarget(2)).toEqual({
+      tagName: "drawing",
+      selector: "retune-drawing:2",
+      componentName: "Drawing 2",
+      componentPath: [],
+      classes: [],
+      textContent: null,
+    });
+    expect(getMentionName("drawing", "Drawing 2")).toBe("Drawing 2");
+  });
+
+  it("syncs multi-selected drawings into an open draft", () => {
+    const paths = [{}, {}, {}] as SVGPathElement[];
+    const synced = syncDrawingTargetsInDraft(
+      {
+        position: { x: 0, y: 0 },
+        type: "element",
+        spanMentionCount: 1,
+        elementInfo: {
+          tagName: "button",
+          componentName: "Button",
+          componentPath: [],
+          classes: [],
+          textContent: "Save",
+          selectedElements: [{
+            tagName: "button",
+            selector: ".btn",
+            componentName: "Button",
+            classes: [],
+            textContent: "Save",
+          }],
+        },
+      },
+      [paths[0], paths[2]],
+      paths,
+    );
+
+    expect(buildDrawingTargetsFromPaths([paths[0], paths[2]], paths)).toEqual([
+      buildDrawingCommentTarget(1),
+      buildDrawingCommentTarget(3),
+    ]);
+    expect(synced.spanMentionCount).toBe(3);
+    expect(synced.elementInfo?.selectedElements).toEqual([
+      {
+        tagName: "button",
+        selector: ".btn",
+        componentName: "Button",
+        classes: [],
+        textContent: "Save",
+      },
+      buildDrawingCommentTarget(1),
+      buildDrawingCommentTarget(3),
+    ]);
+    expect(areDraftElementTargetsEqual(
+      [{ tagName: "button", selector: ".btn", componentName: "Button", componentPath: [], classes: [], textContent: "Save" }],
+      [{ tagName: "button", selector: ".btn", componentName: "Button", componentPath: [], classes: [], textContent: "Save" }],
+    )).toBe(true);
   });
 });
 

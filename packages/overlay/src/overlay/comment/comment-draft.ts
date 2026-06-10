@@ -34,7 +34,140 @@ export type ContainedCommentElement = {
   textContent: string | null;
 };
 
+export function getDrawingMentionName(orderIndex: number): string {
+  return `Drawing ${orderIndex}`;
+}
+
+export function buildDrawingCommentTarget(orderIndex: number): CommentElementTarget {
+  return {
+    tagName: "drawing",
+    selector: `retune-drawing:${orderIndex}`,
+    componentName: getDrawingMentionName(orderIndex),
+    componentPath: [],
+    classes: [],
+    textContent: null,
+  };
+}
+
+export function getDrawingOrderIndex(
+  path: SVGPathElement,
+  drawnPathsInOrder: SVGPathElement[],
+): number {
+  const index = drawnPathsInOrder.indexOf(path);
+  return index >= 0 ? index + 1 : drawnPathsInOrder.length + 1;
+}
+
+export function buildDrawingTargetsFromPaths(
+  paths: SVGPathElement[],
+  drawnPathsInOrder: SVGPathElement[],
+): CommentElementTarget[] {
+  const orderedPaths = [...paths].sort(
+    (a, b) => drawnPathsInOrder.indexOf(a) - drawnPathsInOrder.indexOf(b),
+  );
+  return orderedPaths.map((path) =>
+    buildDrawingCommentTarget(getDrawingOrderIndex(path, drawnPathsInOrder)),
+  );
+}
+
+export function areDraftElementTargetsEqual(
+  left: CommentElementTarget[],
+  right: CommentElementTarget[],
+): boolean {
+  if (left.length !== right.length) return false;
+  return left.every((target, index) => target.selector === right[index]?.selector);
+}
+
+export function supportsLiveMentionEditing(draft: CommentDraft | null | undefined): boolean {
+  return draft?.type === "element" || draft?.type === "area";
+}
+
+export function syncElementTargetsInDraft(
+  draft: CommentDraft,
+  inspectedElements: InspectedElement[],
+): CommentDraft {
+  const existing = draft.elementInfo?.selectedElements ?? getDraftElementTargets(draft);
+  const drawingTargets = existing.filter((target) => target.tagName === "drawing");
+  const elementTargets = inspectedElements.map(buildCommentTargetFromInspected);
+  const allTargets = [...elementTargets, ...drawingTargets];
+
+  if (elementTargets.length === 0) return draft;
+
+  const primaryTarget = elementTargets[0];
+
+  if (!draft.elementInfo) {
+    return {
+      ...draft,
+      spanMentionCount: allTargets.length,
+      elementInfo: {
+        tagName: primaryTarget.tagName,
+        componentName: primaryTarget.componentName,
+        componentPath: primaryTarget.componentPath ?? [],
+        classes: primaryTarget.classes,
+        textContent: primaryTarget.textContent,
+        source: primaryTarget.source,
+        domPath: primaryTarget.domPath,
+        selectedElements: allTargets,
+      },
+    };
+  }
+
+  return {
+    ...draft,
+    spanMentionCount: allTargets.length,
+    elementInfo: {
+      ...draft.elementInfo,
+      tagName: primaryTarget.tagName,
+      componentName: primaryTarget.componentName,
+      componentPath: primaryTarget.componentPath ?? [],
+      classes: primaryTarget.classes,
+      textContent: primaryTarget.textContent,
+      source: primaryTarget.source,
+      domPath: primaryTarget.domPath,
+      selectedElements: allTargets,
+    },
+  };
+}
+
+export function syncDrawingTargetsInDraft(
+  draft: CommentDraft,
+  selectedPaths: SVGPathElement[],
+  drawnPathsInOrder: SVGPathElement[],
+): CommentDraft {
+  const drawingTargets = buildDrawingTargetsFromPaths(selectedPaths, drawnPathsInOrder);
+  const existing = draft.elementInfo?.selectedElements ?? getDraftElementTargets(draft);
+  const nonDrawingTargets = existing.filter((target) => target.tagName !== "drawing");
+  const allTargets = [...nonDrawingTargets, ...drawingTargets];
+
+  if (!draft.elementInfo) {
+    if (drawingTargets.length === 0) return draft;
+    return {
+      ...draft,
+      spanMentionCount: drawingTargets.length,
+      elementInfo: {
+        tagName: "drawing",
+        componentName: drawingTargets[0]?.componentName ?? null,
+        componentPath: [],
+        classes: [],
+        textContent: null,
+        selectedElements: drawingTargets,
+      },
+    };
+  }
+
+  return {
+    ...draft,
+    spanMentionCount: allTargets.length,
+    elementInfo: {
+      ...draft.elementInfo,
+      selectedElements: allTargets,
+    },
+  };
+}
+
 export function getMentionName(tagName: string, componentName: string | null): string {
+  if (tagName === "drawing") {
+    return componentName ?? "Drawing";
+  }
   const rawName = componentName || tagName.toLowerCase();
   return componentName ? rawName : rawName.charAt(0).toUpperCase() + rawName.slice(1);
 }

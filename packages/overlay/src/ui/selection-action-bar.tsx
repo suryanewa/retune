@@ -26,9 +26,10 @@ export interface SelectionActionBarProps {
   copied: boolean;
   onComment: () => void;
   onCopy: () => void;
-  onToggleEdit: () => void;
+  onToggleEdit?: () => void;
   onDeselect: () => void;
   onChromeLayout?: (layout: SelectionChromeLayout) => void;
+  onDelete?: () => void;
 }
 
 function getAnchorRect(elements: Element[]) {
@@ -50,6 +51,7 @@ export function SelectionActionBar({
   onToggleEdit,
   onDeselect,
   onChromeLayout,
+  onDelete,
 }: SelectionActionBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -111,7 +113,7 @@ export function SelectionActionBar({
           <IconComment />
         </button>
       </Tooltip>
-      <Tooltip content="Copy element info" side="top">
+      <Tooltip content="Copy" side="top">
         <button
           type="button"
           className="retune-selection-action-btn"
@@ -127,15 +129,33 @@ export function SelectionActionBar({
           </span>
         </button>
       </Tooltip>
-      <Tooltip content={editMode ? "Exit edit mode" : "Edit"} side="top">
-        <button
-          type="button"
-          className={`retune-selection-action-btn${editMode ? " active" : ""}`}
-          onClick={onToggleEdit}
-        >
-          <IconBroom size={18} />
-        </button>
-      </Tooltip>
+      {onToggleEdit && (
+        <Tooltip content={editMode ? "Exit edit mode" : "Edit"} side="top">
+          <button
+            type="button"
+            className={`retune-selection-action-btn${editMode ? " active" : ""}`}
+            onClick={onToggleEdit}
+          >
+            <IconBroom size={18} />
+          </button>
+        </Tooltip>
+      )}
+      {onDelete && (
+        <Tooltip content="Delete selection" shortcut="Delete" side="top">
+          <button
+            type="button"
+            className="retune-selection-action-btn"
+            onClick={onDelete}
+            style={{ color: "#FF6B6B" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18" />
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+            </svg>
+          </button>
+        </Tooltip>
+      )}
       <div className="retune-selection-action-divider" aria-hidden />
       <Tooltip content="Deselect all" shortcut="Shift+Esc" side="top">
         <button type="button" className="retune-selection-action-btn" onClick={onDeselect}>

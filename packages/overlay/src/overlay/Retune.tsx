@@ -50,7 +50,15 @@ import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
 import { SelectionActionBar } from "../ui/selection-action-bar";
-import { scanContainedElements } from "./comment/comment-draft";
+import {
+  buildDrawingTargetsFromPaths,
+  getDrawingOrderIndex,
+  scanContainedElements,
+  areDraftElementTargetsEqual,
+  syncDrawingTargetsInDraft,
+  syncElementTargetsInDraft,
+  type CommentDraft,
+} from "./comment/comment-draft";
 import { CommentTextPreview, getCommentTextParts, renderCommentTextParts } from "./comment/CommentTextPreview";
 import { CommentPopover as NewCommentPopover } from "./comment/CommentPopover";
 import { useCommentMode } from "./comment/use-comment-mode";
@@ -890,6 +898,8 @@ function RetuneInner(props: RetuneConfig) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentCount, setCommentCount] = useState(0);
   const [areaResizeLive, setAreaResizeLive] = useState<{ id: number; br: { x: number; y: number } } | null>(null);
+  const [drawnPathAnchors, setDrawnPathAnchors] = useState<SVGPathElement[]>([]);
+  const [selectedDrawPaths, setSelectedDrawPaths] = useState<SVGPathElement[]>([]);
   const previewBridgeRef = useRef(new PreviewBridge());
   const bridgeRef = useRef<BridgeClient | null>(null);
   const selectedElementRef = useRef<InspectedElement | null>(null);
@@ -898,6 +908,22 @@ function RetuneInner(props: RetuneConfig) {
   selectedElementsRef.current = selectedElements;
   const syncTrackerStateRef = useRef<() => void>(() => {});
   const refreshSelectedElementRef = useRef<() => void>(() => {});
+  const selectedDrawPathsRef = useRef(selectedDrawPaths);
+  const drawnPathAnchorsRef = useRef(drawnPathAnchors);
+  selectedDrawPathsRef.current = selectedDrawPaths;
+  drawnPathAnchorsRef.current = drawnPathAnchors;
+
+  const enrichCommentDraft = useCallback((draft: CommentDraft) => {
+    let enriched = syncDrawingTargetsInDraft(
+      draft,
+      selectedDrawPathsRef.current,
+      drawnPathAnchorsRef.current,
+    );
+    if (selectedElementsRef.current.length > 0) {
+      enriched = syncElementTargetsInDraft(enriched, selectedElementsRef.current);
+    }
+    return enriched;
+  }, []);
 
   const {
     activeCommentId,
@@ -906,6 +932,7 @@ function RetuneInner(props: RetuneConfig) {
     setCommentDraft,
     popoverOpenRef,
     setPopoverText,
+    openDraftPopover,
     openExistingComment,
     closeExistingComment,
     dismissCommentDraft,
@@ -924,6 +951,7 @@ function RetuneInner(props: RetuneConfig) {
     selectedElementsRef,
     pickerRef,
     overlayRootRef: mountRef,
+    enrichCommentDraft,
   });
 
   // Initialize on mount
@@ -1575,6 +1603,18 @@ function RetuneInner(props: RetuneConfig) {
       onCanvasReparent: (element: Element, newParent: Element, insertIndex: number) => {
         handleTreeReparent(element, newParent, insertIndex);
       },
+      onDrawPathsChange: (paths: SVGPathElement[]) => {
+        setDrawnPathAnchors(paths);
+        setSelectedDrawPaths((selected) => selected.filter((path) => paths.includes(path)));
+      },
+      onDrawSelectionChange: (paths: SVGPathElement[]) => {
+        setSelectedDrawPaths(paths);
+        if (paths.length === 0) return;
+        if (forcedStateRef.current) clearForcedInlineStyles();
+        setEditPanelOpen(false);
+        pickerRef.current?.setPropertyEditMode(false);
+        pickerRef.current?.setChromeLayout(null);
+      },
       onDeselect: () => {
         if (forcedStateRef.current) clearForcedInlineStyles();
         setEditPanelOpen(false);
@@ -1582,6 +1622,7 @@ function RetuneInner(props: RetuneConfig) {
         setSelectedElements([]);
         selectedElementRef.current = null;
         selectedElementsRef.current = [];
+        setSelectedDrawPaths([]);
         pickerRef.current?.setPropertyEditMode(false);
         pickerRef.current?.setChromeLayout(null);
       },
@@ -1691,6 +1732,10 @@ function RetuneInner(props: RetuneConfig) {
 
   const modeRef = useRef(mode);
   modeRef.current = mode;
+
+  useEffect(() => {
+    pickerRef.current?.setDrawMode(active && mode === "draw");
+  }, [active, mode]);
 
   const closeEditPanel = useCallback(() => {
     setEditPanelOpen(false);
@@ -3737,6 +3782,116 @@ function RetuneInner(props: RetuneConfig) {
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
   }, []);
 
+  const getDrawnPathBounds = useCallback((paths: SVGPathElement[]) => {
+    const rects = paths.map((path) => path.getBoundingClientRect()).filter((rect) => rect.width > 0 || rect.height > 0);
+    if (rects.length === 0) return null;
+    const left = Math.min(...rects.map((rect) => rect.left));
+    const top = Math.min(...rects.map((rect) => rect.top));
+    const right = Math.max(...rects.map((rect) => rect.right));
+    const bottom = Math.max(...rects.map((rect) => rect.bottom));
+    return { x: left, y: top, width: right - left, height: bottom - top };
+  }, []);
+
+  const activeDrawPaths = useMemo(
+    () => selectedDrawPaths.length > 0 ? selectedDrawPaths : drawnPathAnchors,
+    [drawnPathAnchors, selectedDrawPaths],
+  );
+
+  const handleDrawComment = useCallback(() => {
+    const area = getDrawnPathBounds(activeDrawPaths);
+    if (!area) return;
+    const containedElements = scanContainedElements(area);
+    const drawingTargets = buildDrawingTargetsFromPaths(activeDrawPaths, drawnPathAnchors);
+    openDraftPopover();
+    const draft = enrichCommentDraft({
+      position: { x: area.x + area.width / 2, y: area.y + area.height / 2 },
+      type: "area",
+      area,
+      areaScroll: { x: window.scrollX, y: window.scrollY },
+      spanMentionCount: drawingTargets.length,
+      elementInfo: {
+        tagName: "drawing",
+        componentName: drawingTargets[0]?.componentName ?? null,
+        componentPath: [],
+        classes: [],
+        textContent: null,
+        containedElements: containedElements.length > 0 ? containedElements : undefined,
+        selectedElements: drawingTargets,
+      },
+    });
+    setCommentDraft(draft);
+    pickerRef.current?.selectDrawPaths(activeDrawPaths);
+    if (selectedElementsRef.current.length > 0) {
+      pickerRef.current?.showSelectionOutline(
+        selectedElementsRef.current.map((target) => target.element),
+        selectedElementRef.current?.element,
+      );
+    } else {
+      pickerRef.current?.setCommentDraftActive(true);
+    }
+    setEditPanelOpen(false);
+    pickerRef.current?.setPropertyEditMode(false);
+    pickerRef.current?.setChromeLayout(null);
+  }, [activeDrawPaths, drawnPathAnchors, enrichCommentDraft, getDrawnPathBounds, openDraftPopover, setCommentDraft]);
+
+  const handleCommentMentionsChange = useCallback((selectors: string[]) => {
+    syncCommentDraftMentionsFromEditor(selectors);
+    const drawingSelectors = new Set(selectors.filter((selector) => selector.startsWith("retune-drawing:")));
+    const remainingPaths = drawnPathAnchors.filter((path) =>
+      drawingSelectors.has(`retune-drawing:${getDrawingOrderIndex(path, drawnPathAnchors)}`),
+    );
+    pickerRef.current?.selectDrawPaths(remainingPaths);
+  }, [drawnPathAnchors, syncCommentDraftMentionsFromEditor]);
+
+  useEffect(() => {
+    if (!commentDraft || activeCommentId) return;
+    setCommentDraft((prev) => {
+      if (!prev) return prev;
+      const synced = syncDrawingTargetsInDraft(prev, selectedDrawPaths, drawnPathAnchors);
+      const prevTargets = prev.elementInfo?.selectedElements ?? [];
+      const syncedTargets = synced.elementInfo?.selectedElements ?? [];
+      if (
+        areDraftElementTargetsEqual(prevTargets, syncedTargets)
+        && prev.spanMentionCount === synced.spanMentionCount
+      ) {
+        return prev;
+      }
+      return synced;
+    });
+  }, [activeCommentId, commentDraft, drawnPathAnchors, selectedDrawPaths, setCommentDraft]);
+
+  const handleDrawCopy = useCallback(() => {
+    if (activeDrawPaths.length === 0) return;
+    const blocks = activeDrawPaths.map((path, index) => {
+      const rect = path.getBoundingClientRect();
+      return [
+        `Path ${index + 1}:`,
+        `d: ${path.getAttribute("d") ?? ""}`,
+        `stroke: ${path.getAttribute("stroke") ?? ""}`,
+        `fill: ${path.getAttribute("fill") ?? ""}`,
+        `bounds: ${Math.round(rect.left)}, ${Math.round(rect.top)}, ${Math.round(rect.width)} x ${Math.round(rect.height)}`,
+      ].join("\n");
+    });
+    navigator.clipboard.writeText(`Drawn paths from Retune:\n\n${blocks.join("\n\n")}`);
+    setCopied(true);
+    if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
+  }, [activeDrawPaths]);
+
+  const handleDrawDeselect = useCallback(() => {
+    if (selectedDrawPaths.length > 0) {
+      pickerRef.current?.clearDrawSelection();
+      setSelectedDrawPaths([]);
+      return;
+    }
+    pickerRef.current?.clearDrawings();
+    setDrawnPathAnchors([]);
+  }, [selectedDrawPaths.length]);
+
+  const handleDrawDelete = useCallback(() => {
+    pickerRef.current?.deleteSelectedDrawings();
+  }, []);
+
   const handleClose = useCallback(() => {
     deactivateOverlay();
   }, [deactivateOverlay]);
@@ -3745,10 +3900,11 @@ function RetuneInner(props: RetuneConfig) {
     pickerRef.current?.deselect();
   }, []);
 
-  const selectionActionBarAnchors = useMemo(
-    () => (selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : []).map((el) => el.element),
-    [selectedElements, selectedElement],
-  );
+  const selectionActionBarAnchors = useMemo(() => {
+    const elements = (selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : [])
+      .map((el) => el.element);
+    return selectedDrawPaths.length > 0 ? [...elements, ...selectedDrawPaths] : elements;
+  }, [selectedElements, selectedElement, selectedDrawPaths]);
 
   const selectionChromeLabelWidth = useMemo(() => {
     if (!selectedElement || selectedElements.length > 1) return undefined;
@@ -3983,6 +4139,30 @@ function RetuneInner(props: RetuneConfig) {
           onToggleEdit={toggleSelectionEditMode}
           onDeselect={handleSelectionDeselect}
           onChromeLayout={handleChromeLayout}
+          onDelete={selectedDrawPaths.length > 0 ? handleDrawDelete : undefined}
+        />
+      )}
+
+      {active && !selectedElement && selectedDrawPaths.length > 0 && (mode === "select" || mode === "edit") && !commentDraft && !settingsOpen && !toolbarDragging && (
+        <SelectionActionBar
+          anchorElements={selectedDrawPaths}
+          editMode={false}
+          copied={copied}
+          onComment={handleDrawComment}
+          onCopy={handleDrawCopy}
+          onDeselect={handleDrawDeselect}
+          onDelete={handleDrawDelete}
+        />
+      )}
+
+      {active && activeDrawPaths.length > 0 && mode === "draw" && !commentDraft && !settingsOpen && !toolbarDragging && (
+        <SelectionActionBar
+          anchorElements={activeDrawPaths}
+          editMode={false}
+          copied={copied}
+          onComment={handleDrawComment}
+          onCopy={handleDrawCopy}
+          onDeselect={handleDrawDeselect}
         />
       )}
 
@@ -4265,7 +4445,7 @@ function RetuneInner(props: RetuneConfig) {
           spanMentionCount={commentDraft.spanMentionCount}
           primarySelector={commentDraft.selector}
           onTextChange={setPopoverText}
-          onMentionsChange={syncCommentDraftMentionsFromEditor}
+          onMentionsChange={handleCommentMentionsChange}
           onSubmit={(text) => {
             const store = commentStoreRef.current;
             store.add(text, commentDraft.position, commentDraft.type, {

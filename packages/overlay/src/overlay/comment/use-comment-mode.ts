@@ -9,6 +9,7 @@ import {
   buildSelectionCommentDraft,
   getDraftElementTargets,
   scanContainedElements,
+  supportsLiveMentionEditing,
   type CommentDraft,
 } from "./comment-draft";
 
@@ -34,6 +35,7 @@ type UseCommentModeArgs = {
   selectedElementsRef: MutableRefObject<InspectedElement[]>;
   pickerRef: MutableRefObject<PickerHandle | null>;
   overlayRootRef: MutableRefObject<{ root: ShadowRoot } | null>;
+  enrichCommentDraft?: (draft: CommentDraft) => CommentDraft;
 };
 
 export function useCommentMode({
@@ -47,6 +49,7 @@ export function useCommentMode({
   selectedElementsRef,
   pickerRef,
   overlayRootRef,
+  enrichCommentDraft,
 }: UseCommentModeArgs) {
   const [activeCommentId, setActiveCommentId] = useState<number | null>(null);
   const [commentDraft, setCommentDraft] = useState<CommentDraft | null>(null);
@@ -111,29 +114,33 @@ export function useCommentMode({
 
   const appendElementsToCommentDraft = useCallback((inspectedTargets: InspectedElement[]) => {
     const draft = commentDraftRef.current;
-    if (!draft || draft.type !== "element" || !popoverOpenRef.current) return;
+    if (!draft || !popoverOpenRef.current || !supportsLiveMentionEditing(draft)) return;
 
-    const existing = selectedElementsRef.current.length > 0
-      ? selectedElementsRef.current.map(buildCommentTargetFromInspected)
-      : getDraftElementTargets(draft);
+    const existing = getDraftElementTargets(draft);
+    const drawingTargets = existing.filter((target) => target.tagName === "drawing");
     const knownElements = new Set(selectedElementsRef.current.map((t) => t.element));
-    const knownSelectors = new Set(existing.map((t) => t.selector));
-    const novel = inspectedTargets.filter(
-      (t) => !knownElements.has(t.element) && !knownSelectors.has(t.selector),
-    );
+    const elementTargets = selectedElementsRef.current.length > 0
+      ? selectedElementsRef.current.map(buildCommentTargetFromInspected)
+      : existing.filter((target) => target.tagName !== "drawing");
+    const knownSelectors = new Set(elementTargets.map((t) => t.selector));
+    const novel = inspectedTargets.filter((target) => {
+      const built = buildCommentTargetFromInspected(target);
+      return !knownElements.has(target.element) && !knownSelectors.has(built.selector);
+    });
     if (novel.length === 0) return;
 
     const multiInspected = [...selectedElementsRef.current, ...novel];
-    const newTargets = multiInspected.map(buildCommentTargetFromInspected);
-    const primaryTarget = newTargets[0];
+    const newElementTargets = multiInspected.map(buildCommentTargetFromInspected);
+    const newTargets = [...newElementTargets, ...drawingTargets];
+    const primaryTarget = newElementTargets[0] ?? drawingTargets[0];
 
     setCommentDraft((prev) => {
-      if (!prev || prev.type !== "element") return prev;
+      if (!prev || !supportsLiveMentionEditing(prev) || !prev.elementInfo) return prev;
       return {
         ...prev,
         spanMentionCount: newTargets.length,
         elementInfo: {
-          ...prev.elementInfo!,
+          ...prev.elementInfo,
           tagName: primaryTarget.tagName,
           componentName: primaryTarget.componentName,
           componentPath: primaryTarget.componentPath ?? [],
@@ -158,15 +165,17 @@ export function useCommentMode({
 
   const removeElementsFromCommentDraft = useCallback((elementsToRemove: Element[]) => {
     const draft = commentDraftRef.current;
-    if (!draft || draft.type !== "element" || !popoverOpenRef.current) return;
+    if (!draft || !popoverOpenRef.current || !supportsLiveMentionEditing(draft)) return;
 
     const removeSet = new Set(elementsToRemove);
     const remainingInspected = selectedElementsRef.current.filter((target) => !removeSet.has(target.element));
-    const remainingTargets = remainingInspected.map(buildCommentTargetFromInspected);
-    const primaryTarget = remainingTargets[0];
+    const remainingElementTargets = remainingInspected.map(buildCommentTargetFromInspected);
+    const drawingTargets = getDraftElementTargets(draft).filter((target) => target.tagName === "drawing");
+    const remainingTargets = [...remainingElementTargets, ...drawingTargets];
+    const primaryTarget = remainingElementTargets[0] ?? drawingTargets[0];
 
     setCommentDraft((prev) => {
-      if (!prev || prev.type !== "element" || !prev.elementInfo) return prev;
+      if (!prev || !supportsLiveMentionEditing(prev) || !prev.elementInfo) return prev;
       if (!primaryTarget) {
         return {
           ...prev,
@@ -206,7 +215,7 @@ export function useCommentMode({
 
   const syncCommentDraftMentionsFromEditor = useCallback((selectors: string[]) => {
     const draft = commentDraftRef.current;
-    if (!draft || draft.type !== "element" || !popoverOpenRef.current) return;
+    if (!draft || !popoverOpenRef.current) return;
 
     const existing = getDraftElementTargets(draft);
     const selectorSet = new Set(selectors);
@@ -214,10 +223,27 @@ export function useCommentMode({
     if (remainingTargets.length === existing.length) return;
 
     const remainingInspected = selectedElementsRef.current.filter((target) => selectorSet.has(target.selector));
-    const primaryTarget = remainingTargets[0];
+    const primaryTarget = remainingTargets.find((target) => target.tagName !== "drawing") ?? remainingTargets[0];
 
     setCommentDraft((prev) => {
-      if (!prev || prev.type !== "element" || !prev.elementInfo) return prev;
+      if (!prev) return prev;
+      if (!prev.elementInfo) {
+        if (remainingTargets.length === 0) return prev;
+        return {
+          ...prev,
+          spanMentionCount: remainingTargets.length,
+          elementInfo: {
+            tagName: remainingTargets[0].tagName,
+            componentName: remainingTargets[0].componentName,
+            componentPath: remainingTargets[0].componentPath ?? [],
+            classes: remainingTargets[0].classes,
+            textContent: remainingTargets[0].textContent,
+            source: remainingTargets[0].source,
+            domPath: remainingTargets[0].domPath,
+            selectedElements: remainingTargets,
+          },
+        };
+      }
       if (remainingTargets.length === 0) {
         return {
           ...prev,
@@ -233,13 +259,13 @@ export function useCommentMode({
         spanMentionCount: remainingTargets.length,
         elementInfo: {
           ...prev.elementInfo,
-          tagName: primaryTarget.tagName,
-          componentName: primaryTarget.componentName,
-          componentPath: primaryTarget.componentPath ?? [],
-          classes: primaryTarget.classes,
-          textContent: primaryTarget.textContent,
-          source: primaryTarget.source,
-          domPath: primaryTarget.domPath,
+          tagName: primaryTarget?.tagName ?? prev.elementInfo.tagName,
+          componentName: primaryTarget?.componentName ?? prev.elementInfo.componentName,
+          componentPath: primaryTarget?.componentPath ?? prev.elementInfo.componentPath ?? [],
+          classes: primaryTarget?.classes ?? prev.elementInfo.classes,
+          textContent: primaryTarget?.textContent ?? prev.elementInfo.textContent,
+          source: primaryTarget?.source ?? prev.elementInfo.source,
+          domPath: primaryTarget?.domPath ?? prev.elementInfo.domPath,
           selectedElements: remainingTargets,
         },
       };
@@ -248,10 +274,12 @@ export function useCommentMode({
     selectedElementsRef.current = remainingInspected;
     setSelectedElements(remainingInspected);
     setSelectedElement(remainingInspected[0] ?? null);
-    pickerRef.current?.showSelectionOutline(
-      remainingInspected.map((target) => target.element),
-      remainingInspected[0]?.element,
-    );
+    if (remainingInspected.length > 0) {
+      pickerRef.current?.showSelectionOutline(
+        remainingInspected.map((target) => target.element),
+        remainingInspected[0]?.element,
+      );
+    }
   }, [pickerRef, selectedElementsRef, setSelectedElement, setSelectedElements]);
 
   const dismissCommentDraft = useCallback(() => {
@@ -285,9 +313,9 @@ export function useCommentMode({
 
   const shouldBlockForPopover = useCallback(() => {
     if (!popoverOpenRef.current) return false;
-    // Element drafts intentionally keep page clicks live so shift/alt-click can
+    // Element and drawing-tool drafts keep page clicks live so shift/alt-click can
     // add/remove inline mentions while the composer is open.
-    if (commentDraftRef.current?.type === "element") return false;
+    if (supportsLiveMentionEditing(commentDraftRef.current)) return false;
     if (areaDragJustEndedRef.current) return true;
     const isDirty = popoverTextRef.current !== popoverInitialTextRef.current;
     if (isDirty) {
@@ -312,7 +340,10 @@ export function useCommentMode({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     };
-    const draft = buildSelectionCommentDraft(targets, primary, cursor);
+    let draft = buildSelectionCommentDraft(targets, primary, cursor);
+    if (enrichCommentDraft) {
+      draft = enrichCommentDraft(draft);
+    }
     selectedElementRef.current = primary;
     selectedElementsRef.current = targets;
     setSelectedElement(primary);
@@ -325,6 +356,7 @@ export function useCommentMode({
     pickerRef.current?.hideScopeHighlights();
     pickerRef.current?.showSelectionOutline(outlineElements, primary.element);
   }, [
+    enrichCommentDraft,
     getCommentOutlineElements,
     openDraftPopover,
     pickerRef,
@@ -338,11 +370,11 @@ export function useCommentMode({
   const handleCommentSelect = useCallback((element: Element, meta?: SelectEventMeta): boolean => {
     const selectedEls = meta?.selectedElements ?? [element];
     if (selectedEls.length === 0) {
-      if (commentDraftRef.current?.type === "element" && popoverOpenRef.current) return true;
+      if (supportsLiveMentionEditing(commentDraftRef.current) && popoverOpenRef.current) return true;
       return false;
     }
 
-    if (commentDraftRef.current?.type === "element" && popoverOpenRef.current) {
+    if (supportsLiveMentionEditing(commentDraftRef.current) && popoverOpenRef.current) {
       if (areaDragJustEndedRef.current) return true;
       if (meta?.altKey) {
         removeElementsFromCommentDraft([element]);
