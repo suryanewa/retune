@@ -3419,13 +3419,36 @@ input, textarea, [contenteditable] {
   gap: 0;
 }
 .retune-comment-top-row {
-  display: contents;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
 }
 .retune-comment-popover.has-content .retune-comment-top-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: flex-start;
   width: 100%;
+}
+.retune-comment-close {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--retune-text-tertiary);
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+.retune-comment-close:hover {
+  color: var(--retune-text-secondary);
+}
+.retune-comment-popover.has-content .retune-comment-close {
+  margin-top: 3px;
 }
 .retune-comment-bottom-row {
   display: flex;
@@ -3434,10 +3457,20 @@ input, textarea, [contenteditable] {
   width: 100%;
   margin-top: 10px;
 }
+.retune-comment-bottom-row.has-edit-actions {
+  justify-content: space-between;
+}
+.retune-comment-bottom-actions-left {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
 .retune-comment-bottom-actions-right {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 .retune-comment-dictation-status {
   display: flex;

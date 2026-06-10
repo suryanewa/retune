@@ -1,3 +1,4 @@
+import { IconCrossMedium } from "@central-icons-react/round-outlined-radius-2-stroke-1.5/IconCrossMedium";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEventHandler } from "react";
 import type { Comment } from "../../engine/comment-store";
 import { useCommentDictation } from "../use-comment-dictation";
@@ -149,6 +150,13 @@ export function CommentPopover({
     onCancel();
   }, [handleCancelDictation, isDictating, onCancel]);
 
+  const handleDismiss = useCallback(() => {
+    if (isDictating) {
+      cancelDictation();
+    }
+    onCancel();
+  }, [cancelDictation, isDictating, onCancel]);
+
   useEffect(() => {
     if (!isDictating) {
       setDictationSeconds(0);
@@ -209,6 +217,19 @@ export function CommentPopover({
       onClick={(e) => e.stopPropagation()}
     >
       <div className="retune-comment-top-row">
+        <button
+          type="button"
+          className="retune-comment-close"
+          aria-label="Close"
+          title="Close"
+          onPointerUp={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleDismiss();
+          }}
+        >
+          <IconCrossMedium size={14} />
+        </button>
         <div
           className="retune-comment-input-wrap"
           onPointerDown={() => editorRef.current?.focus()}
@@ -226,16 +247,6 @@ export function CommentPopover({
 
         {!isExpanded && (
           <div className="retune-comment-pill-actions">
-            {isEdit && (
-              <button
-                className="retune-comment-circular-btn delete"
-                onPointerUp={onDelete}
-                title="Delete comment"
-              >
-                <TrashIcon />
-              </button>
-            )}
-
             <DictationButton
               className={`retune-comment-circular-btn dictate-blue-circle${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
               isDictating={isDictating}
@@ -254,9 +265,26 @@ export function CommentPopover({
         )}
       </div>
 
-      {isExpanded && (
-        <div className="retune-comment-bottom-row">
-          {isDictating ? (
+      {(isExpanded || isEdit) && (
+        <div className={`retune-comment-bottom-row${isEdit ? " has-edit-actions" : ""}`}>
+          {isEdit && (
+            <div className="retune-comment-bottom-actions-left">
+              <button
+                type="button"
+                className="retune-comment-circular-btn delete"
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onDelete?.();
+                }}
+                title="Delete comment"
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          )}
+
+          {isExpanded && isDictating ? (
             <div className="retune-comment-dictation-status">
               <AudioWaveform
                 isDictating={isDictating}
@@ -269,6 +297,7 @@ export function CommentPopover({
             </div>
           ) : null}
 
+          {isExpanded && (
           <div className="retune-comment-bottom-actions-right">
             {isDictating ? (
               <>
@@ -299,16 +328,6 @@ export function CommentPopover({
               </>
             ) : (
               <>
-                {isEdit && (
-                  <button
-                    className="retune-comment-circular-btn delete"
-                    onPointerUp={onDelete}
-                    title="Delete comment"
-                  >
-                    <TrashIcon />
-                  </button>
-                )}
-
                 <DictationButton
                   className={`retune-comment-circular-btn dictate-icon-only${isTranscribing ? " transcribing" : isDictating ? " listening" : ""}`}
                   isDictating={isDictating}
@@ -335,6 +354,7 @@ export function CommentPopover({
               </>
             )}
           </div>
+          )}
         </div>
       )}
     </div>
