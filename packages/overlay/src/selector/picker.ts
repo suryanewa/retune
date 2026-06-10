@@ -3446,7 +3446,10 @@ export function createPicker(
     hideHighlight();
     hoveredElement = null;
     blurPageFocus();
-    notifySelect(selectedElement!, { shiftKey: mode === "add" });
+    notifySelect(selectedElement!, {
+      shiftKey: mode === "add",
+      altKey: mode === "remove",
+    });
   }
 
   function endMarqueeDrag(e: PointerEvent) {
@@ -3487,7 +3490,6 @@ export function createPicker(
     if (!active || commentMode || drawMode || suspended) return;
     if (commentDraftActive) return;
     if (propertyEditMode) return;
-    if (e.shiftKey || e.altKey) return;
     if (isRetuneOverlayEvent(e)) return;
     if (callbacks.shouldBlockClick?.()) return;
     // Document listeners see a Shadow DOM-retargeted host as e.target, so use
