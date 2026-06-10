@@ -2580,6 +2580,9 @@ export function createPicker(
       updateAllSelectionBoxes();
       return;
     }
+    if (drawingSvg.childElementCount > 0) {
+      syncDrawingPathAppearance();
+    }
     hideSelection();
   }
 
@@ -3139,7 +3142,7 @@ export function createPicker(
         path.setAttribute("fill", fillForColor(selectedColor));
       } else {
         path.setAttribute("stroke", baseColor);
-        path.setAttribute("fill", drawMode ? fillForColor(baseColor) : "none");
+        path.setAttribute("fill", drawMode && !commentDraftActive ? fillForColor(baseColor) : "none");
       }
     }
   }
@@ -3848,6 +3851,9 @@ export function createPicker(
       }
 
       if ((e.key === "Delete" || e.key === "Backspace") && selectedDrawPaths.length > 0) {
+        const path = e.composedPath();
+        const target = path[0] as HTMLElement | undefined;
+        if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();

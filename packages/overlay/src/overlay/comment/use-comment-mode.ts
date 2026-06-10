@@ -196,6 +196,8 @@ export function useCommentMode({
         remainingInspected.map((target) => target.element),
         remainingInspected[0]?.element,
       );
+    } else {
+      pickerRef.current?.showSelectionOutline([]);
     }
   }, [pickerRef, selectedElementsRef, setSelectedElement, setSelectedElements]);
 

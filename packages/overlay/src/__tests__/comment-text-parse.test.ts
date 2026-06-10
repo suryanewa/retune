@@ -8,6 +8,7 @@ import {
   orderTargetsBySelectors,
   parseCommentTextIntoParts,
   areDraftElementTargetsEqual,
+  applyTargetsToDraft,
   getCommentElementTargets,
   getDraftElementTargets,
   syncElementTargetsInDraft,
@@ -164,6 +165,21 @@ describe("orderTargetsBySelectors", () => {
 });
 
 describe("comment target resolution", () => {
+  it("treats an explicit empty selectedElements array as no targets", () => {
+    const resolved = getCommentElementTargets({
+      tagName: "button",
+      componentName: "Button",
+      componentPath: ["Hero", "Button"],
+      classes: ["btn"],
+      textContent: "Save",
+      source: "Hero.tsx:12",
+      domPath: "body > button",
+      selectedElements: [],
+    }, ".btn");
+
+    expect(resolved).toEqual([]);
+  });
+
   it("falls back to a single legacy target when selectedElements is absent", () => {
     const resolved = getCommentElementTargets({
       tagName: "button",
@@ -240,5 +256,37 @@ describe("comment target resolution", () => {
 
     expect(synced.spanMentionCount).toBe(0);
     expect(synced.elementInfo?.selectedElements).toEqual([]);
+  });
+
+  it("clears mixed element and drawing targets through the shared draft application path", () => {
+    const synced = applyTargetsToDraft(
+      {
+        position: { x: 0, y: 0 },
+        type: "area",
+        spanMentionCount: 2,
+        elementInfo: {
+          tagName: "button",
+          componentName: "Button",
+          componentPath: ["Hero", "Button"],
+          classes: ["btn"],
+          textContent: "Save",
+          selectedElements: [
+            {
+              tagName: "button",
+              selector: ".btn",
+              componentName: "Button",
+              componentPath: ["Hero", "Button"],
+              classes: ["btn"],
+              textContent: "Save",
+            },
+            buildDrawingCommentTarget(1),
+          ],
+        },
+      },
+      [],
+    );
+
+    expect(synced.spanMentionCount).toBe(0);
+    expect(getDraftElementTargets(synced)).toEqual([]);
   });
 });

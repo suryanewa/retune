@@ -91,7 +91,10 @@ View and edit React component props and state hooks directly in the panel. Enum 
 
 Annotate elements (click) or areas (drag) with text notes. Comment markers follow scroll, expand on hover with a text preview. Comments are included in the output so your AI agent can address them alongside visual changes.
 
-The comment popover uses a Lexical editor with inline mention tokens inside the overlay's Shadow DOM. See [Comment Editor: Lexical + Shadow DOM](../../docs/comment-editor-lexical-shadow-dom.md) for known pitfalls, fixes, and a regression test matrix.
+The comment popover uses a Lexical editor with inline mention tokens inside the overlay's Shadow DOM. Documentation:
+
+- [Overlay Comment Mode: Session Postmortem](../../docs/overlay-comment-mode-postmortem.md) — full issue history (code quality, mention reinsert bug, draft/editor sync)
+- [Comment Editor: Lexical + Shadow DOM](../../docs/comment-editor-lexical-shadow-dom.md) — Lexical-specific pitfalls, fixes, and regression test matrix
 
 ### Manifest System (v2)
 

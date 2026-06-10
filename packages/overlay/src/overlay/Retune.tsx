@@ -3808,6 +3808,7 @@ function RetuneInner(props: RetuneConfig) {
       type: "area",
       area,
       areaScroll: { x: window.scrollX, y: window.scrollY },
+      fromDrawing: true,
       spanMentionCount: drawingTargets.length,
       elementInfo: {
         tagName: "drawing",
@@ -4404,8 +4405,10 @@ function RetuneInner(props: RetuneConfig) {
         }} />
       ))}
 
-      {/* Area outlines for area comments */}
-      {active && comments.filter(c => c.type === "area" && c.area).map(c => (
+      {/* Area outlines for area comments (drawing-based comments draw their own paths) */}
+      {active && comments.filter(c => c.type === "area" && c.area
+        && c.elementInfo?.tagName !== "drawing"
+        && !c.elementInfo?.selectedElements?.some((target) => target.tagName === "drawing")).map(c => (
         <AreaOutline
           key={`area-${c.id}`}
           comment={c}
@@ -4427,8 +4430,12 @@ function RetuneInner(props: RetuneConfig) {
         />
       ))}
 
-      {/* Draft area outline (visible while popover is open for a new area comment) */}
-      {active && commentDraft?.type === "area" && commentDraft.area && (
+      {/* Draft area outline (visible while popover is open for a new area comment).
+          Drawing-based drafts render their own paths, so skip the dashed box. */}
+      {active && commentDraft?.type === "area" && commentDraft.area
+        && !commentDraft.fromDrawing
+        && commentDraft.elementInfo?.tagName !== "drawing"
+        && !commentDraft.elementInfo?.selectedElements?.some((target) => target.tagName === "drawing") && (
         <div
           className="retune-comment-area-outline"
           style={{

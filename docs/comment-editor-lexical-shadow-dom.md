@@ -377,6 +377,7 @@ These rules summarize the stable state after all fixes:
 5. **Character insertion uses capture-phase `beforeinput` + `spliceText`** in Shadow DOM
 6. **Mention deletion skips whitespace runs** and refocuses the editor
 7. **`KeyPlugin` only stops propagation for Enter/Escape**
+8. **Explicit `selectedElements: []` means zero mentions** — resolvers must not fall back to legacy primary `elementInfo` fields ([Issue 9](./overlay-comment-mode-postmortem.md#part-3-deleted-mentions-reinserting-issue-9))
 
 ---
 
@@ -453,6 +454,7 @@ These were not required for the fix but would reduce fragility:
 
 ## Related Reading
 
+- [Overlay Comment Mode: Session Postmortem](./overlay-comment-mode-postmortem.md) — code quality pass, mention reinsert bug (Issue 9), draft/editor state ownership
 - [Lexical TextNode token mode](https://lexical.dev/docs/concepts/nodes#textnode)
 - [You Might Not Need an Effect](https://react.dev/learn/you-might-not-need-an-effect) — editor state should be mutated in event handlers, not synced via Effects
 - Retune comment architecture: `packages/overlay/src/overlay/comment/comment-draft.ts` (serialization of inline mentions)

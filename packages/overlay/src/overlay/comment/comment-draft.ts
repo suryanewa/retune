@@ -15,6 +15,13 @@ export type CommentDraft = {
   areaScroll?: { x: number; y: number };
   elementInfo?: Comment["elementInfo"];
   spanMentionCount?: number;
+  /**
+   * True when the draft's area was derived from the draw tool (its bounds are the
+   * drawings' bounding box) rather than a drag-to-area gesture. Persisted across
+   * mention edits so the dashed area outline stays suppressed even after every
+   * inline mention (including the drawing) is deleted.
+   */
+  fromDrawing?: boolean;
 };
 
 export type ContainedCommentElement = {
