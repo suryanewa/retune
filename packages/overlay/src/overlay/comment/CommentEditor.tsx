@@ -20,6 +20,9 @@ import {
   $getSelection,
   $insertNodes,
   $isRangeSelection,
+  $isTextNode,
+  COMMAND_PRIORITY_CRITICAL,
+  DELETE_CHARACTER_COMMAND,
   type EditorState,
   type LexicalEditor,
   type LexicalNode,
@@ -117,6 +120,28 @@ function createContentNodesFromParts(parts: CommentContentPart[]): LexicalNode[]
   return nodes;
 }
 
+function isWhitespaceOnlyTextNode(node: LexicalNode | null | undefined) {
+  return $isTextNode(node) && !$isMentionNode(node) && node.getTextContent().trim() === "";
+}
+
+function normalizeMentionSpacing() {
+  const root = $getRoot();
+  for (const node of root.getAllTextNodes()) {
+    if (!$isMentionNode(node)) continue;
+    const next = node.getNextSibling();
+    if (!isWhitespaceOnlyTextNode(next)) continue;
+
+    next.setTextContent(" ");
+
+    let cursor = next.getNextSibling();
+    while (isWhitespaceOnlyTextNode(cursor)) {
+      const extraSpacer = cursor;
+      cursor = extraSpacer.getNextSibling();
+      extraSpacer.remove();
+    }
+  }
+}
+
 function resetEditorContent(editor: LexicalEditor, mentions: CommentMention[], text: string) {
   editor.update(() => {
     const root = $getRoot();
@@ -159,6 +184,7 @@ function insertMentionsAtSelection(editor: LexicalEditor, mentions: CommentMenti
         paragraph.selectEnd();
       }
     }
+    normalizeMentionSpacing();
   });
 }
 
@@ -179,6 +205,117 @@ function CommentEditorPlugins({
   onChangeRef.current = onChange;
   editorRef.current = editor;
   const restoreFromParts = !!contentParts;
+
+  useEffect(() => {
+    const isWhitespaceTextNode = (node: LexicalNode | null | undefined) =>
+      $isTextNode(node) && !$isMentionNode(node) && node.getTextContent().trim() === "";
+
+    const findMentionAcrossWhitespace = (node: LexicalNode, direction: "previous" | "next") => {
+      const skippedWhitespace: LexicalNode[] = [];
+      let cursor = direction === "previous" ? node.getPreviousSibling() : node.getNextSibling();
+      while (isWhitespaceTextNode(cursor)) {
+        skippedWhitespace.push(cursor);
+        cursor = direction === "previous" ? cursor.getPreviousSibling() : cursor.getNextSibling();
+      }
+      if (!$isMentionNode(cursor)) return null;
+      for (const whitespaceNode of skippedWhitespace) {
+        whitespaceNode.remove();
+      }
+      return cursor;
+    };
+
+    const normalizeSpacer = (node: LexicalNode | null | undefined) => {
+      if (!isWhitespaceTextNode(node)) return null;
+      return node.setTextContent(" ");
+    };
+
+    const selectAnchorAfterMentionRemoval = (
+      removedMention: LexicalNode,
+      direction: "previous" | "next",
+      fallbackTextNode?: LexicalNode,
+    ) => {
+      const previousSibling = removedMention.getPreviousSibling();
+      const nextSibling = removedMention.getNextSibling();
+      removedMention.remove();
+
+      const preferred = direction === "previous"
+        ? (normalizeSpacer(nextSibling) ?? normalizeSpacer(fallbackTextNode) ?? normalizeSpacer(previousSibling))
+        : (normalizeSpacer(previousSibling) ?? normalizeSpacer(fallbackTextNode) ?? normalizeSpacer(nextSibling));
+
+      if ($isTextNode(preferred)) {
+        if (preferred === previousSibling) preferred.selectEnd();
+        else preferred.selectStart();
+      } else {
+        const root = $getRoot();
+        const paragraph = root.getFirstChild();
+        if (paragraph) {
+          paragraph.selectEnd();
+        }
+      }
+      requestAnimationFrame(() => editor.focus());
+    };
+
+    const unregDel = editor.registerCommand(DELETE_CHARACTER_COMMAND, (isBackward) => {
+      const sel = $getSelection();
+      if ($isRangeSelection(sel) && sel.isCollapsed() && sel.anchor.key === sel.focus.key) {
+        const node = sel.anchor.getNode();
+        if ($isMentionNode(node)) {
+          selectAnchorAfterMentionRemoval(node, isBackward ? "previous" : "next");
+          return true;
+        }
+        if ($isTextNode(node) && !$isMentionNode(node)) {
+          const text = node.getTextContent();
+          const offset = sel.anchor.offset;
+          if (isBackward && text.slice(0, offset).trim() === "") {
+            const previousMention = findMentionAcrossWhitespace(node, "previous");
+            if (previousMention) {
+              selectAnchorAfterMentionRemoval(previousMention, "previous", node);
+              node.selectStart();
+              requestAnimationFrame(() => editor.focus());
+              return true;
+            }
+          }
+          if (!isBackward && text.slice(offset).trim() === "") {
+            const nextMention = findMentionAcrossWhitespace(node, "next");
+            if (nextMention) {
+              selectAnchorAfterMentionRemoval(nextMention, "next", node);
+              node.selectStart();
+              requestAnimationFrame(() => editor.focus());
+              return true;
+            }
+          }
+          if (isBackward && offset === 1 && text === " " && $isMentionNode(node.getPreviousSibling())) {
+            node.getPreviousSibling()?.remove();
+            node.selectStart();
+            requestAnimationFrame(() => editor.focus());
+            return true;
+          }
+          if (!isBackward && offset === 0 && text === " " && $isMentionNode(node.getNextSibling())) {
+            node.getNextSibling()?.remove();
+            node.selectStart();
+            requestAnimationFrame(() => editor.focus());
+            return true;
+          }
+          const isSurrogatePairBackward = isBackward
+            && offset >= 2
+            && /[\uDC00-\uDFFF]/.test(text[offset - 1])
+            && /[\uD800-\uDBFF]/.test(text[offset - 2]);
+          const isSurrogatePairForward = !isBackward
+            && offset + 1 < text.length
+            && /[\uD800-\uDBFF]/.test(text[offset])
+            && /[\uDC00-\uDFFF]/.test(text[offset + 1]);
+          const start = isBackward ? offset - (isSurrogatePairBackward ? 2 : 1) : offset;
+          const count = isSurrogatePairBackward || isSurrogatePairForward ? 2 : 1;
+          if (start >= 0 && start < text.length) {
+            node.spliceText(start, count, "", true);
+            return true;
+          }
+        }
+      }
+      return false;
+    }, COMMAND_PRIORITY_CRITICAL);
+    return unregDel;
+  }, [editor]);
 
   useEffect(() => {
     if (contentParts) {
@@ -233,20 +370,45 @@ function KeyPlugin({ onSubmit, onCancel }: { onSubmit?: () => void; onCancel?: (
   useEffect(() => {
     const root = editor.getRootElement();
     if (!root) return;
+    const handleBeforeInputCapture = (e: InputEvent) => {
+      if (e.inputType === "insertText" && e.data && !e.isComposing) {
+        let handled = false;
+        editor.update(() => {
+          const sel = $getSelection();
+          if (!$isRangeSelection(sel) || !sel.isCollapsed() || sel.anchor.key !== sel.focus.key) return;
+          const node = sel.anchor.getNode();
+          if (!$isTextNode(node) || $isMentionNode(node)) return;
+          const offset = sel.anchor.offset;
+          node.spliceText(offset, 0, e.data ?? "", true);
+          handled = true;
+        });
+        if (handled) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
+      }
+    };
+    root.addEventListener("beforeinput", handleBeforeInputCapture, true);
     const handleKeyDown = (e: KeyboardEvent) => {
-      e.stopPropagation();
-      e.stopImmediatePropagation();
       if (e.key === "Enter") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         onSubmit?.();
       }
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
         onCancel?.();
       }
     };
     root.addEventListener("keydown", handleKeyDown);
-    return () => root.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      root.removeEventListener("keydown", handleKeyDown);
+      root.removeEventListener("beforeinput", handleBeforeInputCapture, true);
+    };
   }, [editor, onCancel, onSubmit]);
   return null;
 }

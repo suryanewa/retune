@@ -39,7 +39,11 @@ export class MentionNode extends TextNode {
     this.__name = name;
     this.__color = color;
     this.__selector = selector;
-    this.setMode("token");
+    // NOTE: Do not call setMode() here. The constructor runs during clone()
+    // (via $cloneWithProperties), and setMode() calls getWritable() which
+    // clones again — causing infinite recursion. Token mode is preserved
+    // across clones by TextNode.afterCloneFrom; we only set it at creation
+    // time in $createMentionNode below.
   }
 
   createDOM(config: EditorConfig): HTMLElement {
@@ -78,7 +82,9 @@ export class MentionNode extends TextNode {
 }
 
 export function $createMentionNode(name: string, color: string, selector: string): MentionNode {
-  return $applyNodeReplacement(new MentionNode(name, color, selector));
+  const node = new MentionNode(name, color, selector);
+  node.setMode("token");
+  return $applyNodeReplacement(node);
 }
 
 export function $isMentionNode(node: LexicalNode | null | undefined): node is MentionNode {
