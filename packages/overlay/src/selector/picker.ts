@@ -3832,27 +3832,6 @@ export function createPicker(
         target.isContentEditable);
 
     if (!isInput) {
-      const isMac = /Mac|iPod|iPad|iPhone/i.test(navigator.platform || navigator.userAgent);
-      const isUndo = e.key === "z" && (isMac ? e.metaKey : e.ctrlKey) && !e.shiftKey;
-      const isRedo =
-        (e.key === "z" && (isMac ? e.metaKey : e.ctrlKey) && e.shiftKey) ||
-        (e.key === "y" && (isMac ? e.metaKey : e.ctrlKey));
-
-      if (isUndo) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        undo();
-        return;
-      }
-      if (isRedo) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        redo();
-        return;
-      }
-
       if ((e.key === "Delete" || e.key === "Backspace") && selectedDrawPaths.length > 0) {
         const path = e.composedPath();
         const target = path[0] as HTMLElement | undefined;
@@ -4264,5 +4243,45 @@ export function createPicker(
     }
   }
 
-  return { activate, deactivate, destroy, hideHighlight, clearSelection, deselect, selectElement, selectDrawPaths, highlightElement, refreshSelection: showSelection, updatePinLines, suspend, resume, showScopeHighlights, hideScopeHighlights, setCommentMode, setPropertyEditMode, setDrawMode, clearDrawings, clearDrawSelection, getSelectedDrawPaths, deleteSelectedDrawings, setSelectionLabelHidden, showSelectionOutline, setCommentDraftActive, restoreSelection, setChromeLayout };
+  function canUndoDraw(): boolean {
+    return undoStack.length > 1;
+  }
+
+  function canRedoDraw(): boolean {
+    return redoStack.length > 0;
+  }
+
+  return {
+    activate,
+    deactivate,
+    destroy,
+    hideHighlight,
+    clearSelection,
+    deselect,
+    selectElement,
+    selectDrawPaths,
+    highlightElement,
+    refreshSelection: showSelection,
+    updatePinLines,
+    suspend,
+    resume,
+    showScopeHighlights,
+    hideScopeHighlights,
+    setCommentMode,
+    setPropertyEditMode,
+    setDrawMode,
+    clearDrawings,
+    clearDrawSelection,
+    getSelectedDrawPaths,
+    deleteSelectedDrawings,
+    setSelectionLabelHidden,
+    showSelectionOutline,
+    setCommentDraftActive,
+    restoreSelection,
+    setChromeLayout,
+    canUndoDraw,
+    canRedoDraw,
+    undoDraw: undo,
+    redoDraw: redo,
+  };
 }

@@ -2363,11 +2363,23 @@ function RetuneInner(props: RetuneConfig) {
   }
 
   const handleUndo = useCallback(() => {
+    const picker = pickerRef.current;
+    if (mode === "draw" && picker?.canUndoDraw()) {
+      picker.undoDraw();
+      return;
+    }
+
     const tracker = trackerRef.current;
     const preview = previewRef.current;
-    if (!tracker || !preview) return;
+    if (!tracker || !preview) {
+      if (picker?.canUndoDraw()) picker.undoDraw();
+      return;
+    }
     const entries = tracker.popUndo();
-    if (!entries) return;
+    if (!entries) {
+      if (picker?.canUndoDraw()) picker.undoDraw();
+      return;
+    }
 
     // If this undo group contains a __delete, re-insert the element instead of CSS undo
     if (entries.some(e => e.property === "__delete")) {
@@ -2472,14 +2484,26 @@ function RetuneInner(props: RetuneConfig) {
       pickerRef.current?.refreshSelection();
       setChangeRevision((r) => r + 1);
     }
-  }, [syncForcedInlineStyles, undoDelete]);
+  }, [mode, syncForcedInlineStyles, undoDelete]);
 
   const handleRedo = useCallback(() => {
+    const picker = pickerRef.current;
+    if (mode === "draw" && picker?.canRedoDraw()) {
+      picker.redoDraw();
+      return;
+    }
+
     const tracker = trackerRef.current;
     const preview = previewRef.current;
-    if (!tracker || !preview) return;
+    if (!tracker || !preview) {
+      if (picker?.canRedoDraw()) picker.redoDraw();
+      return;
+    }
     const entries = tracker.popRedo();
-    if (!entries) return;
+    if (!entries) {
+      if (picker?.canRedoDraw()) picker.redoDraw();
+      return;
+    }
 
     // If this redo group contains a __reorder, re-apply visual state
     if (entries.some(e => e.property === "__reorder")) {
@@ -2549,7 +2573,7 @@ function RetuneInner(props: RetuneConfig) {
     refreshSelectedElementRef.current();
     pickerRef.current?.refreshSelection();
     setChangeRevision((r) => r + 1);
-  }, [syncForcedInlineStyles]);
+  }, [mode, syncForcedInlineStyles]);
 
   // Per-property reset: revert a single property to its original value
   const handlePropertyReset = useCallback((property: string) => {
@@ -3398,13 +3422,13 @@ function RetuneInner(props: RetuneConfig) {
         e.preventDefault();
         toggleOverlay();
       }
-      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+      if (active && (e.metaKey || e.ctrlKey) && e.key === "z") {
+        const path = e.composedPath();
+        const target = path[0] as HTMLElement;
+        if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.isContentEditable) return;
         e.preventDefault();
-        handleUndo();
-      }
-      if (active && (e.metaKey || e.ctrlKey) && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        handleRedo();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
       }
       // Arrow key reorder for flow elements in containers
       // Up/Down for vertical layouts, Left/Right for horizontal (flex-direction: row)
