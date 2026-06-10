@@ -4191,6 +4191,7 @@ function RetuneInner(props: RetuneConfig) {
           onComment={handleDrawComment}
           onCopy={handleDrawCopy}
           onDeselect={handleDrawDeselect}
+          onDelete={handleDrawDelete}
         />
       )}
 

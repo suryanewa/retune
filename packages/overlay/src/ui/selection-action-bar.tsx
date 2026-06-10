@@ -140,6 +140,7 @@ export function SelectionActionBar({
           </button>
         </Tooltip>
       )}
+      <div className="retune-selection-action-divider" aria-hidden />
       {onDelete && (
         <Tooltip content="Delete selection" shortcut="Delete" side="top">
           <button
@@ -156,7 +157,6 @@ export function SelectionActionBar({
           </button>
         </Tooltip>
       )}
-      <div className="retune-selection-action-divider" aria-hidden />
       <Tooltip content="Deselect all" shortcut="Shift+Esc" side="top">
         <button type="button" className="retune-selection-action-btn" onClick={onDeselect}>
           <IconCrossMedium size={18} />
