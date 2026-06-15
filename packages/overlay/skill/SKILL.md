@@ -327,7 +327,7 @@ Tuna uses a `tuna.manifest.json` file in the project's public directory to power
 
 ### When to generate:
 - When a tool response says "No tuna.manifest.json found" or "missing component definitions"
-- When `npx tuna setup` output asks you to complete the manifest
+- When `npx @suryanewa/tuna setup` output asks you to complete the manifest
 
 ### Manifest format (v2):
 

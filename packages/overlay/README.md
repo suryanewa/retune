@@ -11,13 +11,13 @@ Select, tweak, restructure — directly in your running app. Your AI agent write
 ## Quick Start
 
 ```bash
-npm install tuna
+npm install @suryanewa/tuna
 ```
 
 Add the overlay to your app layout — it only renders in development by default:
 
 ```tsx
-import { Tuna } from "tuna";
+import { Tuna } from "@suryanewa/tuna";
 
 export default function Layout({ children }) {
   return (
@@ -52,12 +52,12 @@ Load `packages/chrome-extension/dist` from `chrome://extensions` with Developer 
 Run the MCP server as usual when you want agent handoff:
 
 ```bash
-npx tuna
+npx @suryanewa/tuna
 ```
 
 ### Monorepo Setup
 
-Run `npx tuna setup` from your **repo root**. It detects common app directories (`app/`, `client/`, `web/`, `packages/app`) by looking for framework config files (next.config, vite.config) and places `tuna.manifest.json` in the correct `public/` folder. If your app directory isn't detected, run setup from within the app directory instead.
+Run `npx @suryanewa/tuna setup` from your **repo root**. It detects common app directories (`app/`, `client/`, `web/`, `packages/app`) by looking for framework config files (next.config, vite.config) and places `tuna.manifest.json` in the correct `public/` folder. If your app directory isn't detected, run setup from within the app directory instead.
 
 ## How It Works
 
@@ -125,7 +125,7 @@ Generate a `tuna.manifest.json` to describe your design system's components, pro
 - **Conditional visibility** — props can declare `"hidden_unless"` to only show when relevant.
 - **Variable picker cleanup** — class-only tokens excluded from the variable picker. Only CSS custom properties show.
 
-Generate via the in-app banner prompt, MCP nudge, or `npx tuna setup`. Existing v1 manifests trigger a regeneration nudge.
+Generate via the in-app banner prompt, MCP nudge, or `npx @suryanewa/tuna setup`. Existing v1 manifests trigger a regeneration nudge.
 
 ### Aspect Ratio Lock
 
@@ -173,7 +173,7 @@ Figma-style tree view with layout-aware icons (flex-row, flex-column, grid, bloc
 Auto-configure MCP, install the AI skill, and extract design tokens:
 
 ```bash
-npx tuna setup
+npx @suryanewa/tuna setup
 ```
 
 This detects Claude Code and Cursor, configures the MCP server, installs the skill, and generates a partial manifest with your project's design tokens from CSS files. The output prompts your AI agent to complete the manifest with component definitions.
@@ -187,7 +187,7 @@ Tuna includes a built-in MCP server. Configure your AI tool to use it:
   "mcpServers": {
     "tuna": {
       "command": "npx",
-      "args": ["-y", "tuna"]
+      "args": ["-y", "@suryanewa/tuna"]
     }
   }
 }
@@ -240,14 +240,14 @@ Tuna uses layered identification to help AI agents find elements in your code:
 
 React, TypeScript, Next.js, and a Manifest V3 extension bundle. The overlay package has two public entry points:
 
-- `import { Tuna } from "tuna"` — React overlay component
-- `npx tuna` — MCP server for AI tool integration
+- `import { Tuna } from "@suryanewa/tuna"` — React overlay component
+- `npx @suryanewa/tuna` — MCP server for AI tool integration
 
 ## Development
 
 This repository is a private npm workspaces monorepo:
 
-- `packages/overlay` — the published `tuna` npm package and MCP server
+- `packages/overlay` — the published `@suryanewa/tuna` npm package and MCP server
 - `packages/chrome-extension` — the private Chrome extension bundle
 - `playground` — the [Tuna marketing site](https://github.com/khadgi-sujan/tuna-site), wired to the local overlay
 

@@ -5,7 +5,7 @@
  * Tuna — the main React component users add to their app.
  *
  * Usage:
- *   import { Tuna } from "tuna";
+ *   import { Tuna } from "@suryanewa/tuna";
  *   // In your layout — only renders in development by default:
  *   <Tuna />
  */
@@ -3835,7 +3835,7 @@ function TunaInner(props: TunaConfig) {
               body=""
               copyLabel="Copy update instructions"
               copiedLabel="Paste in your AI agent to update"
-              copyText="Update Tuna to the latest version by running `npm install tuna@latest` and `npx tuna setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect."
+              copyText="Update Tuna to the latest version by running `npm install @suryanewa/tuna@latest` and `npx @suryanewa/tuna setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect."
               revertAfter={3000}
               onDismiss={() => setUpdateDismissed(true)}
             />

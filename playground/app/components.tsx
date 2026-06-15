@@ -32,15 +32,15 @@ export function HeroInstallCopy() {
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const handleClick = useCallback(() => {
     playTick();
-    navigator.clipboard.writeText("npm install tuna").then(() => {
+    navigator.clipboard.writeText("npm install @suryanewa/tuna").then(() => {
       clearTimeout(timerRef.current);
       setCopied(true);
       timerRef.current = setTimeout(() => setCopied(false), 2000);
     });
   }, []);
   return (
-    <button className="hero-install" onClick={handleClick} aria-label="Copy npm install tuna to clipboard">
-      <code className="hero-install-cmd">npm install tuna</code>
+    <button className="hero-install" onClick={handleClick} aria-label="Copy npm install @suryanewa/tuna to clipboard">
+      <code className="hero-install-cmd">npm install @suryanewa/tuna</code>
       <span className="hero-install-icon">
         <span className={`copy-icon ${copied ? "copy-icon-out" : "copy-icon-in"}`}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
@@ -881,7 +881,7 @@ export function Sidebar({ version }: { version: string }) {
             <svg className="external-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.25 15.25V5.75M18.25 5.75H8.75M18.25 5.75L6 18"/></svg>
           </a>
           <a
-            href="https://www.npmjs.com/package/tuna"
+            href="https://www.npmjs.com/package/@suryanewa/tuna"
             className="toc-link"
             target="_blank"
             rel="noopener noreferrer"

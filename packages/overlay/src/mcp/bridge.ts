@@ -56,7 +56,7 @@ export class Bridge {
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch("https://registry.npmjs.org/tuna/latest", {
+      const res = await fetch("https://registry.npmjs.org/@suryanewa%2ftuna/latest", {
         signal: controller.signal,
         headers: { "Accept": "application/json" },
       });

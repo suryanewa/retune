@@ -5,7 +5,7 @@
   "description": "Manifest V3 Chrome extension bundle for opening Tuna on arbitrary webpages.",
   "type": "module",
   "scripts": {
-    "build": "npm run build:css -w tuna && tsup",
+    "build": "npm run build:css -w @suryanewa/tuna && tsup",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

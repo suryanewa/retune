@@ -17,7 +17,7 @@ The extension action toggles Tuna on the current `http`, `https`, or `file` page
 Run the Tuna MCP server as usual:
 
 ```bash
-npx tuna
+npx @suryanewa/tuna
 ```
 
 The injected overlay connects to `ws://localhost:9223/ws` using the same `tuna-overlay` handshake as app-embedded Tuna.

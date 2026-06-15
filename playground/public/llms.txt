@@ -7,7 +7,7 @@ Tuna is a browser overlay for developers that lets you visually edit any element
 ## How It Works
 
 1. Add `<Tuna />` to your app (development only, hidden in production)
-2. Run `npx tuna setup` to configure your AI tool (auto-detects Claude Code and Cursor, installs MCP server and skill)
+2. Run `npx @suryanewa/tuna setup` to configure your AI tool (auto-detects Claude Code and Cursor, installs MCP server and skill)
 3. Click any element to select it
 4. Tweak properties visually with instant live preview
 5. Your AI agent picks up structured diffs and applies them to source files
@@ -36,14 +36,14 @@ Tuna is a browser overlay for developers that lets you visually edit any element
 ## Installation
 
 ```
-npm install tuna
-npx tuna setup
+npm install @suryanewa/tuna
+npx @suryanewa/tuna setup
 ```
 
 ## Links
 
 - Website: https://tuna.dev
 - GitHub: https://github.com/khadgi-sujan/tuna
-- npm: https://www.npmjs.com/package/tuna
+- npm: https://www.npmjs.com/package/@suryanewa/tuna
 - License: PolyForm Shield 1.0.0
 - Author: Sujan Khadgi (@___sujan)

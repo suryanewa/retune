@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/react";
-import { Tuna } from "tuna";
+import { Tuna } from "@suryanewa/tuna";
 
 export const metadata: Metadata = {
   title: "Tuna",

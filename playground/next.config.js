@@ -7,7 +7,7 @@ const overlayDist = path.join(overlayPkg, "dist");
 
 function readTunaVersion() {
   const candidates = [
-    path.join(__dirname, "node_modules", "tuna", "package.json"),
+    path.join(__dirname, "node_modules", "@suryanewa", "tuna", "package.json"),
     path.join(overlayPkg, "package.json"),
   ];
 
@@ -22,7 +22,7 @@ function readTunaVersion() {
 }
 
 const nextConfig = {
-  transpilePackages: ["tuna"],
+  transpilePackages: ["@suryanewa/tuna"],
   outputFileTracingRoot: path.join(__dirname, ".."),
   env: {
     TUNA_VERSION: readTunaVersion(),
@@ -39,7 +39,7 @@ const nextConfig = {
       };
       config.snapshot = {
         ...config.snapshot,
-        managedPaths: [/^(.+?[\\/]node_modules[\\/])(?!tuna)/],
+        managedPaths: [/^(.+?[\\/]node_modules[\\/])(?!@suryanewa[\\/]tuna)/],
       };
     }
     return config;

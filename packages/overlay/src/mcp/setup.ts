@@ -1,7 +1,7 @@
 /**
  * Tuna setup — auto-configure MCP server and install skill for detected AI tools.
  *
- * Usage: npx tuna setup
+ * Usage: npx @suryanewa/tuna setup
  *
  * Detects Claude Code and Cursor, then:
  * 1. Configures MCP server in the tool's settings
@@ -94,7 +94,7 @@ function setupClaudeCodeMcp(): boolean {
 
     config.mcpServers.tuna = {
       command: "npx",
-      args: ["tuna"],
+      args: ["-y", "@suryanewa/tuna"],
     };
 
     writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -123,7 +123,7 @@ function setupCursorMcp(): boolean {
 
     config.mcpServers.tuna = {
       command: "npx",
-      args: ["tuna"],
+      args: ["-y", "@suryanewa/tuna"],
     };
 
     writeFileSync(configPath, JSON.stringify(config, null, 2));

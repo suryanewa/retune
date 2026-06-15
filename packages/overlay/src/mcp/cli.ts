@@ -5,8 +5,8 @@
  * connects to the AI tool via stdio transport.
  *
  * Usage:
- *   npx tuna          — start the MCP server
- *   npx tuna setup    — auto-configure MCP + install skill for AI tools
+ *   npx @suryanewa/tuna          — start the MCP server
+ *   npx @suryanewa/tuna setup    — auto-configure MCP + install skill for AI tools
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";

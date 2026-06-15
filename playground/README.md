@@ -1,6 +1,6 @@
 # Playground (tuna-site)
 
-The [Tuna marketing site](https://github.com/khadgi-sujan/tuna-site) lives here as the monorepo playground. It imports the local `packages/overlay` package instead of the published `tuna` npm package.
+The [Tuna marketing site](https://github.com/khadgi-sujan/tuna-site) lives here as the monorepo playground. It imports the local `packages/overlay` package instead of the published `@suryanewa/tuna` npm package.
 
 ## Development
 

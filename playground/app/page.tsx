@@ -642,8 +642,8 @@ export default function Home() {
               <div className="install-step-content">
                 <h3 className="install-step-title">Install the package</h3>
                 <div className="code-block">
-                  <CopyButton text="npm install tuna" />
-                  <div className="code-line"><span className="code-comment">$</span> npm install tuna</div>
+                  <CopyButton text="npm install @suryanewa/tuna" />
+                  <div className="code-line"><span className="code-comment">$</span> npm install @suryanewa/tuna</div>
                 </div>
               </div>
             </div>
@@ -652,7 +652,7 @@ export default function Home() {
               <div className="install-step-content">
                 <h3 className="install-step-title">Add to your layout</h3>
                 <div className="code-block">
-                  <CopyButton text={`import { Tuna } from "tuna"\n\n// Add anywhere in your component tree\n<Tuna />`} />
+                  <CopyButton text={`import { Tuna } from "@suryanewa/tuna"\n\n// Add anywhere in your component tree\n<Tuna />`} />
                   <div className="code-line"><span className="code-keyword">import</span> {"{"} Tuna {"}"} <span className="code-keyword">from</span> <span className="code-string">"tuna"</span></div>
                   <div className="code-line" style={{ height: 8 }} />
                   <div className="code-line"><span className="code-comment">{"// Add anywhere in your component tree"}</span></div>
@@ -667,8 +667,8 @@ export default function Home() {
                 <h3 className="install-step-title">Connect your AI tool</h3>
                 <p className="install-step-desc">Auto-detects Claude Code and Cursor. Configures the MCP server and installs the Tuna skill that teaches your agent how to resolve design tokens, utility classes, and CSS variables.</p>
                 <div className="code-block">
-                  <CopyButton text="npx tuna setup" />
-                  <div className="code-line">npx tuna setup</div>
+                  <CopyButton text="npx @suryanewa/tuna setup" />
+                  <div className="code-line">npx @suryanewa/tuna setup</div>
                 </div>
               </div>
             </div>

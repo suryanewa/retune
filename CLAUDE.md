@@ -72,7 +72,7 @@ Changes:
 ## Tech Stack
 
 - Next.js, React, TypeScript, Tailwind CSS
-- Distributed as the `tuna` npm package
+- Distributed as the `@suryanewa/tuna` npm package
 
 ## Animations
 
