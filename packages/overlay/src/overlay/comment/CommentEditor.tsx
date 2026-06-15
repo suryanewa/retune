@@ -1229,18 +1229,18 @@ function reinforceRowMarginDomCaret(
   x: number,
   y: number,
 ): void {
-  let action: RowMarginDomCaretAction | null = null;
+  const actionRef: { current: RowMarginDomCaretAction | null } = { current: null };
   editor.update(() => {
     const trailing = findTrailingRowGapGeometry(rootEl, x, y);
     if (trailing) {
       const target = resolveRowGeometryTarget(editor, trailing);
       if (target?.kind === "text") {
-        action = { kind: "text-end", nodeKey: target.textNode.getKey(), lineRect: trailing.rect };
+        actionRef.current = { kind: "text-end", nodeKey: target.textNode.getKey(), lineRect: trailing.rect };
         return;
       }
       if (target?.kind === "mention") {
         const spacerAfter = $getOrCreateEditableTextSibling(target.mention, "next");
-        action = {
+        actionRef.current = {
           kind: "mention-after",
           nodeKey: spacerAfter.getKey(),
           offset: latestCaretAfterMentionOffset,
@@ -1252,37 +1252,38 @@ function reinforceRowMarginDomCaret(
     if (!leading) return;
     const target = resolveRowGeometryTarget(editor, leading);
     if (target?.kind === "text") {
-      action = { kind: "text-start", nodeKey: target.textNode.getKey(), lineRect: leading.rect };
+      actionRef.current = { kind: "text-start", nodeKey: target.textNode.getKey(), lineRect: leading.rect };
       return;
     }
     if (target?.kind === "mention") {
       const spacerBefore = $getOrCreateEditableTextSibling(target.mention, "previous");
-      action = {
+      actionRef.current = {
         kind: "mention-before",
         nodeKey: spacerBefore.getKey(),
         offset: spacerBefore.getTextContent().length,
       };
     }
   });
-  if (!action) return;
+  const resolvedAction = actionRef.current;
+  if (!resolvedAction) return;
   editor.getEditorState().read(() => {
-    const node = $getNodeByKey(action.nodeKey);
+    const node = $getNodeByKey(resolvedAction.nodeKey);
     if (!$isTextNode(node) || $isMentionNode(node)) return;
-    switch (action.kind) {
+    switch (resolvedAction.kind) {
       case "text-end":
-        setDomCaretAtTextLineEdge(editor, shellEl, node, y, "end", action.lineRect);
+        setDomCaretAtTextLineEdge(editor, shellEl, node, y, "end", resolvedAction.lineRect);
         break;
       case "text-start":
         clearMarginCustomCaret(editor);
-        setDomCaretAtTextLineEdge(editor, shellEl, node, y, "start", action.lineRect);
+        setDomCaretAtTextLineEdge(editor, shellEl, node, y, "start", resolvedAction.lineRect);
         break;
       case "mention-after":
       case "mention-before":
         clearMarginCustomCaret(editor);
-        mirrorDomCaretOnTextNode(editor, node, action.offset);
+        mirrorDomCaretOnTextNode(editor, node, resolvedAction.offset);
         break;
       default: {
-        const _exhaustive: never = action;
+        const _exhaustive: never = resolvedAction;
         return _exhaustive;
       }
     }

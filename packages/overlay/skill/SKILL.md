@@ -1,11 +1,13 @@
 ---
 name: retune-visual-changes
-description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", "# Comments", "Prop Changes", "Attribute Changes", "SVG Attribute Changes", a Before/After changes table, or property diffs with Token/Variable columns. Triggers on: retune, "Visual Changes", "apply these changes", style diff, design tokens, design variables, property before/after table, visual tweaks, overlay changes, "Comment #", "Address each comment", "Prop Changes", "Attribute Changes".
+description: Apply visual changes from the Retune overlay to source code. Use this skill when receiving output from retune MCP tools (retune_get_visual_context, retune_get_formatted_changes, retune_get_pending_changes) OR when the user pastes structured visual change output containing "# Visual Changes", "# Comments", "Page-state snapshot", "Drawing Annotations", "Prop Changes", "Attribute Changes", "SVG Attribute Changes", a Before/After changes table, or property diffs with Token/Variable columns. Triggers on: retune, "Visual Changes", "visual context", "apply these changes", style diff, design tokens, design variables, property before/after table, visual tweaks, overlay changes, "Comment #", "Address each comment", "Drawing", "Prop Changes", "Attribute Changes".
 ---
 
 # Applying Retune Visual Changes
 
 Retune sends you structured diffs of visual changes the user made in the browser. Your job is to translate these into precise source code edits that respect the project's styling conventions.
+
+When MCP is available and the user is working from a current Retune selection, prefer `retune_get_visual_context` first. It returns the active selected elements, multi-selection, drawing annotations, comments, pending changes, viewport state, and a compact page-state snapshot. Use `retune_get_formatted_changes` when you only need the queued change/comment markdown or after the user explicitly asks to apply all pending changes.
 
 ## The User's Value Is Sacred
 
@@ -58,6 +60,16 @@ Use these fields to find the element in source code, in order of reliability:
 4. **Classes** — Applied class names
 5. **Text content** — The element's visible text
 6. **DOM Path** — Full traversal path (last resort)
+
+### Visual Prompt Context
+
+Retune handoffs can include visual prompt sections in addition to property diffs:
+
+- **Page-state snapshot** — A bounded DOM spatial snapshot of visible viewport elements. Treat this like screenshot context: it tells you what was on screen, where elements were positioned, which selectors were selected, and which drawings were active. Use it to understand layout relationships, but edit source code using element/source/component context.
+- **Selected targets** — The exact elements referenced by inline mentions or multi-select. If a comment says to make one thing match another, compare the selected targets in order.
+- **Inline references** — Rich mention tokens projected into text. The plain text may say `@Button`, but the selector/component mapping in `Inline references` is the authoritative target.
+- **Drawing annotations** — User-drawn circles/boxes/marks over the interface. Each drawing has a synthetic selector (`retune-drawing:N`), stroke color, SVG path data, and viewport/page bounds. Use drawings to identify the region or relationship the user is pointing at; they usually do not correspond to source elements themselves.
+- **Contains / Visible context** — Nearby or contained DOM elements under a drawn or area region. Use these to locate the relevant JSX/CSS when the user points to a region instead of a specific element.
 
 ### Prop Changes
 

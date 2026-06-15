@@ -177,9 +177,10 @@ Retune includes a built-in MCP server. Configure your AI tool to use it:
 
 | Tool | Description |
 |---|---|
+| `retune_get_visual_context` | Get the current visual prompt context: selected elements, multi-selection, drawing annotations, comments, pending changes, viewport state, and a DOM spatial page-state snapshot |
 | `retune_get_selection` | Get the currently selected element with its selector, component tree, and styles |
 | `retune_get_pending_changes` | Get all visual changes as before/after diffs |
-| `retune_get_formatted_changes` | Get changes as structured markdown, ready to apply to code |
+| `retune_get_formatted_changes` | Get changes as structured markdown, ready to apply to code, including page-state snapshot context when available |
 | `retune_watch_changes` | Wait for new changes (blocks up to 30s) |
 | `retune_clear_changes` | Clear pending changes after applying them |
 | `retune_get_comments` | Get all comments/annotations left by the user |

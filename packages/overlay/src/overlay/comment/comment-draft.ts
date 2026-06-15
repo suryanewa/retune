@@ -51,8 +51,33 @@ export function getMentionColorForTarget(
   return target.mentionColor ?? SELECTION_COLORS[fallbackIndex % SELECTION_COLORS.length];
 }
 
-export function buildDrawingCommentTarget(orderIndex: number, mentionColor?: string): CommentElementTarget {
+type DrawingTargetInfo = NonNullable<CommentElementTarget["drawing"]>;
+
+function getDrawPathBounds(path: SVGPathElement): DrawingTargetInfo["bounds"] {
+  const rect = path.getBoundingClientRect?.() ?? { left: 0, top: 0, width: 0, height: 0 };
   return {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
+}
+
+function getDrawPathPageBounds(bounds: DrawingTargetInfo["bounds"]): DrawingTargetInfo["pageBounds"] {
+  return {
+    x: bounds.x + (typeof window === "undefined" ? 0 : window.scrollX),
+    y: bounds.y + (typeof window === "undefined" ? 0 : window.scrollY),
+    width: bounds.width,
+    height: bounds.height,
+  };
+}
+
+export function buildDrawingCommentTarget(
+  orderIndex: number,
+  mentionColor?: string,
+  path?: SVGPathElement,
+): CommentElementTarget {
+  const target: CommentElementTarget = {
     tagName: "drawing",
     selector: `retune-drawing:${orderIndex}`,
     componentName: getDrawingMentionName(orderIndex),
@@ -60,6 +85,23 @@ export function buildDrawingCommentTarget(orderIndex: number, mentionColor?: str
     classes: [],
     textContent: null,
     ...(mentionColor ? { mentionColor } : {}),
+  };
+
+  if (!path) return target;
+
+  const stroke = path.getAttribute("stroke") ?? mentionColor ?? SELECTION_COLORS[0];
+  const fill = path.getAttribute("fill") ?? "none";
+  const bounds = getDrawPathBounds(path);
+  return {
+    ...target,
+    drawing: {
+      orderIndex,
+      pathData: path.getAttribute("d") ?? "",
+      stroke,
+      fill,
+      bounds,
+      pageBounds: getDrawPathPageBounds(bounds),
+    },
   };
 }
 
@@ -82,6 +124,7 @@ export function buildDrawingTargetsFromPaths(
     buildDrawingCommentTarget(
       getDrawingOrderIndex(path, drawnPathsInOrder),
       getDrawPathDisplayColor(path),
+      path,
     ),
   );
 }

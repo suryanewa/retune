@@ -18,12 +18,26 @@ import {
 } from "../overlay/comment/comment-draft";
 import type { InspectedElement } from "../types";
 
-function mockDrawPath(stroke: string, drawColor?: string): SVGPathElement {
+function mockDrawPath(
+  stroke: string,
+  drawColor?: string,
+  rect: Partial<DOMRect> = {},
+): SVGPathElement {
   return {
     getAttribute(name: string) {
       if (name === "stroke") return stroke;
       if (name === "data-retune-draw-color") return drawColor ?? null;
+      if (name === "d") return "M 10 20 L 40 60 Z";
+      if (name === "fill") return "none";
       return null;
+    },
+    getBoundingClientRect() {
+      return {
+        left: rect.left ?? 10,
+        top: rect.top ?? 20,
+        width: rect.width ?? 30,
+        height: rect.height ?? 40,
+      } as DOMRect;
     },
   } as SVGPathElement;
 }
@@ -141,10 +155,16 @@ describe("drawing mention names", () => {
       mockDrawPath("#FF6B6B"),
       mockDrawPath("#845EF7"),
     ];
-    expect(buildDrawingTargetsFromPaths([paths[0], paths[2]], paths)).toEqual([
-      buildDrawingCommentTarget(1, "#0D99FF"),
-      buildDrawingCommentTarget(3, "#845EF7"),
+    const drawingTargets = buildDrawingTargetsFromPaths([paths[0], paths[2]], paths);
+    expect(drawingTargets.map((target) => ({
+      selector: target.selector,
+      mentionColor: target.mentionColor,
+      componentName: target.componentName,
+    }))).toEqual([
+      { selector: "retune-drawing:1", mentionColor: "#0D99FF", componentName: "Drawing 1" },
+      { selector: "retune-drawing:3", mentionColor: "#845EF7", componentName: "Drawing 3" },
     ]);
+    expect(drawingTargets.every((target) => target.drawing?.pathData)).toBe(true);
   });
 
   it("syncs multi-selected drawings into an open draft", () => {
@@ -177,21 +197,20 @@ describe("drawing mention names", () => {
       paths,
     );
 
-    expect(buildDrawingTargetsFromPaths([paths[0], paths[2]], paths)).toEqual([
-      buildDrawingCommentTarget(1, "#0D99FF"),
-      buildDrawingCommentTarget(3, "#51CF66"),
+    expect(buildDrawingTargetsFromPaths([paths[0], paths[2]], paths).map((target) => target.selector)).toEqual([
+      "retune-drawing:1",
+      "retune-drawing:3",
     ]);
     expect(synced.spanMentionCount).toBe(3);
-    expect(synced.elementInfo?.selectedElements).toEqual([
-      {
-        tagName: "button",
-        selector: ".btn",
-        componentName: "Button",
-        classes: [],
-        textContent: "Save",
-      },
-      buildDrawingCommentTarget(1, "#0D99FF"),
-      buildDrawingCommentTarget(3, "#51CF66"),
+    expect(synced.elementInfo?.selectedElements?.map((target) => target.selector)).toEqual([
+      ".btn",
+      "retune-drawing:1",
+      "retune-drawing:3",
+    ]);
+    expect(synced.elementInfo?.selectedElements?.map((target) => target.mentionColor)).toEqual([
+      undefined,
+      "#0D99FF",
+      "#51CF66",
     ]);
     expect(areDraftElementTargetsEqual(
       [{ tagName: "button", selector: ".btn", componentName: "Button", componentPath: [], classes: [], textContent: "Save" }],
@@ -320,6 +339,20 @@ describe("draw path resolution", () => {
       "#51CF66",
     ]);
     expect(synced.spanMentionCount).toBe(2);
+  });
+
+  it("captures drawing geometry from selected SVG paths", () => {
+    const canvas = [mockDrawPath("#0D99FF", undefined, { left: 12, top: 24, width: 100, height: 50 })];
+    const [target] = buildDrawingTargetsFromPaths(canvas, canvas);
+
+    expect(target?.drawing).toEqual({
+      orderIndex: 1,
+      pathData: "M 10 20 L 40 60 Z",
+      stroke: "#0D99FF",
+      fill: "none",
+      bounds: { x: 12, y: 24, width: 100, height: 50 },
+      pageBounds: { x: 12, y: 24, width: 100, height: 50 },
+    });
   });
 
   it("clears drawing mentions when selection becomes empty", () => {

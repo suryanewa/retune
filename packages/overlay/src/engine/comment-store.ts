@@ -22,6 +22,15 @@ export interface CommentElementTarget {
   domPath?: string;
   /** Outline / mention color when the target was captured (e.g. draw stroke). */
   mentionColor?: string;
+  /** For drawing mentions: geometry captured from the SVG path at comment/copy time. */
+  drawing?: {
+    orderIndex: number;
+    pathData: string;
+    stroke: string;
+    fill: string;
+    bounds: { x: number; y: number; width: number; height: number };
+    pageBounds: { x: number; y: number; width: number; height: number };
+  };
 }
 
 export interface Comment {

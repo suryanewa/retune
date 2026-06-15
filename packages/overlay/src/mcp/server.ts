@@ -74,6 +74,26 @@ export function createServer(bridge: Bridge): McpServer {
   );
 
   server.tool(
+    "retune_get_visual_context",
+    "Get the current Retune visual prompt context for agent handoff. Includes selected elements, multi-selection, drawing annotations with geometry, pending changes, comments, viewport state, and formatted markdown ready to use as implementation instructions.",
+    {
+      formattedOnly: z.boolean().optional()
+        .describe("Return only the formatted markdown prompt instead of the full JSON bundle. Default: false."),
+    },
+    async ({ formattedOnly }) => {
+      try {
+        const context = await bridge.request("getVisualContext");
+        if (formattedOnly) {
+          return { content: [{ type: "text", text: withManifestNudge(context?.formatted ?? "No Retune visual context.") }] };
+        }
+        return { content: [{ type: "text", text: JSON.stringify(context, null, 2) }] };
+      } catch (err: any) {
+        return { content: [{ type: "text", text: `Error: ${err.message}. Is the Retune overlay active in the browser?` }] };
+      }
+    }
+  );
+
+  server.tool(
     "retune_get_pending_changes",
     "Get all pending visual changes made in the Retune overlay. Returns a list of elements with their before/after style diffs. Shorthand properties (padding, margin, border-radius, etc.) are collapsed when all sides share the same value. Set enriched=true to include token/class/variable candidates per property.",
     {

@@ -15,8 +15,41 @@ import { camelToKebab, truncate } from "../utils";
 import { getVariableRegistry } from "../variables/registry";
 import { enrichPropertyChanges } from "./candidates";
 import type { Comment, CommentElementTarget } from "./comment-store";
+import { docToMentionSelectors } from "../overlay/comment/comment-doc";
 
 export type Fidelity = "minimal" | "standard" | "full";
+
+export type DrawingAnnotation = {
+  target: CommentElementTarget;
+  containedElements?: NonNullable<NonNullable<Comment["elementInfo"]>["containedElements"]>;
+};
+
+export type VisualPromptFrame = {
+  url: string;
+  viewport: { width: number; height: number };
+  scroll: { x: number; y: number };
+  timestamp: string;
+};
+
+export type VisualSnapshotElement = {
+  tagName: string;
+  selector: string;
+  componentName: string | null;
+  textContent: string | null;
+  classes: string[];
+  bounds: { x: number; y: number; width: number; height: number };
+  zIndex?: string | null;
+};
+
+export type VisualSnapshot = {
+  kind: "dom-spatial-snapshot";
+  capturedAt: string;
+  viewport: { width: number; height: number };
+  scroll: { x: number; y: number };
+  selectedSelectors: string[];
+  drawingSelectors: string[];
+  elements: VisualSnapshotElement[];
+};
 
 /** Known pseudo-state suffixes that we extract from selectors */
 const PSEUDO_STATES = [":hover", ":focus", ":active", ":focus-visible", ":focus-within"] as const;
@@ -90,6 +123,46 @@ function getTokenMap(): TokenMap {
     cachedTokenMap = scanDesignTokens();
   }
   return cachedTokenMap;
+}
+
+function getVisualPromptFrame(): VisualPromptFrame {
+  return {
+    url: window.location.href,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    scroll: { x: window.scrollX ?? 0, y: window.scrollY ?? 0 },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function pushVisualFrame(lines: string[], frame = getVisualPromptFrame()): void {
+  lines.push("**Visual frame:**");
+  lines.push(`- URL: ${frame.url}`);
+  lines.push(`- Viewport: ${frame.viewport.width}×${frame.viewport.height}`);
+  lines.push(`- Scroll: (${frame.scroll.x}, ${frame.scroll.y})`);
+  lines.push(`- Captured: ${frame.timestamp}`);
+}
+
+function pushVisualSnapshot(lines: string[], snapshot?: VisualSnapshot | null): void {
+  if (!snapshot) return;
+  lines.push("**Page-state snapshot:**");
+  lines.push("- Capture: DOM spatial snapshot of visible viewport elements and active annotations");
+  lines.push(`- Viewport: ${snapshot.viewport.width}×${snapshot.viewport.height}, scroll (${snapshot.scroll.x}, ${snapshot.scroll.y})`);
+  if (snapshot.selectedSelectors.length > 0) {
+    lines.push(`- Selected selectors: ${snapshot.selectedSelectors.map((selector) => `\`${selector}\``).join(", ")}`);
+  }
+  if (snapshot.drawingSelectors.length > 0) {
+    lines.push(`- Drawing selectors: ${snapshot.drawingSelectors.map((selector) => `\`${selector}\``).join(", ")}`);
+  }
+  if (snapshot.elements.length > 0) {
+    lines.push("- Visible context:");
+    for (const element of snapshot.elements.slice(0, 20)) {
+      const text = element.textContent ? ` "${truncate(element.textContent, 40)}"` : "";
+      const comp = element.componentName ? ` (${element.componentName})` : "";
+      const classes = element.classes.length > 0 ? ` .${element.classes.slice(0, 3).join(".")}` : "";
+      const z = element.zIndex && element.zIndex !== "auto" ? ` z:${element.zIndex}` : "";
+      lines.push(`  - \`<${element.tagName}>\` \`${element.selector}\`${classes}${text}${comp} at (${element.bounds.x}, ${element.bounds.y}) ${element.bounds.width}×${element.bounds.height}px${z}`);
+    }
+  }
 }
 
 /** Format selected element identification context for clipboard copy. */
@@ -182,7 +255,27 @@ export function formatElementInfo(
   return lines.join("\n");
 }
 
+function formatDrawingTarget(target: CommentElementTarget): string {
+  const drawing = target.drawing;
+  const color = target.mentionColor ?? drawing?.stroke;
+  const label = target.componentName ?? `Drawing ${drawing?.orderIndex ?? ""}`.trim();
+  const parts = [
+    `\`${label}\``,
+    `selector \`${target.selector}\``,
+  ];
+  if (color) parts.push(`color \`${color}\``);
+  if (drawing) {
+    parts.push(`viewport bounds (${drawing.bounds.x}, ${drawing.bounds.y}) ${drawing.bounds.width}×${drawing.bounds.height}px`);
+    parts.push(`page bounds (${drawing.pageBounds.x}, ${drawing.pageBounds.y}) ${drawing.pageBounds.width}×${drawing.pageBounds.height}px`);
+    if (drawing.pathData) parts.push(`path \`${truncate(drawing.pathData, 160)}\``);
+  }
+  return parts.join(" — ");
+}
+
 function formatCommentElementTarget(target: CommentElementTarget): string {
+  if (target.tagName === "drawing") {
+    return formatDrawingTarget(target);
+  }
   const text = target.textContent ? ` "${truncate(target.textContent, 30)}"` : "";
   const comp = target.componentName ? ` (${target.componentName})` : "";
   const classes = target.classes.length > 0 ? ` \`${target.classes.join(" ")}\`` : "";
@@ -192,7 +285,132 @@ function formatCommentElementTarget(target: CommentElementTarget): string {
   return line;
 }
 
-export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comments?: Comment[], manifest?: Record<string, any> | null): string {
+function pushTargetList(lines: string[], title: string, targets: CommentElementTarget[]): void {
+  if (targets.length === 0) return;
+  lines.push(`**${title}:**`);
+  for (const target of targets) {
+    lines.push(`- ${formatCommentElementTarget(target)}`);
+  }
+}
+
+function getCommentTargets(comment: Comment): CommentElementTarget[] {
+  const selected = comment.elementInfo?.selectedElements;
+  if (Array.isArray(selected)) return selected;
+  if (!comment.elementInfo) return [];
+  return [{
+    tagName: comment.elementInfo.tagName,
+    selector: comment.selector ?? "",
+    componentName: comment.elementInfo.componentName,
+    componentPath: comment.elementInfo.componentPath,
+    classes: comment.elementInfo.classes,
+    textContent: comment.elementInfo.textContent,
+    source: comment.elementInfo.source,
+    domPath: comment.elementInfo.domPath,
+  }];
+}
+
+function pushInlineMentionContext(lines: string[], comment: Comment, targets: CommentElementTarget[]): void {
+  if (!comment.content) return;
+  const selectors = docToMentionSelectors(comment.content);
+  if (selectors.length === 0) return;
+  const bySelector = new Map(targets.map((target) => [target.selector, target]));
+  lines.push(`**Inline references:** ${selectors.map((selector) => {
+    const target = bySelector.get(selector);
+    const label = target?.componentName ?? selector;
+    return `\`${label}\` → \`${selector}\``;
+  }).join(", ")}`);
+}
+
+export function formatDrawingAnnotations(
+  drawings: DrawingAnnotation[],
+  options?: { title?: string; visualSnapshot?: VisualSnapshot | null },
+): string {
+  if (drawings.length === 0) return "No drawings selected.";
+  const lines: string[] = [];
+  lines.push(options?.title ?? "Drawn annotations from Retune:");
+  lines.push("");
+  pushVisualFrame(lines);
+  pushVisualSnapshot(lines, options?.visualSnapshot);
+  lines.push("");
+  pushDrawingAnnotationBlocks(lines, drawings);
+  return lines.join("\n").trim();
+}
+
+function pushDrawingAnnotationBlocks(lines: string[], drawings: DrawingAnnotation[]): void {
+  drawings.forEach((drawing, index) => {
+    lines.push(`## Drawing ${index + 1}`);
+    lines.push("");
+    lines.push(formatDrawingTarget(drawing.target));
+    if (drawing.containedElements && drawing.containedElements.length > 0) {
+      const items = drawing.containedElements.slice(0, 12).map((el) => {
+        const text = el.textContent ? ` "${truncate(el.textContent, 40)}"` : "";
+        const comp = el.componentName ? ` (${el.componentName})` : "";
+        return `\`<${el.tagName}>\` \`${el.selector}\`${text}${comp}`;
+      });
+      lines.push(`Contains: ${items.join(", ")}`);
+    }
+    lines.push("");
+  });
+}
+
+export function formatSelectionPrompt(
+  elements: InspectedElement[],
+  options?: {
+    primary?: InspectedElement | null;
+    activeSelector?: string | null;
+    drawings?: DrawingAnnotation[];
+    visualSnapshot?: VisualSnapshot | null;
+  },
+): string {
+  const drawings = options?.drawings ?? [];
+  if (elements.length === 0 && drawings.length === 0) return "No Retune selection.";
+
+  const lines: string[] = [];
+  if (elements.length > 0 && drawings.length > 0) {
+    lines.push(`${elements.length} selected element${elements.length === 1 ? "" : "s"} and ${drawings.length} drawing annotation${drawings.length === 1 ? "" : "s"} from Retune:`);
+  } else if (elements.length > 1) {
+    lines.push(`${elements.length} selected elements from Retune:`);
+  } else if (elements.length === 1) {
+    lines.push("Selected element from Retune:");
+  } else {
+    lines.push(`${drawings.length} drawing annotation${drawings.length === 1 ? "" : "s"} from Retune:`);
+  }
+  lines.push("");
+  pushVisualFrame(lines);
+  pushVisualSnapshot(lines, options?.visualSnapshot);
+
+  if (elements.length > 0) {
+    lines.push("");
+    elements.forEach((element, index) => {
+      const selector = element === options?.primary
+        ? (options?.activeSelector ?? element.selector)
+        : element.selector;
+      if (elements.length > 1 || drawings.length > 0) {
+        lines.push(`## Element ${index + 1}`);
+        lines.push("");
+      }
+      lines.push(formatElementInfo(element, { selector }).replace(/^Selected element from Retune:\n\n/, ""));
+      lines.push("");
+    });
+  }
+
+  if (drawings.length > 0) {
+    lines.push("");
+    lines.push("## Drawing Annotations");
+    lines.push("");
+    pushDrawingAnnotationBlocks(lines, drawings);
+  }
+
+  return lines.join("\n").trim();
+}
+
+export function formatChanges(
+  changes: ElementChange[],
+  fidelity: Fidelity,
+  comments?: Comment[],
+  manifest?: Record<string, any> | null,
+  options?: { visualSnapshot?: VisualSnapshot | null },
+): string {
   if (changes.length === 0 && (!comments || comments.length === 0)) return "No changes recorded.";
 
   // Separate bulk instances from primary changes
@@ -218,7 +436,9 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comm
   lines.push("**Environment:**");
   lines.push(`- URL: ${window.location.href}`);
   lines.push(`- Viewport: ${window.innerWidth}×${window.innerHeight}`);
+  lines.push(`- Scroll: (${window.scrollX ?? 0}, ${window.scrollY ?? 0})`);
   lines.push(`- Timestamp: ${new Date().toISOString()}`);
+  pushVisualSnapshot(lines, options?.visualSnapshot);
   lines.push("");
 
   // Token system summary (if tokens exist)
@@ -276,21 +496,19 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comm
     lines.push(`# Comments (${comments.length})`);
     lines.push("");
     comments.forEach((comment, idx) => {
+      const commentTargets = getCommentTargets(comment);
       if (comment.type === "element" && comment.elementInfo) {
         const info = comment.elementInfo;
-        const selected = info.selectedElements;
         const textHint = info.textContent ? ` "${truncate(info.textContent, 60)}"` : "";
-        if (selected && selected.length > 1) {
-          lines.push(`## Comment #${idx + 1} on ${selected.length} selected elements`);
+        if (commentTargets.length > 1) {
+          lines.push(`## Comment #${idx + 1} on ${commentTargets.length} selected targets`);
         } else {
           lines.push(`## Comment #${idx + 1} on \`<${info.tagName}>\`${textHint}`);
         }
         lines.push("");
-        if (selected && selected.length > 1) {
-          lines.push("**Selected elements:**");
-          for (const target of selected) {
-            lines.push(`- ${formatCommentElementTarget(target)}`);
-          }
+        if (commentTargets.length > 0) {
+          pushTargetList(lines, commentTargets.length > 1 ? "Selected targets" : "Selected target", commentTargets);
+          pushInlineMentionContext(lines, comment, commentTargets);
           lines.push("");
         } else {
           if (info.componentPath && info.componentPath.length > 0) {
@@ -317,6 +535,10 @@ export function formatChanges(changes: ElementChange[], fidelity: Fidelity, comm
         lines.push(`## Comment #${idx + 1} on area`);
         lines.push("");
         lines.push(`**Region:** (${Math.round(a.x)}, ${Math.round(a.y)}) ${Math.round(a.width)}×${Math.round(a.height)}px`);
+        if (commentTargets.length > 0) {
+          pushTargetList(lines, "Referenced targets", commentTargets);
+          pushInlineMentionContext(lines, comment, commentTargets);
+        }
         const contained = comment.elementInfo?.containedElements;
         if (contained && contained.length > 0) {
           const items = contained.slice(0, 8).map(el => {
@@ -812,4 +1034,3 @@ export function collapseShorthands(changes: import("../types").PropertyChange[])
   }
   return result;
 }
-

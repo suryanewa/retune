@@ -23,7 +23,16 @@ import { LivePreviewEngine } from "../engine/live-preview";
 import { ChangeTracker } from "../engine/change-tracker";
 import { CommentStore, type Comment } from "../engine/comment-store";
 import { enrichPropertyChanges } from "../engine/candidates";
-import { formatChanges, formatElementInfo, collapseShorthands, type Fidelity } from "../engine/output";
+import {
+  formatChanges,
+  formatSelectionPrompt,
+  formatDrawingAnnotations,
+  collapseShorthands,
+  type DrawingAnnotation,
+  type Fidelity,
+  type VisualSnapshot,
+  type VisualSnapshotElement,
+} from "../engine/output";
 import { scanDesignTokens } from "../inspector/tokens";
 import { BridgeClient } from "../bridge/ws-client";
 import { formatToggleHotkeyShortcut, inspectElement, matchesToggleHotkey } from "../ui/helpers";
@@ -53,6 +62,8 @@ import { SelectionActionBar } from "../ui/selection-action-bar";
 import {
   buildDrawingTargetsFromPaths,
   getCommentElementTargets,
+  getQuickComponentName,
+  getQuickSelector,
   getDrawingOrderIndex,
   resolveActiveDrawPaths,
   scanContainedElements,
@@ -91,6 +102,111 @@ const DEFAULT_CONFIG: Required<RetuneConfig> = {
   position: "bottom-right",
   force: false,
 };
+
+function serializeInspectedElement(element: InspectedElement) {
+  const { element: _element, rect, reactProps, ...serializable } = element;
+  return {
+    ...serializable,
+    rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+  };
+}
+
+function rectsOverlap(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number },
+  padding = 0,
+): boolean {
+  return left.x < right.x + right.width + padding
+    && left.x + left.width > right.x - padding
+    && left.y < right.y + right.height + padding
+    && left.y + left.height > right.y - padding;
+}
+
+function normalizeSnapshotText(text: string | null | undefined): string | null {
+  const normalized = (text ?? "").replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.length > 80 ? `${normalized.slice(0, 77).trim()}...` : normalized;
+}
+
+function captureVisualSnapshot(
+  selectedElements: InspectedElement[],
+  drawings: DrawingAnnotation[],
+  activeSelector: string | null,
+): VisualSnapshot {
+  const selectedRects = selectedElements.map((target) => target.position);
+  const drawingRects = drawings
+    .map((drawing) => drawing.target.drawing?.bounds)
+    .filter((bounds): bounds is { x: number; y: number; width: number; height: number } => !!bounds);
+  const focusRects = [...selectedRects, ...drawingRects];
+  const viewportRect = { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight };
+  const selectedSelectors = selectedElements.map((target, index) =>
+    index === 0 && activeSelector ? activeSelector : target.selector
+  );
+  const selectedSelectorSet = new Set(selectedSelectors);
+  const drawingSelectors = drawings.map((drawing) => drawing.target.selector);
+  const entries: Array<{ score: number; element: VisualSnapshotElement }> = [];
+
+  for (const el of Array.from(document.body.querySelectorAll("*"))) {
+    if (!(el instanceof HTMLElement || el instanceof SVGElement)) continue;
+    if (el.closest("[data-retune-host]")) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) continue;
+    const bounds = {
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+    if (!rectsOverlap(bounds, viewportRect)) continue;
+    const style = getComputedStyle(el);
+    if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
+
+    const selector = getQuickSelector(el);
+    const textContent = normalizeSnapshotText(el.textContent);
+    const classes = Array.from(el.classList).filter((cls) => cls.length > 0 && cls.length < 60).slice(0, 6);
+    let score = 0;
+    if (selectedSelectorSet.has(selector)) score += 1000;
+    if (focusRects.some((focusRect) => rectsOverlap(bounds, focusRect, 48))) score += 500;
+    if (textContent) score += 80;
+    if (/^(BUTTON|A|INPUT|TEXTAREA|SELECT|SUMMARY)$/.test(el.tagName)) score += 120;
+    if (style.position === "fixed" || style.position === "sticky") score += 40;
+    score += Math.max(0, 80 - Math.abs(bounds.y + bounds.height / 2 - window.innerHeight / 2) / 10);
+
+    entries.push({
+      score,
+      element: {
+        tagName: el.tagName.toLowerCase(),
+        selector,
+        componentName: getQuickComponentName(el),
+        textContent,
+        classes,
+        bounds,
+        zIndex: style.zIndex,
+      },
+    });
+  }
+
+  const seen = new Set<string>();
+  const elements = entries
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.element)
+    .filter((element) => {
+      if (seen.has(element.selector)) return false;
+      seen.add(element.selector);
+      return true;
+    })
+    .slice(0, 24);
+
+  return {
+    kind: "dom-spatial-snapshot",
+    capturedAt: new Date().toISOString(),
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    scroll: { x: window.scrollX, y: window.scrollY },
+    selectedSelectors,
+    drawingSelectors,
+    elements,
+  };
+}
 
 // Singleton bridge stored on `window` so it survives both React StrictMode
 // double-mounts AND Next.js HMR module re-evaluations. Without this, each
@@ -362,6 +478,33 @@ function RetuneInner(props: RetuneConfig) {
     return enriched;
   }, []);
 
+  const getCurrentSelectedElements = useCallback((): InspectedElement[] => {
+    return selectedElementsRef.current.length > 0
+      ? selectedElementsRef.current
+      : selectedElementRef.current
+        ? [selectedElementRef.current]
+        : [];
+  }, []);
+
+  const getCurrentDrawingAnnotations = useCallback((): DrawingAnnotation[] => {
+    return buildDrawingTargetsFromPaths(
+      selectedDrawPathsRef.current,
+      drawnPathAnchorsRef.current,
+    ).map((target) => ({
+      target,
+      containedElements: target.drawing
+        ? scanContainedElements(target.drawing.bounds)
+        : undefined,
+    }));
+  }, []);
+
+  const getCurrentVisualSnapshot = useCallback((
+    elements = getCurrentSelectedElements(),
+    drawings = getCurrentDrawingAnnotations(),
+  ): VisualSnapshot => {
+    return captureVisualSnapshot(elements, drawings, activeSelectorRef.current);
+  }, [getCurrentDrawingAnnotations, getCurrentSelectedElements]);
+
   const {
     activeCommentId,
     setActiveCommentId,
@@ -419,11 +562,31 @@ function RetuneInner(props: RetuneConfig) {
         case "getSelection": {
           const sel = selectedElementRef.current;
           if (!sel) return null;
-          // Strip non-serializable fields (DOM element, DOMRect, React props with circular refs)
-          const { element, rect, reactProps, ...serializable } = sel;
+          return serializeInspectedElement(sel);
+        }
+        case "getVisualContext": {
+          const elements = getCurrentSelectedElements();
+          const drawings = getCurrentDrawingAnnotations();
+          const visualSnapshot = getCurrentVisualSnapshot(elements, drawings);
           return {
-            ...serializable,
-            rect: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+            formatted: formatSelectionPrompt(elements, {
+              primary: selectedElementRef.current,
+              activeSelector: activeSelectorRef.current,
+              drawings,
+              visualSnapshot,
+            }),
+            selectedElements: elements.map(serializeInspectedElement),
+            drawings,
+            visualSnapshot,
+            comments: commentStoreRef.current.getAll(),
+            pendingChanges: t.getPendingChanges(),
+            viewport: {
+              url: window.location.href,
+              width: window.innerWidth,
+              height: window.innerHeight,
+              scrollX: window.scrollX,
+              scrollY: window.scrollY,
+            },
           };
         }
         case "getPendingChanges":
@@ -441,7 +604,13 @@ function RetuneInner(props: RetuneConfig) {
           }));
         }
         case "getFormattedChanges":
-          return formatChanges(t.getPendingChanges(), params?.fidelity || fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current);
+          return formatChanges(
+            t.getPendingChanges(),
+            params?.fidelity || fidelityRef.current,
+            commentStoreRef.current.getAll(),
+            manifestDataRef.current,
+            { visualSnapshot: getCurrentVisualSnapshot() },
+          );
         case "getComments":
           return commentStoreRef.current.getAll();
         case "clearComments":
@@ -3157,9 +3326,15 @@ function RetuneInner(props: RetuneConfig) {
   const handleCopy = useCallback(() => {
     const tracker = trackerRef.current;
     if (!tracker) return;
-    navigator.clipboard.writeText(formatChanges(tracker.getPendingChanges(), fidelity, commentStoreRef.current.getAll(), manifestDataRef.current));
+    navigator.clipboard.writeText(formatChanges(
+      tracker.getPendingChanges(),
+      fidelity,
+      commentStoreRef.current.getAll(),
+      manifestDataRef.current,
+      { visualSnapshot: getCurrentVisualSnapshot() },
+    ));
     showCopiedFeedback();
-  }, [fidelity, showCopiedFeedback]);
+  }, [fidelity, getCurrentVisualSnapshot, showCopiedFeedback]);
 
   // Copy shortcut: ⌘C
   useEffect(() => {
@@ -3175,28 +3350,6 @@ function RetuneInner(props: RetuneConfig) {
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [active, changeCount, commentCount, handleCopy]);
 
-  const handleSelectionCopy = useCallback(() => {
-    const primary = selectedElementRef.current;
-    const elements = selectedElementsRef.current.length > 0
-      ? selectedElementsRef.current
-      : primary
-        ? [primary]
-        : [];
-    if (elements.length === 0) return;
-
-    const blocks = elements.map((el, index) => {
-      const selector = el === primary ? (activeSelectorRef.current ?? el.selector) : el.selector;
-      const info = formatElementInfo(el, { selector });
-      return elements.length > 1 ? `Element ${index + 1}:\n\n${info}` : info;
-    });
-    const text = elements.length > 1
-      ? `${elements.length} selected elements from Retune:\n\n${blocks.join("\n\n---\n\n")}`
-      : blocks[0];
-
-    navigator.clipboard.writeText(text);
-    showCopiedFeedback();
-  }, [showCopiedFeedback]);
-
   const getDrawnPathBounds = useCallback((paths: SVGPathElement[]) => {
     const rects = paths.map((path) => path.getBoundingClientRect()).filter((rect) => rect.width > 0 || rect.height > 0);
     if (rects.length === 0) return null;
@@ -3208,6 +3361,35 @@ function RetuneInner(props: RetuneConfig) {
   }, []);
 
   const activeDrawPaths = useMemo(() => selectedDrawPaths, [selectedDrawPaths]);
+
+  const getDrawingAnnotations = useCallback((paths: SVGPathElement[]): DrawingAnnotation[] => {
+    return buildDrawingTargetsFromPaths(paths, drawnPathAnchors).map((target) => ({
+      target,
+      containedElements: target.drawing
+        ? scanContainedElements(target.drawing.bounds)
+        : undefined,
+    }));
+  }, [drawnPathAnchors]);
+
+  const handleSelectionCopy = useCallback(() => {
+    const primary = selectedElementRef.current;
+    const elements = selectedElementsRef.current.length > 0
+      ? selectedElementsRef.current
+      : primary
+        ? [primary]
+        : [];
+    const drawings = selectedDrawPaths.length > 0 ? getDrawingAnnotations(selectedDrawPaths) : [];
+    if (elements.length === 0 && drawings.length === 0) return;
+    const visualSnapshot = captureVisualSnapshot(elements, drawings, activeSelectorRef.current);
+
+    navigator.clipboard.writeText(formatSelectionPrompt(elements, {
+      primary,
+      activeSelector: activeSelectorRef.current,
+      drawings,
+      visualSnapshot,
+    }));
+    showCopiedFeedback();
+  }, [getDrawingAnnotations, selectedDrawPaths, showCopiedFeedback]);
 
   const handleDrawComment = useCallback(() => {
     if (selectedDrawPaths.length === 0) return;
@@ -3281,19 +3463,12 @@ function RetuneInner(props: RetuneConfig) {
 
   const handleDrawCopy = useCallback(() => {
     if (activeDrawPaths.length === 0) return;
-    const blocks = activeDrawPaths.map((path, index) => {
-      const rect = path.getBoundingClientRect();
-      return [
-        `Path ${index + 1}:`,
-        `d: ${path.getAttribute("d") ?? ""}`,
-        `stroke: ${path.getAttribute("stroke") ?? ""}`,
-        `fill: ${path.getAttribute("fill") ?? ""}`,
-        `bounds: ${Math.round(rect.left)}, ${Math.round(rect.top)}, ${Math.round(rect.width)} x ${Math.round(rect.height)}`,
-      ].join("\n");
-    });
-    navigator.clipboard.writeText(`Drawn paths from Retune:\n\n${blocks.join("\n\n")}`);
+    const drawings = getDrawingAnnotations(activeDrawPaths);
+    navigator.clipboard.writeText(formatDrawingAnnotations(drawings, {
+      visualSnapshot: captureVisualSnapshot([], drawings, null),
+    }));
     showCopiedFeedback();
-  }, [activeDrawPaths, showCopiedFeedback]);
+  }, [activeDrawPaths, getDrawingAnnotations, showCopiedFeedback]);
 
   const handleDrawDeselect = useCallback(() => {
     if (selectedDrawPaths.length > 0) {
@@ -3338,7 +3513,38 @@ function RetuneInner(props: RetuneConfig) {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
       getFormattedChanges: (f?: Fidelity) =>
-        formatChanges(trackerRef.current?.getPendingChanges() ?? [], f ?? fidelityRef.current, commentStoreRef.current.getAll(), manifestDataRef.current),
+        formatChanges(
+          trackerRef.current?.getPendingChanges() ?? [],
+          f ?? fidelityRef.current,
+          commentStoreRef.current.getAll(),
+          manifestDataRef.current,
+          { visualSnapshot: getCurrentVisualSnapshot() },
+        ),
+      getVisualContext: () => {
+        const elements = getCurrentSelectedElements();
+        const drawings = getCurrentDrawingAnnotations();
+        const visualSnapshot = getCurrentVisualSnapshot(elements, drawings);
+        return {
+          formatted: formatSelectionPrompt(elements, {
+            primary: selectedElementRef.current,
+            activeSelector: activeSelectorRef.current,
+            drawings,
+            visualSnapshot,
+          }),
+          selectedElements: elements.map(serializeInspectedElement),
+          drawings,
+          visualSnapshot,
+          comments: commentStoreRef.current.getAll(),
+          pendingChanges: trackerRef.current?.getPendingChanges() ?? [],
+          viewport: {
+            url: window.location.href,
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY,
+          },
+        };
+      },
       clearChanges: () => {
         const tracker = trackerRef.current;
         const preview = previewRef.current;

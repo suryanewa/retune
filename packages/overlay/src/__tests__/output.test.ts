@@ -1,6 +1,15 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import { collapseShorthands, parsePseudoState, describeSelectorScope, formatElementInfo } from "../engine/output";
+import {
+  collapseShorthands,
+  parsePseudoState,
+  describeSelectorScope,
+  formatElementInfo,
+  formatDrawingAnnotations,
+  formatSelectionPrompt,
+} from "../engine/output";
 import type { PropertyChange, InspectedElement } from "../types";
+import type { CommentElementTarget } from "../engine/comment-store";
+import type { VisualSnapshot } from "../engine/output";
 
 function makeChange(property: string, from: string, to: string): PropertyChange {
   return { property, from, to };
@@ -258,6 +267,8 @@ describe("formatElementInfo", () => {
       location: { href: "http://localhost:3000/" },
       innerWidth: 1280,
       innerHeight: 800,
+      scrollX: 0,
+      scrollY: 240,
     };
   });
 
@@ -289,3 +300,96 @@ describe("formatElementInfo", () => {
   });
 });
 
+function makeDrawingTarget(overrides: Partial<CommentElementTarget> = {}): CommentElementTarget {
+  return {
+    tagName: "drawing",
+    selector: "retune-drawing:1",
+    componentName: "Drawing 1",
+    componentPath: [],
+    classes: [],
+    textContent: null,
+    mentionColor: "#0D99FF",
+    drawing: {
+      orderIndex: 1,
+      pathData: "M 10 10 L 120 10 L 120 80 Z",
+      stroke: "#0D99FF",
+      fill: "rgba(13, 153, 255, 0.12)",
+      bounds: { x: 10, y: 10, width: 110, height: 70 },
+      pageBounds: { x: 10, y: 250, width: 110, height: 70 },
+    },
+    ...overrides,
+  };
+}
+
+function makeVisualSnapshot(): VisualSnapshot {
+  return {
+    kind: "dom-spatial-snapshot",
+    capturedAt: "2026-06-15T00:00:00.000Z",
+    viewport: { width: 1440, height: 900 },
+    scroll: { x: 0, y: 240 },
+    selectedSelectors: [".hero .btn-primary"],
+    drawingSelectors: ["retune-drawing:1"],
+    elements: [
+      {
+        tagName: "button",
+        selector: ".btn-primary",
+        componentName: "Button",
+        textContent: "Get Started",
+        classes: ["btn", "btn-primary"],
+        bounds: { x: 340, y: 520, width: 120, height: 40 },
+        zIndex: "10",
+      },
+    ],
+  };
+}
+
+describe("visual prompt formatting", () => {
+  beforeAll(() => {
+    (globalThis as any).window = {
+      location: { href: "http://localhost:3000/dashboard" },
+      innerWidth: 1440,
+      innerHeight: 900,
+      scrollX: 0,
+      scrollY: 240,
+    };
+  });
+
+  it("formats drawing annotations with geometry and contained elements", () => {
+    const output = formatDrawingAnnotations([{
+      target: makeDrawingTarget(),
+      containedElements: [
+        { tagName: "button", selector: ".save", componentName: "SaveButton", textContent: "Save" },
+      ],
+    }], { visualSnapshot: makeVisualSnapshot() });
+
+    expect(output).toContain("Drawn annotations from Retune:");
+    expect(output).toContain("Viewport: 1440×900");
+    expect(output).toContain("Page-state snapshot:");
+    expect(output).toContain("Selected selectors: `.hero .btn-primary`");
+    expect(output).toContain("Visible context:");
+    expect(output).toContain("`Drawing 1`");
+    expect(output).toContain("selector `retune-drawing:1`");
+    expect(output).toContain("viewport bounds (10, 10) 110×70px");
+    expect(output).toContain("page bounds (10, 250) 110×70px");
+    expect(output).toContain("path `M 10 10 L 120 10 L 120 80 Z`");
+    expect(output).toContain("`<button>` `.save` \"Save\" (SaveButton)");
+  });
+
+  it("formats a mixed element and drawing selection for copy/MCP", () => {
+    const output = formatSelectionPrompt([makeInspectedElement()], {
+      primary: makeInspectedElement(),
+      activeSelector: ".hero .btn-primary",
+      drawings: [{ target: makeDrawingTarget() }],
+      visualSnapshot: makeVisualSnapshot(),
+    });
+
+    expect(output).toContain("selected element");
+    expect(output).toContain("drawing annotation");
+    expect(output).toContain("Page-state snapshot:");
+    expect(output).toContain("`<button>` `.btn-primary`");
+    expect(output).toContain("## Element 1");
+    expect(output).toContain('Element: <button> "Get Started"');
+    expect(output).toContain("## Drawing Annotations");
+    expect(output).toContain("retune-drawing:1");
+  });
+});
