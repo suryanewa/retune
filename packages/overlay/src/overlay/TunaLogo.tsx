@@ -1,130 +1,37 @@
-import { useEffect, useRef } from "react";
+const TUNA_PATH =
+  "M.73,51c4.3-7.9,9.2-14.3,14.2-19.8l.3-.4C7.13,21.9.93,10.9.43,9.3c-.7-2.1.3-4.4,2.4-5.2s4.3.2,5.1,2.2c.4.9,4.7,9.1,12.9,18.7C32.33,12,48.33,2.2,66.33.7c3.2-.5,6.5-.7,9.8-.7h1.8c18.6,0,37.7,7.3,52.7,23.2l3.8,4.4c1.6,2.1,1.6,4.8,0,6.9-13.4,16.8-33,26.5-52.8,27.3-1.6,0-3.1.2-4.7.2-6.8,0-23.2-1-39-10.4-6.1-3.4-11.8-7.7-17.2-13.6l-.1-1c-4.5,4.9-9.2,11.4-13.1,18-.7,1.4-1.9,2.2-3.5,2.2-2,.1-4.3-2-4-4.9l.7-1.3ZM72.73,53.5c1.5.1,2.9.1,4.3.1,13.6,0,26-3.9,36.9-11.4,2.9-2,5.5-4.1,7.9-6.5l5.4-4.8-.4-.3c-10.3-10.7-21.6-16.7-32.9-19.9-5.1-1.5-10.3-2.7-16.3-2.7-5,0-8.8.4-13.9,1.4s-17.6,4.3-37.6,21.5l.1.2v.1h.1c12.3,11.2,25.5,18.8,39.7,21.3,2.2.4,4.4.8,6.7,1Z";
 
+/** Upright Tuna wordmark for the collapsed toolbar button. */
 export function TunaLogo({ size = 20 }: { size?: number }) {
-  const gRef = useRef<SVGGElement>(null);
-
-  useEffect(() => {
-    const g = gRef.current;
-    const btn = g?.closest(".tuna-toolbar-collapse-btn");
-    if (!g || !btn) return;
-    const logoGroup = g;
-
-    const seq: string[][] = [
-      ["sq1"], ["sq2"], ["sq3"], ["sq4"], ["sq5"], ["sq6"],
-      ["sq7"], ["sq8"], ["sq9"], ["sq10"], ["sq11"], ["sq12"],
-      ["sq13L", "sq13R"], ["sq14L", "sq14R"],
-    ];
-
-    const stagger = 45;
-    const flash = 300;
-    const pause = 200;
-    const cycleTime = seq.length * stagger + flash + pause;
-    let hovering = false;
-    let timers: ReturnType<typeof setTimeout>[] = [];
-
-    const isP3 = window.matchMedia("(color-gamut: p3)").matches;
-
-    function randomColor() {
-      const h = Math.random() * 360;
-      const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      const l = isDark ? 0.7 + Math.random() * 0.15 : 0.6 + Math.random() * 0.1;
-      const c = isP3 ? 0.3 + Math.random() * 0.1 : 0.2 + Math.random() * 0.08;
-      return isP3
-        ? `oklch(${l} ${c} ${h})`
-        : `hsl(${h}, 100%, ${isDark ? 50 + Math.random() * 25 : 50 + Math.random() * 15}%)`;
-    }
-
-    function clearAll() {
-      timers.forEach(clearTimeout);
-      timers = [];
-    }
-
-    function resetRects() {
-      logoGroup.querySelectorAll("rect").forEach((el) => {
-        el.style.transition = "none";
-        el.style.fill = "";
-        el.removeAttribute("filter");
-      });
-    }
-
-    function runCycle() {
-      if (!hovering) return;
-      const color = randomColor();
-      seq.forEach((ids, i) => {
-        timers.push(setTimeout(() => {
-          if (!hovering) return;
-          ids.forEach((id) => {
-            const el = logoGroup.querySelector(`#${id}`) as SVGRectElement | null;
-            if (!el) return;
-            el.style.transition = "none";
-            el.style.fill = color;
-            el.setAttribute("filter", "url(#tuna-bloom)");
-            el.getBoundingClientRect();
-            el.style.transition = `fill ${flash}ms ease-out`;
-            el.style.fill = "";
-            timers.push(setTimeout(() => el.removeAttribute("filter"), 80));
-          });
-        }, i * stagger));
-      });
-      timers.push(setTimeout(runCycle, cycleTime));
-    }
-
-    function onEnter() {
-      hovering = true;
-      runCycle();
-    }
-
-    function onLeave() {
-      hovering = false;
-      clearAll();
-      resetRects();
-    }
-
-    btn.addEventListener("mouseenter", onEnter);
-    btn.addEventListener("mouseleave", onLeave);
-    return () => {
-      btn.removeEventListener("mouseenter", onEnter);
-      btn.removeEventListener("mouseleave", onLeave);
-      clearAll();
-    };
-  }, []);
+  const height = size * (170 / 135.63);
+  const width = size * (100 / 135.63);
 
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
+    <svg
+      width={width}
+      height={height}
+      viewBox="0 0 100 170"
+      fill="none"
+      aria-hidden="true"
+      className="tuna-logo-svg"
+    >
       <defs>
-        <filter id="tuna-bloom" x="-100%" y="-100%" width="300%" height="300%" colorInterpolationFilters="sRGB">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="wideBlur"/>
-          <feColorMatrix in="wideBlur" type="matrix" result="wideGlow"
-            values="1.8 0 0 0 0  0 1.8 0 0 0  0 0 1.8 0 0  0 0 0 0.6 0"/>
-          <feGaussianBlur in="SourceGraphic" stdDeviation="0.8" result="tightBlur"/>
-          <feColorMatrix in="tightBlur" type="matrix" result="tightGlow"
-            values="2 0 0 0 0.1  0 2 0 0 0.1  0 0 2 0 0.1  0 0 0 0.9 0"/>
-          <feColorMatrix in="SourceGraphic" type="matrix" result="hotCore"
-            values="1 0 0 0 0.4  0 1 0 0 0.4  0 0 1 0 0.4  0 0 0 1 0"/>
-          <feMerge>
-            <feMergeNode in="wideGlow"/>
-            <feMergeNode in="tightGlow"/>
-            <feMergeNode in="hotCore"/>
-          </feMerge>
+        <filter id="tuna-glow-filter" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="18" result="blur" />
         </filter>
       </defs>
-      <g ref={gRef}>
-        <rect id="sq1" x="3" y="15" width="2" height="2" fill="currentColor"/>
-        <rect id="sq2" x="3" y="13" width="2" height="2" fill="currentColor"/>
-        <rect id="sq3" x="3" y="11" width="2" height="2" fill="currentColor"/>
-        <rect id="sq4" x="3" y="9" width="2" height="2" fill="currentColor"/>
-        <rect id="sq5" x="3" y="7" width="2" height="2" fill="currentColor"/>
-        <rect id="sq6" x="3" y="5" width="2" height="2" fill="currentColor"/>
-        <rect id="sq7" x="5" y="3" width="2" height="2" fill="currentColor"/>
-        <rect id="sq8" x="7" y="3" width="2" height="2" fill="currentColor"/>
-        <rect id="sq9" x="9" y="3" width="2" height="2" fill="currentColor"/>
-        <rect id="sq10" x="11" y="5" width="2" height="2" fill="currentColor"/>
-        <rect id="sq11" x="11" y="7" width="2" height="2" fill="currentColor"/>
-        <rect id="sq12" x="11" y="15" width="2" height="2" fill="currentColor"/>
-        <rect id="sq13L" x="9" y="13" width="2" height="2" fill="currentColor"/>
-        <rect id="sq13R" x="13" y="13" width="2" height="2" fill="currentColor"/>
-        <rect id="sq14L" x="7" y="11" width="2" height="2" fill="currentColor"/>
-        <rect id="sq14R" x="15" y="11" width="2" height="2" fill="currentColor"/>
+      <g className="tuna-logo-head-pivot">
+        <g className="tuna-logo-tail-pivot">
+          <g transform="translate(19, 152.63) rotate(-90)" className="tuna-logo-group">
+            <path
+              fill="currentColor"
+              d={TUNA_PATH}
+              className="tuna-logo-fish-glow"
+              filter="url(#tuna-glow-filter)"
+            />
+            <path fill="currentColor" d={TUNA_PATH} className="tuna-logo-fish" />
+          </g>
+        </g>
       </g>
     </svg>
   );

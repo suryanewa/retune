@@ -3681,12 +3681,19 @@ function TunaInner(props: TunaConfig) {
         onPointerUp={handleToolbarPointerUp}
       >
         {/* Collapsed: single activate button */}
-        <Tooltip content="Toggle edit mode" shortcut={formatToggleHotkeyShortcut(config.hotkey)} side="top">
+        <Tooltip content={formatToggleHotkeyShortcut(config.hotkey)} side="top">
           <button
             className="tuna-toolbar-collapse-btn"
             onClick={activateOverlay}
           >
-            <TunaLogo size={20} />
+            <span className="tuna-toggle-bubbles" aria-hidden="true">
+              {Array.from({ length: 12 }).map((_, index) => (
+                <span className="tuna-toggle-bubble" key={index} />
+              ))}
+            </span>
+            <span className="tuna-logo-wrapper">
+              <TunaLogo size={20} />
+            </span>
             {!active && changeCount > 0 && <span className="tuna-changes-dot" />}
           </button>
         </Tooltip>
