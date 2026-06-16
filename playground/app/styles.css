@@ -65,11 +65,11 @@ a {
 
 a {
   text-decoration: none;
-  transition: opacity 200ms ease;
+  transition: color 200ms var(--ease);
 }
 
 a:hover {
-  opacity: 0.5;
+  color: var(--brand);
 }
 
 button {
