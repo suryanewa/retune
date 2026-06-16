@@ -2089,6 +2089,11 @@ code {
 .footer-icon {
   display: inline-flex;
   color: var(--muted);
+  transition: color 200ms var(--ease);
+}
+
+.footer-icon:hover {
+  color: var(--brand);
 }
 
 .footer-icon svg {
