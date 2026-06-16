@@ -6,6 +6,7 @@ import {
   SELECTION_COLORS,
   isPointInsideSelectionBounds,
   SELECTION_CLICK_PAD,
+  shouldPickerConsumeEscapeKey,
 } from "../selector/picker";
 
 // ── DOMRect polyfill for Node ──
@@ -196,5 +197,56 @@ describe("isPointInsideSelectionBounds", () => {
     expect(isPointInsideSelectionBounds(5, 5, [a, b])).toBe(true);
     expect(isPointInsideSelectionBounds(105, 105, [a, b])).toBe(true);
     expect(isPointInsideSelectionBounds(50, 50, [a, b])).toBe(false);
+  });
+});
+
+describe("shouldPickerConsumeEscapeKey", () => {
+  const baseState = {
+    selectedDrawPathCount: 0,
+    selectedElementCount: 0,
+    hasSelectedElement: false,
+    hasFloatingDialog: false,
+    hasCommentPopover: false,
+    commentMode: false,
+  };
+
+  it("does not consume Escape when there is no picker selection", () => {
+    expect(shouldPickerConsumeEscapeKey(baseState)).toBe(false);
+  });
+
+  it("consumes Escape when an element selection can be cleared", () => {
+    expect(shouldPickerConsumeEscapeKey({
+      ...baseState,
+      selectedElementCount: 1,
+      hasSelectedElement: true,
+    })).toBe(true);
+  });
+
+  it("consumes Escape when a drawing selection can be cleared", () => {
+    expect(shouldPickerConsumeEscapeKey({
+      ...baseState,
+      selectedDrawPathCount: 1,
+    })).toBe(true);
+  });
+
+  it("leaves Escape for higher-level handlers while dialogs or comment mode are active", () => {
+    expect(shouldPickerConsumeEscapeKey({
+      ...baseState,
+      selectedElementCount: 1,
+      hasSelectedElement: true,
+      hasFloatingDialog: true,
+    })).toBe(false);
+    expect(shouldPickerConsumeEscapeKey({
+      ...baseState,
+      selectedElementCount: 1,
+      hasSelectedElement: true,
+      hasCommentPopover: true,
+    })).toBe(false);
+    expect(shouldPickerConsumeEscapeKey({
+      ...baseState,
+      selectedElementCount: 1,
+      hasSelectedElement: true,
+      commentMode: true,
+    })).toBe(false);
   });
 });

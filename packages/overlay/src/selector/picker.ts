@@ -69,6 +69,18 @@ export {
 } from "./picker-geometry";
 export type { PickerCallbacks, SelectEventMeta } from "./picker-types";
 
+export function shouldPickerConsumeEscapeKey(state: {
+  selectedDrawPathCount: number;
+  selectedElementCount: number;
+  hasSelectedElement: boolean;
+  hasFloatingDialog: boolean;
+  hasCommentPopover: boolean;
+  commentMode: boolean;
+}): boolean {
+  if (state.hasFloatingDialog || state.hasCommentPopover || state.commentMode) return false;
+  return state.selectedDrawPathCount > 0 || state.selectedElementCount > 0 || state.hasSelectedElement;
+}
+
 export function createPicker(
   shadowRoot: ShadowRoot,
   callbacks: PickerCallbacks
@@ -3668,9 +3680,15 @@ export function createPicker(
     }
 
     if (e.key === "Escape") {
-      if (shadowRoot.querySelector(".tuna-floating-dialog")) return;
-      if (shadowRoot.querySelector(".tuna-comment-popover")) return;
-      if (commentMode) return; // In comment mode, Escape exits comment mode (handled by Tuna.tsx)
+      const shouldConsumeEscape = shouldPickerConsumeEscapeKey({
+        selectedDrawPathCount: selectedDrawPaths.length,
+        selectedElementCount: selectedElements.length,
+        hasSelectedElement: selectedElement != null,
+        hasFloatingDialog: shadowRoot.querySelector(".tuna-floating-dialog") != null,
+        hasCommentPopover: shadowRoot.querySelector(".tuna-comment-popover") != null,
+        commentMode,
+      });
+      if (!shouldConsumeEscape) return;
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
