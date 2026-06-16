@@ -457,6 +457,135 @@ code {
   margin-bottom: 16px;
 }
 
+[data-scroll-section] {
+  scroll-margin-top: 32px;
+}
+
+.scroll-indicator {
+  position: fixed;
+  top: 50%;
+  right: 16px;
+  z-index: 50;
+  display: block;
+  width: 1px;
+  height: 88px;
+  transform: translateY(-50%);
+  transition: opacity 150ms ease;
+}
+
+.scroll-indicator-track {
+  position: relative;
+  width: 1px;
+  height: 100%;
+}
+
+.scroll-indicator-track-bg,
+.scroll-indicator-progress {
+  position: absolute;
+  right: 0;
+  width: 1px;
+}
+
+.scroll-indicator-track-bg {
+  inset-block: 0;
+  background: var(--border);
+}
+
+.scroll-indicator-progress {
+  top: 0;
+  background: var(--brand);
+  transition: height 75ms ease-out;
+}
+
+.scroll-indicator-markers {
+  position: absolute;
+  inset: 0;
+}
+
+.scroll-indicator-marker {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 16px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+}
+
+.scroll-indicator-marker::before {
+  content: "";
+  position: absolute;
+  inset: -8px -2px;
+}
+
+.scroll-indicator-label {
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  padding-right: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%);
+  transition:
+    color 150ms ease,
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.scroll-indicator-label.active {
+  color: var(--fg);
+}
+
+.scroll-indicator-tick {
+  width: 16px;
+  height: 1px;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+  transform-origin: right;
+  transition:
+    background-color 300ms ease-out,
+    transform 300ms ease-out;
+}
+
+.scroll-indicator-tick.future {
+  transform: scaleX(0.5);
+}
+
+.scroll-indicator-tick.passed {
+  background: var(--brand);
+  transform: scaleX(1);
+}
+
+.scroll-indicator-tick.active {
+  background: var(--brand);
+}
+
+.scroll-indicator-marker:hover .scroll-indicator-label,
+.scroll-indicator-marker:focus-visible .scroll-indicator-label {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.scroll-indicator-marker:hover .scroll-indicator-tick,
+.scroll-indicator-marker:focus-visible .scroll-indicator-tick {
+  background: var(--brand);
+  transition-duration: 150ms;
+}
+
+.scroll-indicator-marker:hover .scroll-indicator-tick.future,
+.scroll-indicator-marker:focus-visible .scroll-indicator-tick.future {
+  transform: scaleX(0.75);
+}
+
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1921,6 +2050,10 @@ code {
 }
 
 @media (max-width: 640px) {
+  .scroll-indicator {
+    display: none;
+  }
+
   .compact-shell {
     padding: 56px 18px;
   }

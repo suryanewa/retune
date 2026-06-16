@@ -2,6 +2,7 @@ import "./styles.css";
 import { BentoCell } from "./bento-cell";
 import { CopyCommandButton, TryItButton } from "./components";
 import { FaqAccordion } from "./faq-accordion";
+import { ScrollIndicator } from "./scroll-indicator";
 
 const installCommand = "npm install @suryanewa/tuna";
 const layoutSnippet = `import { Tuna } from "@suryanewa/tuna"
@@ -29,7 +30,9 @@ const agentOutputExample = `# Visual Changes (1 element)
 
 export default function Home() {
   return (
-    <main className="compact-shell" id="main-content">
+    <>
+      <ScrollIndicator />
+      <main className="compact-shell" id="main-content">
       <header className="top">
         <a className="brand" href="#main-content" aria-label="Tuna home">
           <img src="/icon.svg" alt="" width={44} height={20} />
@@ -37,7 +40,7 @@ export default function Home() {
         </a>
       </header>
 
-      <section className="intro" aria-labelledby="intro-title">
+      <section id="intro" className="intro" aria-labelledby="intro-title" data-scroll-section="Intro">
         <h2 id="intro-title">Edit the page. Send the exact change.</h2>
         <p className="tagline">
           Tuna lets you select DOM elements in development, adjust their visual
@@ -54,7 +57,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="function-rows" aria-labelledby="function-title">
+      <section id="workflow" className="function-rows" aria-labelledby="function-title" data-scroll-section="Workflow">
         <div className="section-head">
           <h2 id="function-title">How it works</h2>
           <p className="section-subtitle">A short loop for visual fixes.</p>
@@ -106,7 +109,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="agent-block" aria-labelledby="agent-output-title">
+      <section id="agent-output" className="agent-block" aria-labelledby="agent-output-title" data-scroll-section="Agent output">
         <div className="section-head">
           <h2 id="agent-output-title">What your agent sees</h2>
           <p className="section-subtitle">
@@ -121,7 +124,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="setup-block" aria-labelledby="setup-title">
+      <section id="setup" className="setup-block" aria-labelledby="setup-title" data-scroll-section="Setup">
         <div className="section-head">
           <h2 id="setup-title">Get started</h2>
         </div>
@@ -177,7 +180,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="faq-block" aria-labelledby="faq-title">
+      <section id="faq" className="faq-block" aria-labelledby="faq-title" data-scroll-section="FAQ">
         <div className="section-head">
           <h2 id="faq-title">FAQ</h2>
         </div>
@@ -219,7 +222,8 @@ export default function Home() {
           </a>
         </p>
       </footer>
-    </main>
+      </main>
+    </>
   );
 }
 
