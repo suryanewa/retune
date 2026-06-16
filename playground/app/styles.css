@@ -414,7 +414,7 @@ code {
 
 .copy-command.is-copied,
 .copy-command.is-copied:hover {
-  color: #16a34a;
+  color: var(--brand);
 }
 
 .copy-command.install-copy,
