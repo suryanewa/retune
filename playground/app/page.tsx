@@ -372,9 +372,11 @@ function BentoHandoffDemo() {
           <span className="handoff-packet" />
         </div>
         <div className="handoff-node handoff-code">
-          <span className="handoff-code-line" />
-          <span className="handoff-code-line short" />
-          <span className="handoff-code-line" />
+          <svg className="handoff-code-glyph" viewBox="0 0 20 16" aria-hidden="true">
+            <line className="handoff-code-line" x1="1" y1="3" x2="19" y2="3" />
+            <line className="handoff-code-line" x1="1" y1="8" x2="13" y2="8" />
+            <line className="handoff-code-line" x1="1" y1="13" x2="19" y2="13" />
+          </svg>
         </div>
       </div>
     </div>

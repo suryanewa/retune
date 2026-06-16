@@ -6,6 +6,8 @@
   --border: #e8e8e8;
   --surface: #fafafa;
   --surface-2: #f4f4f4;
+  --bento-illustration-muted: #d7d7d7;
+  --bento-demo-hover-bg: color-mix(in srgb, var(--brand) 18%, #fff);
   --accent: #1d9bf0;
   --brand: #e89999;
   --ok: #22c55e;
@@ -700,9 +702,9 @@ code {
     linear-gradient(180deg, rgb(255 255 255 / 72%), transparent 54%),
     var(--bg);
   transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
+    background-color 180ms var(--bento-ease-out),
+    border-color 180ms var(--bento-ease-out),
+    box-shadow 180ms var(--bento-ease-out),
     transform 180ms var(--bento-ease-out);
 }
 
@@ -745,6 +747,30 @@ code {
   height: 118px;
   min-height: 118px;
   align-self: stretch;
+}
+
+.bento-cell.bento-select {
+  overflow: visible;
+}
+
+.bento-select:hover {
+  z-index: 4;
+}
+
+.bento-select .bento-cell-demo {
+  overflow: visible;
+}
+
+.bento-cell.bento-comment {
+  overflow: visible;
+}
+
+.bento-comment:hover {
+  z-index: 4;
+}
+
+.bento-comment .bento-cell-demo {
+  overflow: visible;
 }
 
 .bento-cell.bento-handoff {
@@ -795,7 +821,7 @@ code {
   align-items: center;
   gap: 6px;
   color: var(--fg);
-  transition: color 180ms ease;
+  transition: color 180ms var(--bento-ease-out);
 }
 
 .bento-cell-icon {
@@ -803,7 +829,7 @@ code {
   width: 14px;
   height: 14px;
   color: currentColor;
-  transition: color 180ms ease;
+  transition: color 180ms var(--bento-ease-out);
 }
 
 .bento-cell-icon svg {
@@ -831,10 +857,12 @@ code {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
   border-radius: var(--radius-base);
-  background:
-    linear-gradient(135deg, rgb(250 250 250 / 92%), rgb(244 244 244 / 72%)),
-    var(--surface);
+  background-color: var(--surface);
+  background-image: linear-gradient(135deg, rgb(250 250 250 / 72%), rgb(244 244 244 / 48%));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
+  transition:
+    background-color 220ms var(--bento-ease-out),
+    border-color 180ms var(--bento-ease-out);
 }
 
 .bento-cell:first-child .bento-cell-demo,
@@ -884,7 +912,8 @@ code {
   justify-content: center;
   gap: 3px;
   overflow: hidden;
-  color: var(--fg);
+  color: var(--bento-illustration-muted);
+  transition: color 180ms var(--bento-ease-out);
 }
 
 .speak-waveform i {
@@ -892,6 +921,9 @@ code {
   --wave-low: 0.3;
   --wave-mid: 0.42;
   --wave-peak: 0.78;
+  --wave-secondary: calc(var(--wave-peak) * 0.72);
+  --wave-duration: 720ms;
+  --wave-delay: 0ms;
 
   display: block;
   width: 2px;
@@ -902,43 +934,44 @@ code {
   opacity: 0.62;
   transform: scaleY(var(--wave-rest)) translateZ(0);
   transform-origin: center;
-  animation: speak-waveform-bar 720ms ease-in-out infinite;
+  animation: speak-waveform-bar var(--wave-duration) var(--bento-ease-in-out) infinite;
+  animation-delay: 0ms;
   animation-play-state: paused;
   will-change: transform;
 }
 
-.speak-waveform i:nth-child(1) { --wave-rest: 0.1; --wave-low: 0.18; --wave-mid: 0.26; --wave-peak: 0.38; animation-delay: -80ms; }
-.speak-waveform i:nth-child(2) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.42; --wave-peak: 0.58; animation-delay: -340ms; }
-.speak-waveform i:nth-child(3) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.34; --wave-peak: 0.74; animation-delay: -520ms; }
-.speak-waveform i:nth-child(4) { --wave-rest: 0.24; --wave-low: 0.46; --wave-mid: 0.68; --wave-peak: 0.92; animation-delay: -160ms; }
-.speak-waveform i:nth-child(5) { --wave-rest: 0.14; --wave-low: 0.34; --wave-mid: 0.52; --wave-peak: 0.86; animation-delay: -620ms; }
-.speak-waveform i:nth-child(6) { --wave-rest: 0.3; --wave-low: 0.56; --wave-mid: 0.78; --wave-peak: 1; animation-delay: -260ms; }
-.speak-waveform i:nth-child(7) { --wave-rest: 0.18; --wave-low: 0.38; --wave-mid: 0.62; --wave-peak: 0.82; animation-delay: -710ms; }
-.speak-waveform i:nth-child(8) { --wave-rest: 0.36; --wave-low: 0.64; --wave-mid: 0.84; --wave-peak: 0.96; animation-delay: -430ms; }
-.speak-waveform i:nth-child(9) { --wave-rest: 0.12; --wave-low: 0.3; --wave-mid: 0.58; --wave-peak: 0.9; animation-delay: -30ms; }
-.speak-waveform i:nth-child(10) { --wave-rest: 0.26; --wave-low: 0.48; --wave-mid: 0.7; --wave-peak: 0.98; animation-delay: -570ms; }
-.speak-waveform i:nth-child(11) { --wave-rest: 0.2; --wave-low: 0.42; --wave-mid: 0.66; --wave-peak: 0.88; animation-delay: -230ms; }
-.speak-waveform i:nth-child(12) { --wave-rest: 0.4; --wave-low: 0.7; --wave-mid: 0.9; --wave-peak: 1; animation-delay: -660ms; }
-.speak-waveform i:nth-child(13) { --wave-rest: 0.18; --wave-low: 0.36; --wave-mid: 0.5; --wave-peak: 0.76; animation-delay: -120ms; }
-.speak-waveform i:nth-child(14) { --wave-rest: 0.28; --wave-low: 0.52; --wave-mid: 0.72; --wave-peak: 0.94; animation-delay: -480ms; }
-.speak-waveform i:nth-child(15) { --wave-rest: 0.1; --wave-low: 0.24; --wave-mid: 0.38; --wave-peak: 0.62; animation-delay: -760ms; }
-.speak-waveform i:nth-child(16) { --wave-rest: 0.22; --wave-low: 0.44; --wave-mid: 0.6; --wave-peak: 0.8; animation-delay: -310ms; }
-.speak-waveform i:nth-child(17) { --wave-rest: 0.14; --wave-low: 0.32; --wave-mid: 0.48; --wave-peak: 0.7; animation-delay: -690ms; }
-.speak-waveform i:nth-child(18) { --wave-rest: 0.34; --wave-low: 0.62; --wave-mid: 0.82; --wave-peak: 0.98; animation-delay: -200ms; }
-.speak-waveform i:nth-child(19) { --wave-rest: 0.2; --wave-low: 0.4; --wave-mid: 0.56; --wave-peak: 0.84; animation-delay: -540ms; }
-.speak-waveform i:nth-child(20) { --wave-rest: 0.08; --wave-low: 0.18; --wave-mid: 0.32; --wave-peak: 0.52; animation-delay: -390ms; }
-.speak-waveform i:nth-child(21) { --wave-rest: 0.24; --wave-low: 0.5; --wave-mid: 0.74; --wave-peak: 0.96; animation-delay: -730ms; }
-.speak-waveform i:nth-child(22) { --wave-rest: 0.16; --wave-low: 0.34; --wave-mid: 0.54; --wave-peak: 0.78; animation-delay: -100ms; }
-.speak-waveform i:nth-child(23) { --wave-rest: 0.32; --wave-low: 0.58; --wave-mid: 0.76; --wave-peak: 0.9; animation-delay: -610ms; }
-.speak-waveform i:nth-child(24) { --wave-rest: 0.12; --wave-low: 0.26; --wave-mid: 0.42; --wave-peak: 0.66; animation-delay: -280ms; }
-.speak-waveform i:nth-child(25) { --wave-rest: 0.38; --wave-low: 0.66; --wave-mid: 0.86; --wave-peak: 1; animation-delay: -450ms; }
-.speak-waveform i:nth-child(26) { --wave-rest: 0.22; --wave-low: 0.46; --wave-mid: 0.64; --wave-peak: 0.82; animation-delay: -20ms; }
-.speak-waveform i:nth-child(27) { --wave-rest: 0.1; --wave-low: 0.22; --wave-mid: 0.36; --wave-peak: 0.56; animation-delay: -680ms; }
-.speak-waveform i:nth-child(28) { --wave-rest: 0.26; --wave-low: 0.54; --wave-mid: 0.78; --wave-peak: 0.94; animation-delay: -350ms; }
-.speak-waveform i:nth-child(29) { --wave-rest: 0.14; --wave-low: 0.3; --wave-mid: 0.46; --wave-peak: 0.72; animation-delay: -590ms; }
-.speak-waveform i:nth-child(30) { --wave-rest: 0.2; --wave-low: 0.38; --wave-mid: 0.58; --wave-peak: 0.8; animation-delay: -150ms; }
-.speak-waveform i:nth-child(31) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.3; --wave-peak: 0.48; animation-delay: -500ms; }
-.speak-waveform i:nth-child(32) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.4; --wave-peak: 0.6; animation-delay: -240ms; }
+.speak-waveform i:nth-child(1) { --wave-rest: 0.1; --wave-low: 0.18; --wave-mid: 0.26; --wave-peak: 0.38; --wave-secondary: 0.3; --wave-duration: 820ms; --wave-delay: -120ms; }
+.speak-waveform i:nth-child(2) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.42; --wave-peak: 0.58; --wave-secondary: 0.5; --wave-duration: 690ms; --wave-delay: -420ms; }
+.speak-waveform i:nth-child(3) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.34; --wave-peak: 0.74; --wave-secondary: 0.44; --wave-duration: 760ms; --wave-delay: -40ms; }
+.speak-waveform i:nth-child(4) { --wave-rest: 0.24; --wave-low: 0.46; --wave-mid: 0.68; --wave-peak: 0.92; --wave-secondary: 0.78; --wave-duration: 640ms; --wave-delay: -610ms; }
+.speak-waveform i:nth-child(5) { --wave-rest: 0.14; --wave-low: 0.34; --wave-mid: 0.52; --wave-peak: 0.86; --wave-secondary: 0.56; --wave-duration: 900ms; --wave-delay: -260ms; }
+.speak-waveform i:nth-child(6) { --wave-rest: 0.3; --wave-low: 0.56; --wave-mid: 0.78; --wave-peak: 1; --wave-secondary: 0.84; --wave-duration: 710ms; --wave-delay: -690ms; }
+.speak-waveform i:nth-child(7) { --wave-rest: 0.18; --wave-low: 0.38; --wave-mid: 0.62; --wave-peak: 0.82; --wave-secondary: 0.7; --wave-duration: 790ms; --wave-delay: -180ms; }
+.speak-waveform i:nth-child(8) { --wave-rest: 0.36; --wave-low: 0.64; --wave-mid: 0.84; --wave-peak: 0.96; --wave-secondary: 0.9; --wave-duration: 620ms; --wave-delay: -500ms; }
+.speak-waveform i:nth-child(9) { --wave-rest: 0.12; --wave-low: 0.3; --wave-mid: 0.58; --wave-peak: 0.9; --wave-secondary: 0.48; --wave-duration: 850ms; --wave-delay: -340ms; }
+.speak-waveform i:nth-child(10) { --wave-rest: 0.26; --wave-low: 0.48; --wave-mid: 0.7; --wave-peak: 0.98; --wave-secondary: 0.76; --wave-duration: 700ms; --wave-delay: -70ms; }
+.speak-waveform i:nth-child(11) { --wave-rest: 0.2; --wave-low: 0.42; --wave-mid: 0.66; --wave-peak: 0.88; --wave-secondary: 0.58; --wave-duration: 940ms; --wave-delay: -780ms; }
+.speak-waveform i:nth-child(12) { --wave-rest: 0.4; --wave-low: 0.7; --wave-mid: 0.9; --wave-peak: 1; --wave-secondary: 0.86; --wave-duration: 660ms; --wave-delay: -230ms; }
+.speak-waveform i:nth-child(13) { --wave-rest: 0.18; --wave-low: 0.36; --wave-mid: 0.5; --wave-peak: 0.76; --wave-secondary: 0.64; --wave-duration: 810ms; --wave-delay: -560ms; }
+.speak-waveform i:nth-child(14) { --wave-rest: 0.28; --wave-low: 0.52; --wave-mid: 0.72; --wave-peak: 0.94; --wave-secondary: 0.82; --wave-duration: 735ms; --wave-delay: -130ms; }
+.speak-waveform i:nth-child(15) { --wave-rest: 0.1; --wave-low: 0.24; --wave-mid: 0.38; --wave-peak: 0.62; --wave-secondary: 0.42; --wave-duration: 880ms; --wave-delay: -470ms; }
+.speak-waveform i:nth-child(16) { --wave-rest: 0.22; --wave-low: 0.44; --wave-mid: 0.6; --wave-peak: 0.8; --wave-secondary: 0.7; --wave-duration: 680ms; --wave-delay: -20ms; }
+.speak-waveform i:nth-child(17) { --wave-rest: 0.14; --wave-low: 0.32; --wave-mid: 0.48; --wave-peak: 0.7; --wave-secondary: 0.38; --wave-duration: 920ms; --wave-delay: -640ms; }
+.speak-waveform i:nth-child(18) { --wave-rest: 0.34; --wave-low: 0.62; --wave-mid: 0.82; --wave-peak: 0.98; --wave-secondary: 0.88; --wave-duration: 650ms; --wave-delay: -300ms; }
+.speak-waveform i:nth-child(19) { --wave-rest: 0.2; --wave-low: 0.4; --wave-mid: 0.56; --wave-peak: 0.84; --wave-secondary: 0.72; --wave-duration: 760ms; --wave-delay: -740ms; }
+.speak-waveform i:nth-child(20) { --wave-rest: 0.08; --wave-low: 0.18; --wave-mid: 0.32; --wave-peak: 0.52; --wave-secondary: 0.34; --wave-duration: 840ms; --wave-delay: -190ms; }
+.speak-waveform i:nth-child(21) { --wave-rest: 0.24; --wave-low: 0.5; --wave-mid: 0.74; --wave-peak: 0.96; --wave-secondary: 0.8; --wave-duration: 705ms; --wave-delay: -520ms; }
+.speak-waveform i:nth-child(22) { --wave-rest: 0.16; --wave-low: 0.34; --wave-mid: 0.54; --wave-peak: 0.78; --wave-secondary: 0.46; --wave-duration: 890ms; --wave-delay: -90ms; }
+.speak-waveform i:nth-child(23) { --wave-rest: 0.32; --wave-low: 0.58; --wave-mid: 0.76; --wave-peak: 0.9; --wave-secondary: 0.84; --wave-duration: 630ms; --wave-delay: -390ms; }
+.speak-waveform i:nth-child(24) { --wave-rest: 0.12; --wave-low: 0.26; --wave-mid: 0.42; --wave-peak: 0.66; --wave-secondary: 0.54; --wave-duration: 780ms; --wave-delay: -670ms; }
+.speak-waveform i:nth-child(25) { --wave-rest: 0.38; --wave-low: 0.66; --wave-mid: 0.86; --wave-peak: 1; --wave-secondary: 0.92; --wave-duration: 675ms; --wave-delay: -160ms; }
+.speak-waveform i:nth-child(26) { --wave-rest: 0.22; --wave-low: 0.46; --wave-mid: 0.64; --wave-peak: 0.82; --wave-secondary: 0.62; --wave-duration: 860ms; --wave-delay: -580ms; }
+.speak-waveform i:nth-child(27) { --wave-rest: 0.1; --wave-low: 0.22; --wave-mid: 0.36; --wave-peak: 0.56; --wave-secondary: 0.28; --wave-duration: 740ms; --wave-delay: -240ms; }
+.speak-waveform i:nth-child(28) { --wave-rest: 0.26; --wave-low: 0.54; --wave-mid: 0.78; --wave-peak: 0.94; --wave-secondary: 0.74; --wave-duration: 910ms; --wave-delay: -820ms; }
+.speak-waveform i:nth-child(29) { --wave-rest: 0.14; --wave-low: 0.3; --wave-mid: 0.46; --wave-peak: 0.72; --wave-secondary: 0.5; --wave-duration: 690ms; --wave-delay: -360ms; }
+.speak-waveform i:nth-child(30) { --wave-rest: 0.2; --wave-low: 0.38; --wave-mid: 0.58; --wave-peak: 0.8; --wave-secondary: 0.66; --wave-duration: 820ms; --wave-delay: -110ms; }
+.speak-waveform i:nth-child(31) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.3; --wave-peak: 0.48; --wave-secondary: 0.36; --wave-duration: 760ms; --wave-delay: -600ms; }
+.speak-waveform i:nth-child(32) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.4; --wave-peak: 0.6; --wave-secondary: 0.44; --wave-duration: 930ms; --wave-delay: -280ms; }
 
 /* Select card */
 .select-ui {
@@ -960,12 +993,12 @@ code {
   width: 102px;
   height: 30px;
   border-radius: 8px;
-  background: var(--fg);
+  background: var(--bento-illustration-muted);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 6px 16px rgb(31 31 31 / 12%);
   transform: translateZ(0);
-  transition: background-color 180ms ease;
+  transition: background-color 180ms var(--bento-ease-out);
 }
 
 .select-box {
@@ -978,7 +1011,7 @@ code {
   opacity: 0;
   transform: scale(0.98) translateZ(0);
   transition:
-    opacity 90ms ease,
+    opacity 90ms var(--bento-ease-out),
     transform 140ms var(--bento-ease-out);
   will-change: transform;
 }
@@ -1018,13 +1051,13 @@ code {
   padding: 4px 6px;
   border-radius: 5px;
   color: #fff;
-  background: var(--fg);
+  background: var(--bento-illustration-muted);
   font-size: 8px;
   white-space: nowrap;
   opacity: 0;
   transform: translateY(4px) translateZ(0);
   transition:
-    opacity 180ms ease,
+    opacity 180ms var(--bento-ease-out),
     transform 220ms var(--bento-ease-out);
 }
 
@@ -1035,9 +1068,10 @@ code {
   width: 22px;
   height: 22px;
   fill: #fff;
-  stroke: var(--fg);
+  stroke: var(--bento-illustration-muted);
   stroke-width: 2.1;
   transform: translateZ(0);
+  transition: stroke 180ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1063,8 +1097,9 @@ code {
 }
 
 .draw-page-block-small {
-  fill: var(--fg);
+  fill: var(--bento-illustration-muted);
   stroke: none;
+  transition: fill 180ms var(--bento-ease-out);
 }
 
 .draw-fill {
@@ -1093,12 +1128,13 @@ code {
   left: calc(57% + 4px);
   width: 22px;
   height: 22px;
-  color: var(--fg);
+  color: var(--bento-illustration-muted);
   filter:
     drop-shadow(0 2px 2px rgb(31 31 31 / 18%))
     drop-shadow(0 8px 14px rgb(31 31 31 / 14%));
   transform: rotate(-28deg) translateZ(0);
   transform-origin: 11.5% 88.5%;
+  transition: color 180ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1145,7 +1181,6 @@ code {
   --tune-fill-hover: 0.72;
   --tune-thumb: 42px;
   --tune-thumb-hover: 84px;
-  --tune-color: var(--brand);
 }
 
 .tune-row-radius {
@@ -1153,7 +1188,6 @@ code {
   --tune-fill-hover: 0.42;
   --tune-thumb: 75px;
   --tune-thumb-hover: 49px;
-  --tune-color: var(--brand);
 }
 
 .tune-row-fill {
@@ -1161,7 +1195,6 @@ code {
   --tune-fill-hover: 0.82;
   --tune-thumb: 59px;
   --tune-thumb-hover: 96px;
-  --tune-color: var(--brand);
 }
 
 .tune-track {
@@ -1182,12 +1215,13 @@ code {
   bottom: 0;
   left: 0;
   border-radius: inherit;
-  background: var(--tune-color);
+  background: var(--bento-illustration-muted);
   opacity: 0.72;
   transform: scaleX(var(--tune-fill));
   transform-origin: left center;
   transition:
-    opacity 180ms ease,
+    opacity 180ms var(--bento-ease-out),
+    background-color 220ms var(--bento-ease-out),
     transform 260ms var(--bento-ease-in-out);
   will-change: transform;
 }
@@ -1200,11 +1234,12 @@ code {
   height: 12px;
   border: 2px solid #fff;
   border-radius: 999px;
-  background: var(--tune-color);
+  background: var(--bento-illustration-muted);
   box-shadow: 0 2px 8px rgb(31 31 31 / 16%);
   transform: translate(var(--tune-thumb), -50%) translateZ(0);
   transition:
-    box-shadow 180ms ease,
+    box-shadow 180ms var(--bento-ease-out),
+    background-color 220ms var(--bento-ease-out),
     transform 260ms var(--bento-ease-in-out);
   will-change: transform;
 }
@@ -1236,7 +1271,7 @@ code {
     0 0 0 1px var(--border);
   transition:
     transform 220ms var(--bento-ease-out),
-    box-shadow 220ms ease;
+    box-shadow 220ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1244,30 +1279,30 @@ code {
   width: 14px;
   height: 14px;
   border-radius: 3px;
-  background: var(--fg);
+  background: var(--bento-illustration-muted);
   transition:
-    background-color 220ms ease,
+    background-color 220ms var(--bento-ease-out),
     transform 220ms var(--bento-ease-out);
 }
 
 .handoff-code {
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-  padding-left: 8px;
+  padding-left: 0;
   box-sizing: border-box;
 }
 
-.handoff-code-line {
-  width: 18px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--border);
-  transition: background-color 220ms ease;
+.handoff-code-glyph {
+  display: block;
+  width: 20px;
+  height: 16px;
+  overflow: visible;
 }
 
-.handoff-code-line.short {
-  width: 12px;
+.handoff-code-line {
+  fill: none;
+  stroke: var(--border);
+  stroke-linecap: round;
+  stroke-width: 2;
+  transition: stroke 220ms var(--bento-ease-out);
 }
 
 .handoff-path {
@@ -1277,7 +1312,7 @@ code {
   border-radius: 999px;
   background: var(--border);
   overflow: hidden;
-  transition: background-color 220ms ease;
+  transition: background-color 220ms var(--bento-ease-out);
 }
 
 .handoff-packet {
@@ -1294,7 +1329,7 @@ code {
 
 /* Comment card */
 .comment-ui {
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: #fff;
@@ -1334,12 +1369,12 @@ code {
   width: 86px;
   height: 22px;
   border-radius: 6px;
-  background: var(--fg);
+  background: var(--bento-illustration-muted);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 6px 16px rgb(31 31 31 / 12%);
   transform: translateZ(0);
-  transition: background-color 180ms ease;
+  transition: background-color 180ms var(--bento-ease-out);
 }
 
 .comment-select-box {
@@ -1352,7 +1387,7 @@ code {
   opacity: 0;
   transform: scale(0.98) translateZ(0);
   transition:
-    opacity 90ms ease,
+    opacity 90ms var(--bento-ease-out),
     transform 140ms var(--bento-ease-out);
   will-change: transform;
 }
@@ -1394,9 +1429,10 @@ code {
   width: 27px;
   height: 27px;
   place-items: center;
-  color: var(--fg);
+  color: var(--bento-illustration-muted);
   filter: drop-shadow(0 6px 12px rgb(31 31 31 / 12%));
   transform: translateZ(0);
+  transition: color 180ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1410,7 +1446,7 @@ code {
 }
 
 .comment-box {
-  --comment-pill-scale: 0.58;
+  --comment-pill-scale: 0.6525;
   --comment-blue: var(--brand);
 
   position: absolute;
@@ -1428,10 +1464,10 @@ code {
     0 4px 20px rgb(31 31 31 / 12%),
     0 0 0 1px var(--border);
   opacity: 0;
-  transform: translateY(8px) scale(0.55) translateZ(0);
+  transform: translateY(8px) scale(0.61875) translateZ(0);
   transform-origin: 104px 40px;
   transition:
-    opacity 150ms ease,
+    opacity 150ms var(--bento-ease-out),
     transform 190ms var(--bento-ease-out);
   will-change: transform;
 }
@@ -1627,16 +1663,20 @@ code {
     transform: scaleY(var(--wave-peak)) translateZ(0);
   }
 
-  46% {
+  39% {
     transform: scaleY(var(--wave-low)) translateZ(0);
   }
 
-  62% {
+  57% {
     transform: scaleY(var(--wave-mid)) translateZ(0);
   }
 
-  82% {
-    transform: scaleY(calc(var(--wave-peak) * 0.72)) translateZ(0);
+  76% {
+    transform: scaleY(var(--wave-secondary)) translateZ(0);
+  }
+
+  91% {
+    transform: scaleY(var(--wave-low)) translateZ(0);
   }
 }
 
@@ -1653,8 +1693,18 @@ code {
     color: var(--brand);
   }
 
+  .bento-cell:hover .bento-cell-demo {
+    background-color: var(--bento-demo-hover-bg);
+    border-color: color-mix(in srgb, var(--brand) 28%, var(--border));
+  }
+
   .bento-speak:hover .speak-waveform i {
+    animation-delay: var(--wave-delay);
     animation-play-state: running;
+  }
+
+  .bento-speak:hover .speak-waveform {
+    color: var(--brand);
   }
 
   .bento-select:hover .select-target {
@@ -1669,41 +1719,47 @@ code {
   }
 
   .bento-select:hover .select-tooltip {
+    background: var(--brand);
     opacity: 1;
     transform: translateY(0) translateZ(0);
     transition-delay: 260ms;
   }
 
   .bento-select:hover .select-cursor {
+    stroke: var(--fg);
     animation: select-cursor-press 360ms var(--bento-ease-out) both;
   }
 
   .bento-draw:hover .draw-ink-line {
     opacity: 0.84;
     stroke-dashoffset: 0;
-    animation: bento-draw-line 260ms linear both;
+    animation: bento-draw-line 260ms var(--bento-ease-in-out) both;
   }
 
   .bento-draw:hover .draw-fill {
-    animation: bento-draw-fill 120ms ease-out 240ms both;
+    animation: bento-draw-fill 120ms var(--bento-ease-out) 240ms both;
   }
 
   .bento-draw:hover .draw-pencil-icon {
+    color: var(--fg);
     transform: translate(0, 0) rotate(-28deg) translateZ(0);
-    animation: bento-draw-pencil 260ms linear both;
+    animation: bento-draw-pencil 260ms var(--bento-ease-in-out) both;
   }
 
   .bento-tune:hover .tune-track::before {
+    background-color: var(--brand);
     opacity: 0.9;
     transform: scaleX(var(--tune-fill-hover));
   }
 
   .bento-tune:hover .tune-track i {
+    background-color: var(--brand);
     box-shadow: 0 3px 10px rgb(31 31 31 / 20%);
     transform: translate(var(--tune-thumb-hover), -50%) scale(1.08) translateZ(0);
   }
 
   .bento-comment:hover .comment-trigger {
+    color: var(--fg);
     animation: comment-trigger-press 360ms var(--bento-ease-out) both;
   }
 
@@ -1745,7 +1801,7 @@ code {
   }
 
   .bento-handoff:hover .handoff-code-line {
-    background: color-mix(in srgb, var(--brand) 60%, transparent);
+    stroke: color-mix(in srgb, var(--brand) 60%, transparent);
   }
 
   .bento-handoff:hover .handoff-path {
@@ -1753,7 +1809,7 @@ code {
   }
 
   .bento-handoff:hover .handoff-packet {
-    animation: handoff-packet-flow 1s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+    animation: handoff-packet-flow 1s var(--bento-ease-in-out) infinite;
   }
 
 }
