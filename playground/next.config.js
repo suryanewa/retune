@@ -4,6 +4,7 @@ const fs = require("fs");
 
 const overlayPkg = path.join(__dirname, "..", "packages", "overlay");
 const overlayDist = path.join(overlayPkg, "dist");
+const overlaySourceEntry = path.join(overlayPkg, "src", "index.ts");
 
 function readTunaVersion() {
   const candidates = [
@@ -28,6 +29,11 @@ const nextConfig = {
     TUNA_VERSION: readTunaVersion(),
   },
   webpack: (config, { dev }) => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@suryanewa/tuna": overlaySourceEntry,
+    };
+
     if (dev) {
       config.watchOptions = {
         ...config.watchOptions,
