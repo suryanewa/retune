@@ -559,7 +559,7 @@ code {
 }
 
 .scroll-indicator-label.active {
-  color: var(--fg);
+  color: var(--brand);
 }
 
 .scroll-indicator-tick {
