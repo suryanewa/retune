@@ -2024,15 +2024,65 @@ html[data-theme="dark"] .bento-cell-copy {
 }
 
 .code-card {
+  --code-card-border: var(--border);
+  --code-fg: #24292f;
+  --code-muted: #6e7781;
+  --code-keyword: #cf222e;
+  --code-string: #0a3069;
+  --code-comment: #6e7781;
+  --code-function: #8250df;
+  --code-symbol: #953800;
+  --code-number: #0550ae;
+  --code-punctuation: #24292f;
+  --code-heading: #0550ae;
+  --code-inline: #0a3069;
+  --code-quote: #116329;
+  --code-table: #57606a;
   position: relative;
   margin-top: 0;
   overflow: hidden;
-  border: 1px solid var(--border);
+  border: 1px solid var(--code-card-border);
   border-radius: var(--radius-large);
-  background: var(--bg);
+  background: transparent;
   transition:
     border-color 150ms ease,
     box-shadow 150ms ease;
+}
+
+html[data-theme="dark"] .code-card {
+  --code-card-border: #453b3b;
+  --code-fg: #f0f6fc;
+  --code-muted: #8b949e;
+  --code-keyword: #ff7b72;
+  --code-string: #a5d6ff;
+  --code-comment: #8b949e;
+  --code-function: #d2a8ff;
+  --code-symbol: #ffa657;
+  --code-number: #79c0ff;
+  --code-punctuation: #f0f6fc;
+  --code-heading: #79c0ff;
+  --code-inline: #a5d6ff;
+  --code-quote: #7ee787;
+  --code-table: #8b949e;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="tuna"] .code-card {
+    --code-card-border: #453b3b;
+    --code-fg: #f0f6fc;
+    --code-muted: #8b949e;
+    --code-keyword: #ff7b72;
+    --code-string: #a5d6ff;
+    --code-comment: #8b949e;
+    --code-function: #d2a8ff;
+    --code-symbol: #ffa657;
+    --code-number: #79c0ff;
+    --code-punctuation: #f0f6fc;
+    --code-heading: #79c0ff;
+    --code-inline: #a5d6ff;
+    --code-quote: #7ee787;
+    --code-table: #8b949e;
+  }
 }
 
 .code-card:hover {
@@ -2043,9 +2093,22 @@ html[data-theme="dark"] .bento-cell-copy {
 .code-card pre {
   overflow-x: auto;
   padding: 14px 40px 14px 14px;
-  color: var(--fg);
+  color: var(--code-fg);
   font: 400 12px/20px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   white-space: pre-wrap;
+}
+
+.code-card .copy-command {
+  color: var(--code-muted);
+}
+
+.code-card .copy-command:hover {
+  color: var(--code-fg);
+}
+
+.code-card .copy-command.is-copied,
+.code-card .copy-command.is-copied:hover {
+  color: var(--code-quote);
 }
 
 .setup-steps {
@@ -2077,16 +2140,75 @@ html[data-theme="dark"] .bento-cell-copy {
   margin-top: 10px;
 }
 
+.code-keyword,
 .code-k {
-  color: #6f42c1;
+  color: var(--code-keyword);
 }
 
+.code-string,
 .code-s {
-  color: #0f766e;
+  color: var(--code-string);
 }
 
+.code-comment,
 .code-c {
-  color: var(--muted);
+  color: var(--code-comment);
+}
+
+.code-function {
+  color: var(--code-function);
+}
+
+.code-symbol {
+  color: var(--code-symbol);
+}
+
+.code-component {
+  color: var(--code-function);
+}
+
+.code-number {
+  color: var(--code-number);
+}
+
+.code-punctuation {
+  color: var(--code-punctuation);
+}
+
+.code-prompt {
+  color: var(--code-muted);
+}
+
+.code-command {
+  color: var(--code-number);
+}
+
+.code-prose {
+  color: var(--code-fg);
+}
+
+.code-md-heading {
+  color: var(--code-heading);
+}
+
+.code-md-strong {
+  color: var(--code-symbol);
+}
+
+.code-md-key {
+  color: var(--code-function);
+}
+
+.code-md-quote {
+  color: var(--code-quote);
+}
+
+.code-inline {
+  color: var(--code-inline);
+}
+
+.code-table {
+  color: var(--code-table);
 }
 
 .faq-item {

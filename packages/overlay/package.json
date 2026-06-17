@@ -1,10 +1,11 @@
 {
   "name": "@suryanewa/tuna",
   "version": "0.7.6",
+  "description": "Visual DevTools overlay for selecting, tuning, annotating, and handing off UI changes to AI coding agents.",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "https://github.com/khadgi-sujan/tuna"
+    "url": "git+https://github.com/khadgi-sujan/tuna.git"
   },
   "homepage": "https://tuna.dev",
   "license": "PolyForm-Shield-1.0.0",
@@ -17,7 +18,7 @@
     }
   },
   "bin": {
-    "tuna": "./dist/cli.js"
+    "tuna": "dist/cli.js"
   },
   "files": [
     "dist",

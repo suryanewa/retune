@@ -10,14 +10,26 @@ const layoutSnippet = `import { Tuna } from "@suryanewa/tuna"
 // Add anywhere in your component tree
 <Tuna />`;
 const aiSetupCommand = "npx @suryanewa/tuna setup";
-const agentOutputExample = `# Visual Changes (1 element)
+const agentOutputExample = `Apply these Tuna visual changes to the source code:
+
+**Environment:**
+- URL: http://localhost:3000/
+- Viewport: 1440×900
+- Scroll: (0, 0)
+- Timestamp: 2026-06-17T01:20:00.000Z
+
+> **Framework:** Tailwind CSS detected. Apply all changes using Tailwind utility classes — do NOT use inline styles or raw CSS values. When a class swap is suggested, replace the old class with the new one in the JSX/HTML.
+
+# Visual Changes (1 element)
 
 ## \`<button>\` "Get Started"
 
-**Source:** \`src/components/HeroSection.tsx:42:10\` when React source metadata is available
+**Source:** \`src/components/HeroSection.tsx:42:10\`
 **Component:** HeroSection → Button
-**Styling:** Tailwind CSS
-**Selector:** \`main > section.hero > button.btn-primary\`
+**Styling:** Tailwind CSS (modify utility classes)
+**DOM Path:** \`body > main > section.hero > div > button.btn-primary\`
+**Selector:** \`main > section.hero > button.btn-primary\` (element-specific)
+**Classes:** \`btn btn-primary px-6 py-3 rounded-lg bg-blue-600 text-sm\`
 
 ### Changes
 
@@ -25,8 +37,8 @@ const agentOutputExample = `# Visual Changes (1 element)
 |----------|--------|-------|-------|
 | \`padding\` | \`12px 24px\` | \`16px 32px\` | — |
 | \`border-radius\` | \`8px\` | \`12px\` | — |
-| \`background-color\` | \`#2563eb\` | \`#1d4ed8\` | \`bg-blue-700\` |
-| \`font-size\` | \`14px\` | \`16px\` | \`text-base\` |`;
+| \`background-color\` | \`#2563eb\` | \`#1d4ed8\` | \`.bg-blue-700\` |
+| \`font-size\` | \`14px\` | \`16px\` | \`.text-base\` |`;
 
 export default function Home() {
   return (
@@ -119,7 +131,9 @@ export default function Home() {
           </p>
         </div>
         <div className="code-card">
-          <pre>{agentOutputExample}</pre>
+          <pre>
+            <AgentOutputCode />
+          </pre>
           <CopyCommandButton text={agentOutputExample} iconSize={16} className="code-copy" />
         </div>
       </section>
@@ -133,8 +147,10 @@ export default function Home() {
           <SetupStep title="1. Install Tuna on your device">
             <div className="code-card code-card-command">
               <pre>
-                <span className="prompt">$ </span>
-                {installCommand}
+                <span className="code-prompt">$ </span>
+                <span className="code-command">npm</span>{" "}
+                <span className="code-function">install</span>{" "}
+                <span className="code-string">@suryanewa/tuna</span>
               </pre>
               <CopyCommandButton text={installCommand} iconSize={16} className="code-copy" />
             </div>
@@ -143,14 +159,16 @@ export default function Home() {
           <SetupStep title="2. Add Tuna to your codebase">
             <div className="code-card">
               <pre>
-                <span className="code-k">import</span> {"{ Tuna }"} <span className="code-k">from</span>{" "}
-                <span className="code-s">"@suryanewa/tuna"</span>
+                <span className="code-keyword">import</span> {"{ "}
+                <span className="code-symbol">Tuna</span>
+                {" }"} <span className="code-keyword">from</span>{" "}
+                <span className="code-string">"@suryanewa/tuna"</span>
                 {"\n\n"}
-                <span className="code-c">{"// Add anywhere in your component tree"}</span>
+                <span className="code-comment">{"// Add anywhere in your component tree"}</span>
                 {"\n"}
-                {"<"}
-                <span className="code-k">Tuna</span>
-                {" />"}
+                <span className="code-punctuation">{"<"}</span>
+                <span className="code-component">Tuna</span>
+                <span className="code-punctuation">{" />"}</span>
               </pre>
               <CopyCommandButton text={layoutSnippet} iconSize={16} className="code-copy" />
             </div>
@@ -164,8 +182,10 @@ export default function Home() {
             </p>
             <div className="code-card code-card-command">
               <pre>
-                <span className="prompt">$ </span>
-                {aiSetupCommand}
+                <span className="code-prompt">$ </span>
+                <span className="code-command">npx</span>{" "}
+                <span className="code-string">@suryanewa/tuna</span>{" "}
+                <span className="code-function">setup</span>
               </pre>
               <CopyCommandButton text={aiSetupCommand} iconSize={16} className="code-copy" />
             </div>
@@ -220,6 +240,101 @@ export default function Home() {
         </p>
       </footer>
       </main>
+    </>
+  );
+}
+
+function AgentOutputCode() {
+  return (
+    <>
+      <span className="code-prose">Apply these Tuna visual changes to the source code:</span>
+      {"\n\n"}
+      <span className="code-md-strong">**Environment:**</span>
+      {"\n"}
+      <span className="code-punctuation">-</span> <span className="code-md-key">URL</span>
+      <span className="code-punctuation">:</span> <span className="code-string">http://localhost:3000/</span>
+      {"\n"}
+      <span className="code-punctuation">-</span> <span className="code-md-key">Viewport</span>
+      <span className="code-punctuation">:</span> <span className="code-number">1440×900</span>
+      {"\n"}
+      <span className="code-punctuation">-</span> <span className="code-md-key">Scroll</span>
+      <span className="code-punctuation">:</span> <span className="code-number">(0, 0)</span>
+      {"\n"}
+      <span className="code-punctuation">-</span> <span className="code-md-key">Timestamp</span>
+      <span className="code-punctuation">:</span> <span className="code-string">2026-06-17T01:20:00.000Z</span>
+      {"\n\n"}
+      <span className="code-md-quote">&gt; </span>
+      <span className="code-md-strong">**Framework:**</span>{" "}
+      <span className="code-prose">Tailwind CSS detected. Apply all changes using Tailwind utility classes — do NOT use inline styles or raw CSS values. When a class swap is suggested, replace the old class with the new one in the JSX/HTML.</span>
+      {"\n\n"}
+      <span className="code-md-heading"># Visual Changes (1 element)</span>
+      {"\n\n"}
+      <span className="code-md-heading">## </span>
+      <span className="code-inline">`&lt;button&gt;`</span>{" "}
+      <span className="code-string">"Get Started"</span>
+      {"\n\n"}
+      <span className="code-md-strong">**Source:**</span>{" "}
+      <span className="code-inline">`src/components/HeroSection.tsx:42:10`</span>
+      {"\n"}
+      <span className="code-md-strong">**Component:**</span>{" "}
+      <span className="code-component">HeroSection</span>{" "}
+      <span className="code-punctuation">→</span>{" "}
+      <span className="code-component">Button</span>
+      {"\n"}
+      <span className="code-md-strong">**Styling:**</span>{" "}
+      <span className="code-prose">Tailwind CSS (modify utility classes)</span>
+      {"\n"}
+      <span className="code-md-strong">**DOM Path:**</span>{" "}
+      <span className="code-inline">`body &gt; main &gt; section.hero &gt; div &gt; button.btn-primary`</span>
+      {"\n"}
+      <span className="code-md-strong">**Selector:**</span>{" "}
+      <span className="code-inline">`main &gt; section.hero &gt; button.btn-primary`</span>{" "}
+      <span className="code-comment">(element-specific)</span>
+      {"\n"}
+      <span className="code-md-strong">**Classes:**</span>{" "}
+      <span className="code-inline">`btn btn-primary px-6 py-3 rounded-lg bg-blue-600 text-sm`</span>
+      {"\n\n"}
+      <span className="code-md-heading">### Changes</span>
+      {"\n\n"}
+      <span className="code-table">| Property | Before | After | Token |</span>
+      {"\n"}
+      <span className="code-table">|----------|--------|-------|-------|</span>
+      {"\n"}
+      <span className="code-table">| </span>
+      <span className="code-inline">`padding`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`12px 24px`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`16px 32px`</span>
+      <span className="code-table"> | — |</span>
+      {"\n"}
+      <span className="code-table">| </span>
+      <span className="code-inline">`border-radius`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`8px`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`12px`</span>
+      <span className="code-table"> | — |</span>
+      {"\n"}
+      <span className="code-table">| </span>
+      <span className="code-inline">`background-color`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`#2563eb`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`#1d4ed8`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`.bg-blue-700`</span>
+      <span className="code-table"> |</span>
+      {"\n"}
+      <span className="code-table">| </span>
+      <span className="code-inline">`font-size`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`14px`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`16px`</span>
+      <span className="code-table"> | </span>
+      <span className="code-inline">`.text-base`</span>
+      <span className="code-table"> |</span>
     </>
   );
 }
