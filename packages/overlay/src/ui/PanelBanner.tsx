@@ -131,7 +131,7 @@ export function PanelBanner({
               <span
                 style={{
                   position: "relative",
-                  display: "grid",
+                  display: "inline-grid",
                   alignItems: "center",
                   height: 16,
                   lineHeight: "16px",
@@ -142,7 +142,8 @@ export function PanelBanner({
                   {copied ? copiedLabel : copyLabel}
                 </span>
                 <span style={{
-                  gridArea: "1 / 1",
+                  position: "absolute",
+                  inset: 0,
                   display: "block",
                   lineHeight: "16px",
                   opacity: copied ? 0 : 1,
@@ -152,7 +153,8 @@ export function PanelBanner({
                   {copyLabel}
                 </span>
                 <span style={{
-                  gridArea: "1 / 1",
+                  position: "absolute",
+                  inset: 0,
                   display: "block",
                   lineHeight: "16px",
                   opacity: copied ? 1 : 0,
