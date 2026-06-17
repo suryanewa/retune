@@ -47,7 +47,7 @@ export default function Home() {
       <main className="compact-shell" id="main-content">
       <header className="top">
         <a className="brand" href="#main-content" aria-label="Tuna home">
-          <img src="/icon.svg" alt="" width={44} height={20} />
+          <img src="/tuna-mark.svg" alt="" width={44} height={20} />
           <h1>Tuna</h1>
         </a>
       </header>
