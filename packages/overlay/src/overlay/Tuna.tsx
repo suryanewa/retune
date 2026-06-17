@@ -365,16 +365,34 @@ function TunaInner(props: TunaConfig) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsExiting, setSettingsExiting] = useState(false);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [theme, setTheme] = useState<"system" | "light" | "dark">(() => {
+  const [theme, setTheme] = useState<"tuna" | "light" | "dark">(() => {
     try {
       const saved = localStorage.getItem("tuna-theme");
-      if (saved === "system" || saved === "light" || saved === "dark") return saved;
+      if (saved === "tuna" || saved === "light" || saved === "dark") return saved;
+      if (saved === "system") return "tuna";
     } catch {}
-    return "system";
+    return "tuna";
   });
-  const handleThemeChange = useCallback((t: "system" | "light" | "dark") => {
+  const handleThemeChange = useCallback((t: "tuna" | "light" | "dark") => {
     setTheme(t);
     try { localStorage.setItem("tuna-theme", t); } catch {}
+  }, []);
+  const togglePageAndTunaColorMode = useCallback(() => {
+    const root = document.documentElement;
+    const currentTheme = root.getAttribute("data-theme");
+    const normalizedTheme = currentTheme === "light" || currentTheme === "dark" || currentTheme === "tuna"
+      ? currentTheme
+      : "tuna";
+    const nextTheme: "tuna" | "light" | "dark" =
+      normalizedTheme === "dark" ? "tuna" : "dark";
+
+    root.setAttribute("data-theme", nextTheme);
+    try {
+      localStorage.setItem("theme", nextTheme);
+      localStorage.setItem("tuna-theme", nextTheme);
+    } catch {}
+    setTheme(nextTheme);
+    window.dispatchEvent(new CustomEvent("tuna:color-mode-change", { detail: { theme: nextTheme } }));
   }, []);
 
   // Toggle dark class on host element based on theme
@@ -383,10 +401,11 @@ function TunaInner(props: TunaConfig) {
     const root = portalTarget.getRootNode();
     const host = root instanceof ShadowRoot ? root.host : null;
     if (!host) return;
-    const isDark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = theme === "dark" || (theme === "tuna" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     host.classList.toggle("dark", isDark);
+    host.classList.toggle("tuna-theme", theme === "tuna");
 
-    if (theme === "system") {
+    if (theme === "tuna") {
       const mq = window.matchMedia("(prefers-color-scheme: dark)");
       const handler = (e: MediaQueryListEvent) => host.classList.toggle("dark", e.matches);
       mq.addEventListener("change", handler);
@@ -3033,6 +3052,20 @@ function TunaInner(props: TunaConfig) {
   // Hotkey listener
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (
+        !active &&
+        !e.repeat &&
+        e.key.toLowerCase() === "d" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
+        if (isEditableKeyboardTarget(e)) return;
+        e.preventDefault();
+        togglePageAndTunaColorMode();
+        return;
+      }
       if (matchesToggleHotkey(e, config.hotkey)) {
         e.preventDefault();
         toggleOverlay();
@@ -3153,7 +3186,7 @@ function TunaInner(props: TunaConfig) {
     }
     document.addEventListener("keydown", handleKeyDown, true);
     return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [active, config.hotkey, deactivateOverlay, openSettingsPanel, toggleOverlay, handleUndo, handleRedo, handleDelete, handleReorderByKey]);
+  }, [active, config.hotkey, deactivateOverlay, openSettingsPanel, toggleOverlay, togglePageAndTunaColorMode, handleUndo, handleRedo, handleDelete, handleReorderByKey]);
 
   const handleReset = useCallback(() => {
     const tracker = trackerRef.current;

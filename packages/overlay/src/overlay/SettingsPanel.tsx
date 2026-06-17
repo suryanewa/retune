@@ -9,8 +9,8 @@ import { SelectInput } from "../ui/select-input";
 
 interface SettingsPanelProps {
   side: "left" | "right";
-  theme: "system" | "light" | "dark";
-  onThemeChange: (theme: "system" | "light" | "dark") => void;
+  theme: "tuna" | "light" | "dark";
+  onThemeChange: (theme: "tuna" | "light" | "dark") => void;
   fidelity: "minimal" | "standard" | "full";
   onFidelityChange: (fidelity: "minimal" | "standard" | "full") => void;
   onHide: () => void;
@@ -112,7 +112,7 @@ export function SettingsPanel({
   }, []);
 
   const handleThemeChange = useCallback((_prop: string, value: string) => {
-    onThemeChange(value as "system" | "light" | "dark");
+    onThemeChange(value as "tuna" | "light" | "dark");
   }, [onThemeChange]);
 
   const handleFidelityChange = useCallback((_prop: string, value: string) => {
@@ -151,7 +151,7 @@ export function SettingsPanel({
               <SelectInput
                 prop="theme"
                 value={theme}
-                options={["system", "light", "dark"]}
+                options={["tuna", "light", "dark"]}
                 onChange={handleThemeChange}
               />
             </div>

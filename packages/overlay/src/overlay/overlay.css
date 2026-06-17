@@ -190,6 +190,24 @@ input, textarea, [contenteditable] {
 .tuna-toolbar.collapsed {
   --tuna-toggle-active: 0;
   --tuna-toggle-play: paused;
+  isolation: isolate;
+  padding: 0;
+  gap: 0;
+  width: 44px;
+  cursor: pointer;
+  overflow: visible;
+  background: var(--tuna-surface);
+  transform: scale(calc(1 + (var(--tuna-toggle-active) * 0.055)));
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(0, 0, 0, 0.04);
+  transition:
+    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    background 0.18s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.18s ease;
+}
+
+:host(.tuna-theme) .tuna-toolbar.collapsed {
   --tuna-candy-edge: #dc777f;
   --tuna-candy-glow: rgba(232, 153, 153, 0.46);
   --tuna-candy-glow-strong: rgba(232, 153, 153, 0.64);
@@ -202,27 +220,15 @@ input, textarea, [contenteditable] {
     ),
     radial-gradient(95% 72% at 50% 76%, #d66f78 0%, var(--tuna-brand) 58%, #f2b4b4 100%);
 
-  isolation: isolate;
-  padding: 0;
-  gap: 0;
-  width: 44px;
-  cursor: pointer;
-  overflow: visible;
   border-radius: 14px;
   background: var(--tuna-candy-bg);
   filter: brightness(calc(1 + (var(--tuna-toggle-active) * 0.04))) saturate(calc(1 + (var(--tuna-toggle-active) * 0.04)));
-  transform: scale(calc(1 + (var(--tuna-toggle-active) * 0.055)));
   box-shadow:
     0 7px 28px -14px var(--tuna-candy-glow),
     0 0 calc(var(--tuna-toggle-active) * 34px) calc(var(--tuna-toggle-active) * 3px) var(--tuna-candy-glow-strong),
     inset 0 1px 8px -4px var(--tuna-candy-inner),
     inset 0 -10px 18px -18px rgba(105, 41, 48, 0.64),
     0 0 0 1px color-mix(in srgb, var(--tuna-candy-edge) 70%, transparent);
-  transition:
-    filter 0.18s ease,
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    background 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.18s ease;
 }
 
 .tuna-toolbar.collapsed:active {
@@ -255,7 +261,7 @@ input, textarea, [contenteditable] {
   will-change: transform;
 }
 
-.tuna-toolbar.collapsed .tuna-logo-svg {
+:host(.tuna-theme) .tuna-toolbar.collapsed .tuna-logo-svg {
   color: var(--tuna-always-white);
 }
 
@@ -267,7 +273,7 @@ input, textarea, [contenteditable] {
   will-change: opacity;
 }
 
-.tuna-toolbar.collapsed:hover .tuna-logo-fish-glow {
+:host(.tuna-theme) .tuna-toolbar.collapsed:hover .tuna-logo-fish-glow {
   opacity: 0.85;
 }
 
@@ -275,7 +281,7 @@ input, textarea, [contenteditable] {
   transition: color 0.25s cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-.tuna-toolbar.collapsed:hover .tuna-logo-fish {
+:host(.tuna-theme) .tuna-toolbar.collapsed:hover .tuna-logo-fish {
   color: var(--tuna-always-white);
 }
 
@@ -365,6 +371,7 @@ input, textarea, [contenteditable] {
 
 .tuna-toolbar-collapse-btn::before {
   content: "";
+  display: none;
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -382,6 +389,7 @@ input, textarea, [contenteditable] {
 
 .tuna-toolbar-collapse-btn::after {
   content: "";
+  display: none;
   position: absolute;
   top: 1px;
   right: 20%;
@@ -391,6 +399,11 @@ input, textarea, [contenteditable] {
   border-radius: 999px;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.76), transparent);
   pointer-events: none;
+}
+
+:host(.tuna-theme) .tuna-toolbar-collapse-btn::before,
+:host(.tuna-theme) .tuna-toolbar-collapse-btn::after {
+  display: block;
 }
 
 .tuna-changes-dot {
@@ -459,11 +472,26 @@ input, textarea, [contenteditable] {
 }
 
 .tuna-toolbar-btn:hover {
+  background: var(--tuna-surface-hover);
+}
+
+.tuna-toolbar-btn.active {
+  color: var(--tuna-text);
+  background: var(--tuna-surface-hover);
+}
+
+:host(.tuna-theme) .tuna-toolbar-btn:hover {
   background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
   color: var(--tuna-brand);
 }
 
-.tuna-toolbar-btn.active {
+:host(.tuna-theme) .tuna-toolbar-btn.active {
+  background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
+  color: var(--tuna-brand);
+}
+
+:host(.tuna-theme) .tuna-toolbar-btn.active:hover {
+  background: color-mix(in srgb, var(--tuna-brand) 18%, transparent);
   color: var(--tuna-brand);
 }
 
@@ -3960,10 +3988,18 @@ input, textarea, [contenteditable] {
   line-height: 1;
 }
 .tuna-toolbar-btn.active {
+  background: var(--tuna-surface-hover);
+  color: var(--tuna-text);
+}
+.tuna-toolbar-btn.active:hover {
+  background: var(--tuna-surface-hover);
+  color: var(--tuna-text);
+}
+:host(.tuna-theme) .tuna-toolbar-btn.active {
   background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
   color: var(--tuna-brand);
 }
-.tuna-toolbar-btn.active:hover {
+:host(.tuna-theme) .tuna-toolbar-btn.active:hover {
   background: color-mix(in srgb, var(--tuna-brand) 18%, transparent);
   color: var(--tuna-brand);
 }

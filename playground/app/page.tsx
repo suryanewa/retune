@@ -41,11 +41,11 @@ export default function Home() {
       </header>
 
       <section id="intro" className="intro" aria-labelledby="intro-title" data-scroll-section="Intro">
-        <h2 id="intro-title">Edit the page. Send the exact change.</h2>
+        <h2 id="intro-title">Visual edits your agents can ship.</h2>
         <p className="tagline">
-          Tuna lets you select DOM elements in development, adjust their visual
-          details in the browser, and hand your coding agent a structured diff it
-          can apply to source.
+          Tuna lets you select UI elements, fine-tune their visual details, and
+          instruct your agents directly from your browser. Make changes visually
+          and ship them frictionlessly.
         </p>
         <div className="hero-actions">
           <TryItButton />
@@ -60,7 +60,7 @@ export default function Home() {
       <section id="workflow" className="function-rows" aria-labelledby="function-title" data-scroll-section="Workflow">
         <div className="section-head">
           <h2 id="function-title">How it works</h2>
-          <p className="section-subtitle">A short loop for visual fixes.</p>
+          <p className="section-subtitle">A short loop for visual tuning.</p>
         </div>
 
         <div className="bento-grid">
@@ -69,53 +69,53 @@ export default function Home() {
             className="bento-speak"
             icon={<BentoMicIcon />}
             visual={<BentoSpeakDemo />}
-            value="Dictate visual feedback while you work. Tuna turns spoken notes into targeted comments that stay attached to the selected element."
+            value="Dictate visual feedback and instructions in your browser. Tuna turns your spoken notes into targeted comments that reference selected elements as context."
           />
           <BentoCell
             label="Select"
             className="bento-select"
             icon={<BentoCursorIcon />}
             visual={<BentoSelectDemo />}
-            value="Click an element while Tuna is active. The overlay captures selector, text, classes, bounds, and React ancestry."
+            value="Click on any element to capture selector, text, classes, bounds, and React ancestry context. Supports multiple selections."
           />
           <BentoCell
             label="Draw"
             className="bento-draw"
             icon={<BentoPencilIcon />}
             visual={<BentoDrawDemo />}
-            value="Sketch directly over the page to mark areas, call out alignment issues, and capture visual annotations your agent can inspect."
+            value="Sketch directly over the page to mark areas, call out alignment issues, and capture visual annotations your agents can reference."
           />
           <BentoCell
             label="Comment"
             className="bento-comment"
             icon={<BentoCommentIcon />}
             visual={<BentoCommentDemo />}
-            value="Leave targeted notes on elements or drawn areas. Comments travel with selector and component context alongside visual changes."
+            value="Quickly leave targeted notes on elements and drawn areas. Comments contain selector and component context alongside written visual changes."
           />
           <BentoCell
             label="Tune"
             className="bento-tune"
             icon={<BentoWrenchIcon />}
             visual={<BentoTuneDemo />}
-            value="Adjust spacing, typography, color, radius, layout, image fit, position, opacity, and shadows with live preview."
+            value="Adjust parameters including spacing, color, layout, opacity, and shadows with live previewing. Quickly alter individual elements, classes, and grouped selections."
           />
           <BentoCell
             label="Handoff"
             className="bento-handoff"
             icon={<BentoCopyIcon />}
             visual={<BentoHandoffDemo />}
-            value="Copy or stream a structured diff through MCP with enough context for your coding agent to find the source."
+            value="Copy or stream a structured diff through MCP with enough context for your coding agent to cleanly enact changes."
           />
         </div>
       </section>
 
-      <section id="agent-output" className="agent-block" aria-labelledby="agent-output-title" data-scroll-section="Agent output">
+      <section id="agent-output" className="agent-block" aria-labelledby="agent-output-title" data-scroll-section="Handoff">
         <div className="section-head">
-          <h2 id="agent-output-title">What your agent sees</h2>
+          <h2 id="agent-output-title">Seamless handoff</h2>
           <p className="section-subtitle">
-            Not vague descriptions, structured data. Component names, selector paths,
-            styling approach, source hints when available, and exact before/after
-            values your agent can act on immediately.
+            No more tedious UI descriptions. Tuna gives your agents structured,
+            actionable context so you can move from visual intent to shipped code
+            faster.
           </p>
         </div>
         <div className="code-card">
@@ -130,7 +130,7 @@ export default function Home() {
         </div>
 
         <div className="setup-steps">
-          <SetupStep title="1. Install the package">
+          <SetupStep title="1. Install Tuna on your device">
             <div className="code-card code-card-command">
               <pre>
                 <span className="prompt">$ </span>
@@ -140,7 +140,7 @@ export default function Home() {
             </div>
           </SetupStep>
 
-          <SetupStep title="2. Add to your layout">
+          <SetupStep title="2. Add Tuna to your codebase">
             <div className="code-card">
               <pre>
                 <span className="code-k">import</span> {"{ Tuna }"} <span className="code-k">from</span>{" "}
@@ -154,16 +154,13 @@ export default function Home() {
               </pre>
               <CopyCommandButton text={layoutSnippet} iconSize={16} className="code-copy" />
             </div>
-            <p className="setup-note">
-              Automatically hidden in production. Use {"<Tuna force />"} for live demos.
-            </p>
           </SetupStep>
 
-          <SetupStep title="3. Connect your AI tool">
+          <SetupStep title="3. Connect Tuna to your agent(s)">
             <p className="setup-copy">
-              Auto-detects Claude Code and Cursor. Configures the MCP server and installs
-              the Tuna skill that teaches your agent how to resolve design tokens, utility
-              classes, and CSS variables.
+              Auto-detects Codex, Claude Code, and Cursor. Automatically configures
+              the Tuna MCP server and installs a skill that teaches your agents how
+              to handle design-related code.
             </p>
             <div className="code-card code-card-command">
               <pre>
@@ -174,7 +171,7 @@ export default function Home() {
             </div>
             <p className="setup-note">
               Works with Next.js, Vite, and Remix. Tailwind, CSS Modules, and plain CSS.
-              Claude Code and Cursor via MCP.
+              Codex, Claude Code, Cursor, and any other MCP-compatible agents.
             </p>
           </SetupStep>
         </div>
