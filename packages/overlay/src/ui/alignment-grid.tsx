@@ -209,7 +209,7 @@ function IconSBBarVBottom({ color }: { color: string }) {
 
 // ── Icon selection helpers ───────────────────────────────────────────────
 
-const BLUE = "#0D99FF";
+const BRAND_PINK = "#e89999";
 const GRAY = "#a8a29e";
 
 const CELL_TOOLTIPS: Record<string, string> = {
@@ -396,7 +396,7 @@ function renderNormalCell(
   const isSelected = row === selectedCoords.row && col === selectedCoords.col;
   if (isSelected) {
     const Icon = getSelectedIcon(position, flow);
-    return <Icon color={BLUE} />;
+    return <Icon color={BRAND_PINK} />;
   }
   if (hoveredPosition === position) {
     const Icon = getSelectedIcon(position, flow);
@@ -418,7 +418,7 @@ function renderSpaceBetweenCell(
 
   if (isActive) {
     const Icon = getSpaceBetweenIcon(row, col, activeGroup, flow);
-    if (Icon) return <Icon color={BLUE} />;
+    if (Icon) return <Icon color={BRAND_PINK} />;
   }
   if (isHovered) {
     const Icon = getSpaceBetweenIcon(row, col, cellGroup, flow);

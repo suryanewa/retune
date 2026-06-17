@@ -432,7 +432,7 @@ export function useCommentMode({
       if (e.shiftKey || e.altKey) return;
       e.preventDefault();
       const areaEl = document.createElement("div");
-      areaEl.style.cssText = `position:fixed;border:1px dashed #0D99FF;pointer-events:none;z-index:2147483640;display:none;`;
+      areaEl.style.cssText = `position:fixed;border:1px dashed #e89999;pointer-events:none;z-index:2147483640;display:none;`;
       document.body.appendChild(areaEl);
       commentDragRef.current = { startX: e.clientX, startY: e.clientY, dragging: false, areaEl };
     };

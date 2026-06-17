@@ -1,5 +1,5 @@
 /**
- * ChangeIndicator — blue dot at the top-left corner of an input.
+ * ChangeIndicator — accent dot at the top-left corner of an input.
  * Indicates the user has changed this property from its original value.
  * Click resets the property; works with global undo/redo.
  *

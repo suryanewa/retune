@@ -1,16 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { IconWrench } from "./IconWrench";
-import { IconCheckCircle2, IconCrossMedium, IconSquareBehindSquare6 } from "./icons";
+import { IconCrossMedium } from "./icons";
+import { AnimatedCopyIcon } from "./AnimatedCopyIcon";
+import { SELECTION_ACTION_ICON_SIZES, toolbarIconStroke } from "./toolbar-icon-metrics";
 import { Tooltip } from "./tooltip";
 import { computeSelectionChromeLayout, type SelectionChromeLayout } from "../selector/selection-chrome-layout";
 
-function IconComment({ size = 18 }: { size?: number }) {
+function IconComment({ size = 18, strokeWidth = 1.25 }: { size?: number; strokeWidth?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
       <path
         d="M3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10C17 13.866 13.866 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z"
         stroke="currentColor"
-        strokeWidth="1.25"
+        strokeWidth={strokeWidth}
       />
     </svg>
   );
@@ -53,6 +55,36 @@ export function SelectionActionBar({
 }: SelectionActionBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [copyHovered, setCopyHovered] = useState(false);
+  const [selectionFill, setSelectionFill] = useState({ left: 0, width: 28, visible: false });
+
+  const updateSelectionFill = useCallback((button: HTMLButtonElement | null) => {
+    const bar = barRef.current;
+    if (!bar || !button) {
+      setSelectionFill((current) => ({ ...current, visible: false }));
+      return;
+    }
+
+    const barRect = bar.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    setSelectionFill({
+      left: buttonRect.left - barRect.left,
+      width: buttonRect.width,
+      visible: true,
+    });
+  }, []);
+
+  const handlePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest(".tuna-selection-action-btn");
+    updateSelectionFill(button instanceof HTMLButtonElement ? button : null);
+  }, [updateSelectionFill]);
+
+  const handlePointerLeave = useCallback(() => {
+    const activeButton = barRef.current?.querySelector<HTMLButtonElement>(".tuna-selection-action-btn.active") ?? null;
+    updateSelectionFill(activeButton);
+  }, [updateSelectionFill]);
 
   useEffect(() => {
     if (anchorElements.length === 0) {
@@ -97,6 +129,11 @@ export function SelectionActionBar({
     };
   }, [anchorElements, dimensionLabelWidth, onChromeLayout]);
 
+  useLayoutEffect(() => {
+    const activeButton = barRef.current?.querySelector<HTMLButtonElement>(".tuna-selection-action-btn.active") ?? null;
+    updateSelectionFill(activeButton);
+  }, [editMode, onDelete, pos, updateSelectionFill]);
+
   if (anchorElements.length === 0 || !pos) return null;
 
   return (
@@ -104,11 +141,23 @@ export function SelectionActionBar({
       ref={barRef}
       className="tuna-selection-action-bar"
       style={{ top: pos.top, left: pos.left }}
+      onPointerMove={handlePointerMove}
+      onPointerLeave={handlePointerLeave}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <span
+        className={`tuna-selection-action-fill${selectionFill.visible ? " visible" : ""}`}
+        style={{
+          transform: `translate3d(${selectionFill.left}px, 0, 0)`,
+          width: `${selectionFill.width}px`,
+        }}
+        aria-hidden="true"
+      />
       <Tooltip content="Comment" shortcut="C" side="top">
         <button type="button" className="tuna-selection-action-btn" aria-label="Comment on selection" onClick={onComment}>
-          <IconComment />
+          <span className="tuna-selection-action-icon">
+            <IconComment size={SELECTION_ACTION_ICON_SIZES.comment} strokeWidth={toolbarIconStroke(SELECTION_ACTION_ICON_SIZES.comment, 20)} />
+          </span>
         </button>
       </Tooltip>
       <Tooltip content="Copy" shortcut="⌘C" side="top">
@@ -117,14 +166,12 @@ export function SelectionActionBar({
           className="tuna-selection-action-btn"
           aria-label={copied ? "Copied selection context" : "Copy selection context"}
           onClick={onCopy}
+          onMouseEnter={() => setCopyHovered(true)}
+          onMouseLeave={() => setCopyHovered(false)}
+          onPointerLeave={() => setCopyHovered(false)}
         >
-          <span className="tuna-icon-swap">
-            <span className={`tuna-icon-swap-icon ${copied ? "out" : "in"}`}>
-              <IconSquareBehindSquare6 size={18} />
-            </span>
-            <span className={`tuna-icon-swap-icon ${copied ? "in" : "out"}`}>
-              <IconCheckCircle2 size={18} />
-            </span>
+          <span className="tuna-selection-action-icon">
+            <AnimatedCopyIcon copied={copied} hovered={copyHovered} size={SELECTION_ACTION_ICON_SIZES.copy} strokeWidth={toolbarIconStroke(SELECTION_ACTION_ICON_SIZES.copy)} />
           </span>
         </button>
       </Tooltip>
@@ -137,7 +184,9 @@ export function SelectionActionBar({
             aria-pressed={editMode}
             onClick={onToggleEdit}
           >
-            <IconWrench size={18} />
+            <span className="tuna-selection-action-icon">
+              <IconWrench size={SELECTION_ACTION_ICON_SIZES.edit} strokeWidth={toolbarIconStroke(SELECTION_ACTION_ICON_SIZES.edit)} />
+            </span>
           </button>
         </Tooltip>
       )}
@@ -149,19 +198,22 @@ export function SelectionActionBar({
             className="tuna-selection-action-btn"
             aria-label="Delete selection"
             onClick={onDelete}
-            style={{ color: "#FF6B6B" }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18" />
-              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-            </svg>
+            <span className="tuna-selection-action-icon">
+              <svg width={SELECTION_ACTION_ICON_SIZES.delete} height={SELECTION_ACTION_ICON_SIZES.delete} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={toolbarIconStroke(SELECTION_ACTION_ICON_SIZES.delete)} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18" />
+                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+              </svg>
+            </span>
           </button>
         </Tooltip>
       )}
       <Tooltip content="Deselect all" shortcut="Shift+Esc" side="top">
         <button type="button" className="tuna-selection-action-btn" aria-label="Deselect all" onClick={onDeselect}>
-          <IconCrossMedium size={18} />
+          <span className="tuna-selection-action-icon">
+            <IconCrossMedium size={SELECTION_ACTION_ICON_SIZES.deselect} strokeWidth={toolbarIconStroke(SELECTION_ACTION_ICON_SIZES.deselect)} />
+          </span>
         </button>
       </Tooltip>
     </div>

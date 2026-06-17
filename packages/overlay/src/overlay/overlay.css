@@ -58,17 +58,17 @@
   --tuna-white-90: color-mix(in srgb, var(--tuna-white) 90%, transparent);
   --tuna-white-95: color-mix(in srgb, var(--tuna-white) 95%, transparent);
 
-  /* ── Blue (Figma blue ramp) ── */
-  --tuna-blue-100: #F2F9FF;
-  --tuna-blue-200: #E5F4FF;
-  --tuna-blue-300: #BDE3FF;
-  --tuna-blue-400: #80CAFF;
-  --tuna-blue-500: #0D99FF;
-  --tuna-blue-600: #007BE5;
-  --tuna-blue-700: #0768CF;
-  --tuna-blue-800: #034AC1;
-  --tuna-blue-900: #093077;
-  --tuna-blue-1000: #0D193F;
+  /* ── Brand pink ramp ── */
+  --tuna-blue-100: #FFF5F5;
+  --tuna-blue-200: #FFE6E6;
+  --tuna-blue-300: #FFCACA;
+  --tuna-blue-400: #F3AAAA;
+  --tuna-blue-500: #E89999;
+  --tuna-blue-600: #DC777F;
+  --tuna-blue-700: #C95F68;
+  --tuna-blue-800: #A94A54;
+  --tuna-blue-900: #7A333B;
+  --tuna-blue-1000: #4F1F25;
 
   /* ── Red (Tailwind red ramp) ── */
   --tuna-red-100: #FFF5F5;
@@ -109,7 +109,7 @@
   --tuna-border-subtle: var(--tuna-black-5);
   --tuna-shadow: var(--tuna-black-10);
 
-  /* ── Blue ── */
+  /* ── Brand accent ── */
   --tuna-blue: var(--tuna-blue-500);
   --tuna-blue-text: var(--tuna-blue-700);
   --tuna-blue-bg: var(--tuna-blue-200);
@@ -146,8 +146,8 @@
   --tuna-border-subtle: var(--tuna-white-5);
   --tuna-shadow: var(--tuna-white-5);
 
-  /* ── Blue ── */
-  --tuna-blue-text: var(--tuna-blue-500);
+  /* ── Brand accent ── */
+  --tuna-blue-text: var(--tuna-blue-400);
   --tuna-blue-bg: color-mix(in srgb, var(--tuna-blue-700) 50%, transparent);
   --tuna-blue-bg-hover: color-mix(in srgb, var(--tuna-blue-700) 75%, transparent);
 
@@ -419,7 +419,7 @@ input, textarea, [contenteditable] {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: radial-gradient(circle at center, #fff 1px, #0D99FF 1px);
+  background: radial-gradient(circle at center, #fff 1px, var(--tuna-blue) 1px);
   pointer-events: none;
 }
 
@@ -508,6 +508,26 @@ input, textarea, [contenteditable] {
   transition:
     background 0.12s ease,
     color 0.12s ease;
+}
+
+.tuna-toolbar-icon {
+  display: flex;
+  flex: 0 0 24px;
+  align-items: flex-end;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  line-height: 0;
+  pointer-events: none;
+}
+
+.tuna-toolbar-icon > svg,
+.tuna-toolbar-icon > span {
+  flex: 0 0 auto;
+}
+
+.tuna-toolbar-icon-center {
+  align-items: center;
 }
 
 .tuna-toolbar-btn:hover {
@@ -894,6 +914,10 @@ input, textarea, [contenteditable] {
   pointer-events: none;
 }
 
+:host(.tuna-theme) .tuna-tab-pill {
+  background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
+}
+
 .tuna-tab {
   width: auto;
   padding: 8px 12px;
@@ -917,6 +941,21 @@ input, textarea, [contenteditable] {
 
 .tuna-tab.active {
   color: var(--tuna-text);
+}
+
+:host(.tuna-theme) .tuna-tab:hover {
+  background: transparent;
+  color: var(--tuna-brand);
+}
+
+:host(.tuna-theme) .tuna-tab.active {
+  background: transparent;
+  color: var(--tuna-brand);
+}
+
+:host(.tuna-theme) .tuna-tab.active:hover {
+  background: transparent;
+  color: var(--tuna-brand);
 }
 
 .tuna-tab-close {
@@ -2925,7 +2964,7 @@ input, textarea, [contenteditable] {
 }
 
 /* ── Reduced Motion ── */
-/* ── Change Indicator (blue dot at top-left corner of changed inputs) ── */
+/* ── Change Indicator (accent dot at top-left corner of changed inputs) ── */
 .tuna-change-dot {
   position: absolute;
   top: -8px;
@@ -4030,7 +4069,7 @@ input, textarea, [contenteditable] {
   right: 2px;
   min-width: 14px;
   height: 14px;
-  background: var(--tuna-blue-10);
+  background: var(--tuna-blue);
   color: #fff;
   font-size: 9px;
   font-weight: 600;
@@ -4074,6 +4113,7 @@ input, textarea, [contenteditable] {
 .tuna-selection-action-bar {
   position: fixed;
   z-index: 2147483646;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -4084,6 +4124,30 @@ input, textarea, [contenteditable] {
   pointer-events: auto;
   transform: translateX(-50%);
   user-select: none;
+}
+
+.tuna-selection-action-fill {
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  left: 0;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--tuna-surface-hover);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+  transition:
+    transform 180ms cubic-bezier(0.645, 0.045, 0.355, 1),
+    opacity 90ms ease;
+}
+
+.tuna-selection-action-fill.visible {
+  opacity: 1;
+}
+
+:host(.tuna-theme) .tuna-selection-action-fill {
+  background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
 }
 
 .tuna-selection-action-btn {
@@ -4099,6 +4163,24 @@ input, textarea, [contenteditable] {
   color: var(--tuna-text);
   padding: 0;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.tuna-selection-action-icon {
+  display: flex;
+  flex: 0 0 24px;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  line-height: 0;
+  pointer-events: none;
+}
+
+.tuna-selection-action-icon > svg,
+.tuna-selection-action-icon > span {
+  flex: 0 0 auto;
 }
 
 .tuna-selection-action-btn:hover {
@@ -4112,6 +4194,21 @@ input, textarea, [contenteditable] {
 
 .tuna-selection-action-btn.active:hover {
   background: color-mix(in srgb, var(--tuna-blue-bg) 80%, var(--tuna-surface-hover));
+}
+
+:host(.tuna-theme) .tuna-selection-action-btn:hover {
+  background: transparent;
+  color: var(--tuna-brand);
+}
+
+:host(.tuna-theme) .tuna-selection-action-btn.active {
+  background: transparent;
+  color: var(--tuna-brand);
+}
+
+:host(.tuna-theme) .tuna-selection-action-btn.active:hover {
+  background: transparent;
+  color: var(--tuna-brand);
 }
 
 .tuna-selection-action-btn.disabled,
@@ -4140,6 +4237,8 @@ input, textarea, [contenteditable] {
   .tuna-toolbar-expanded,
   .tuna-toolbar-mode-fill,
   .tuna-toolbar-btn,
+  .tuna-tab-pill,
+  .tuna-selection-action-fill,
   .tuna-icon-swap-icon,
   .tuna-segmented-pill,
   .tuna-segmented-item,

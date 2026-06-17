@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Comment } from "../../engine/comment-store";
 import { CommentTextPreview, getCommentTextParts, renderCommentTextParts } from "./CommentTextPreview";
 
-export function IconComment({ size = 20 }: { size?: number }) {
+export function IconComment({ size = 20, strokeWidth = 1.25 }: { size?: number; strokeWidth?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none">
-      <path d="M3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10C17 13.866 13.866 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z" stroke="currentColor" strokeWidth="1.25" />
+      <path d="M3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10C17 13.866 13.866 17 10 17H4C3.44772 17 3 16.5523 3 16V10Z" stroke="currentColor" strokeWidth={strokeWidth} />
     </svg>
   );
 }

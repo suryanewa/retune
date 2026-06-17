@@ -93,9 +93,9 @@ describe("parseCommentTextIntoParts", () => {
   it("reconstructs leading mentions and user text", () => {
     const parts = parseCommentTextIntoParts("@Button @Label align these", targets);
     expect(parts).toEqual([
-      { type: "mention", mention: { name: "Button", color: "#0D99FF", selector: ".btn" } },
+      { type: "mention", mention: { name: "Button", color: "#e89999", selector: ".btn" } },
       { type: "text", text: " " },
-      { type: "mention", mention: { name: "Label", color: "#FF6B6B", selector: ".label" } },
+      { type: "mention", mention: { name: "Label", color: "#dc777f", selector: ".label" } },
       { type: "text", text: " align these" },
     ]);
   });
@@ -104,9 +104,9 @@ describe("parseCommentTextIntoParts", () => {
     const parts = parseCommentTextIntoParts("Fix @Button and @Label spacing", targets);
     expect(parts).toEqual([
       { type: "text", text: "Fix " },
-      { type: "mention", mention: { name: "Button", color: "#0D99FF", selector: ".btn" } },
+      { type: "mention", mention: { name: "Button", color: "#e89999", selector: ".btn" } },
       { type: "text", text: " and " },
-      { type: "mention", mention: { name: "Label", color: "#FF6B6B", selector: ".label" } },
+      { type: "mention", mention: { name: "Label", color: "#dc777f", selector: ".label" } },
       { type: "text", text: " spacing" },
     ]);
   });

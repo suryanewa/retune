@@ -164,7 +164,7 @@ describe("SELECTION_COLORS", () => {
   it("provides distinct colors for multi-select outlines", () => {
     expect(SELECTION_COLORS.length).toBeGreaterThanOrEqual(2);
     expect(new Set(SELECTION_COLORS).size).toBe(SELECTION_COLORS.length);
-    expect(SELECTION_COLORS[0]).toBe("#0D99FF");
+    expect(SELECTION_COLORS[0]).toBe("#e89999");
   });
 });
 

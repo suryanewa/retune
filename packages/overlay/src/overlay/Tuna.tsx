@@ -43,24 +43,24 @@ import { setManifestTokens } from "../variables";
 import { PropertyPanel } from "./PropertyPanel";
 import { ComponentSection, MANIFEST_PROMPT as MANIFEST_PROMPT_TEXT, MANIFEST_COMPONENTS_PROMPT } from "../ui/ComponentSection";
 import { PanelBanner } from "../ui/PanelBanner";
+import { AnimatedCopyIcon } from "../ui/AnimatedCopyIcon";
 import { ElementTree, type ReparentEntry } from "./ElementTree";
 import { SettingsPanel } from "./SettingsPanel";
 import { IconWrench } from "../ui/IconWrench";
 import {
   IconArrowRotateClockwise,
-  IconCheckCircle2,
   IconCrossMedium,
   IconCursor1,
   IconCursorClick,
   IconPencil,
   IconSettingsGear2,
-  IconSquareBehindSquare6,
   IconStepBack,
 } from "../ui/icons";
 import { Tooltip } from "../ui/tooltip";
 import { TooltipPortalContext } from "../ui/tooltip-portal-context";
 import { BoxModelOverlay, type BoxModelProperty } from "../ui/box-model-overlay";
 import { SelectionActionBar } from "../ui/selection-action-bar";
+import { TOOLBAR_ICON_SIZES, toolbarIconStroke } from "../ui/toolbar-icon-metrics";
 import {
   buildDrawingTargetsFromPaths,
   getCommentElementTargets,
@@ -306,7 +306,7 @@ export function Tuna(props: TunaConfig = {}) {
     typeof window !== "undefined" ? window.innerWidth >= MIN_VIEWPORT_WIDTH : true
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const mq = window.matchMedia(`(min-width: ${MIN_VIEWPORT_WIDTH}px)`);
     const handler = (e: MediaQueryListEvent) => setWide(e.matches);
     setWide(mq.matches);
@@ -348,6 +348,7 @@ function TunaInner(props: TunaConfig) {
   const fidelityRef = useRef(fidelity);
   fidelityRef.current = fidelity;
   const [copied, setCopied] = useState(false);
+  const [copyHovered, setCopyHovered] = useState(false);
   const [hoveredBoxModel, setHoveredBoxModel] = useState<BoxModelProperty>(null);
   const [changeRevision, setChangeRevision] = useState(0);
   const [resetRevision, setResetRevision] = useState(0);
@@ -396,6 +397,7 @@ function TunaInner(props: TunaConfig) {
     copiedTimerRef.current = setTimeout(() => setCopied(false), 3000);
   }, []);
   const [panelTab, setPanelTab] = useState<"elements" | "design">("design");
+  const [hoveredPanelTab, setHoveredPanelTab] = useState<"elements" | "design" | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsExiting, setSettingsExiting] = useState(false);
@@ -1476,6 +1478,7 @@ function TunaInner(props: TunaConfig) {
       pickerRef.current?.setPropertyEditMode(next);
       if (next) {
         setMode("edit");
+        setPanelTab("design");
         pickerRef.current?.setChromeLayout(null);
       } else {
         setMode("select");
@@ -1827,14 +1830,27 @@ function TunaInner(props: TunaConfig) {
     }
   }, []);
 
+  const handleTabBarPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const tab = target.closest(".tuna-tab");
+    if (!(tab instanceof HTMLButtonElement)) {
+      setHoveredPanelTab((current) => current === null ? current : null);
+      return;
+    }
+    const next = tab.textContent === "Elements" ? "elements" : tab.textContent === "Design" ? "design" : null;
+    setHoveredPanelTab((current) => current === next ? current : next);
+  }, []);
+
   // Tab pill animation
-  useEffect(() => {
+  useLayoutEffect(() => {
     const bar = tabBarRef.current;
     const pill = tabPillRef.current;
     if (!bar || !pill) return;
 
     const buttons = bar.querySelectorAll<HTMLButtonElement>(".tuna-tab");
-    const idx = panelTab === "elements" ? 0 : 1;
+    const targetTab = hoveredPanelTab ?? panelTab;
+    const idx = targetTab === "elements" ? 0 : 1;
     const btn = buttons[idx];
     if (!btn) return;
 
@@ -1852,7 +1868,7 @@ function TunaInner(props: TunaConfig) {
     } else {
       pill.style.transform = `translateX(${offsetX}px)`;
     }
-  }, [panelTab, selectedElement]);
+  }, [hoveredPanelTab, panelTab, selectedElement, editPanelOpen]);
 
   // Toggle toolbar + panel side
   const handleToggleSide = useCallback(() => {
@@ -3850,7 +3866,9 @@ function TunaInner(props: TunaConfig) {
                 closeEditPanel();
               }}
             >
-              <IconCursor1 size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconCursor1 size={TOOLBAR_ICON_SIZES.select} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.select)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Draw" shortcut="D" side="top">
@@ -3869,7 +3887,9 @@ function TunaInner(props: TunaConfig) {
                 closeEditPanel();
               }}
             >
-              <IconPencil size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconPencil size={TOOLBAR_ICON_SIZES.draw} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.draw)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Tune" shortcut="T" side="top">
@@ -3891,7 +3911,9 @@ function TunaInner(props: TunaConfig) {
                 }
               }}
             >
-              <IconWrench size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconWrench size={TOOLBAR_ICON_SIZES.edit} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.edit)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Comment" shortcut="C" side="top">
@@ -3910,7 +3932,9 @@ function TunaInner(props: TunaConfig) {
                 closeEditPanel();
               }}
             >
-              <IconComment size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconComment size={TOOLBAR_ICON_SIZES.comment} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.comment, 20)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Copy" shortcut="⌘C" side="top" onPointerEnter={clearToolbarModeHover}>
@@ -3920,14 +3944,12 @@ function TunaInner(props: TunaConfig) {
               aria-label={copied ? "Copied Tuna changes" : "Copy Tuna changes"}
               onClick={handleCopy}
               disabled={changeCount === 0 && commentCount === 0}
+              onMouseEnter={() => setCopyHovered(true)}
+              onMouseLeave={() => setCopyHovered(false)}
+              onPointerLeave={() => setCopyHovered(false)}
             >
-              <span className="tuna-icon-swap">
-                <span className={`tuna-icon-swap-icon ${copied ? "out" : "in"}`}>
-                  <IconSquareBehindSquare6 size={22.5} />
-                </span>
-                <span className={`tuna-icon-swap-icon ${copied ? "in" : "out"}`}>
-                  <IconCheckCircle2 size={20} />
-                </span>
+              <span className="tuna-toolbar-icon">
+                <AnimatedCopyIcon copied={copied} hovered={copyHovered} size={TOOLBAR_ICON_SIZES.copy} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.copy)} />
               </span>
             </button>
           </Tooltip>
@@ -3939,7 +3961,9 @@ function TunaInner(props: TunaConfig) {
               onClick={handleReset}
               disabled={changeCount === 0 && commentCount === 0}
             >
-              <IconArrowRotateClockwise size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconArrowRotateClockwise size={TOOLBAR_ICON_SIZES.reset} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.reset)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Settings" shortcut="⌘," side="top" onPointerEnter={clearToolbarModeHover}>
@@ -3949,7 +3973,9 @@ function TunaInner(props: TunaConfig) {
               aria-label="Open Tuna settings"
               onClick={toggleSettingsPanel}
             >
-              <IconSettingsGear2 size={20} />
+              <span className="tuna-toolbar-icon tuna-toolbar-icon-center">
+                <IconSettingsGear2 size={TOOLBAR_ICON_SIZES.settings} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.settings)} />
+              </span>
             </button>
           </Tooltip>
           <Tooltip content="Close" shortcut="Esc" side="top" onPointerEnter={clearToolbarModeHover}>
@@ -3959,7 +3985,9 @@ function TunaInner(props: TunaConfig) {
               aria-label="Close Tuna"
               onClick={handleClose}
             >
-              <IconCrossMedium size={20} />
+              <span className="tuna-toolbar-icon">
+                <IconCrossMedium size={TOOLBAR_ICON_SIZES.close} strokeWidth={toolbarIconStroke(TOOLBAR_ICON_SIZES.close)} />
+              </span>
             </button>
           </Tooltip>
         </div>
@@ -4007,7 +4035,12 @@ function TunaInner(props: TunaConfig) {
       {/* Design panel */}
       <AnimatedPanel visible={!!(active && selectedElement && editPanelOpen && !settingsOpen && !toolbarDragging && (mode === "select" || mode === "edit"))}>
         <div className={`tuna-panel ${side}`}>
-          <div className="tuna-tab-bar" ref={tabBarRef}>
+          <div
+            className="tuna-tab-bar"
+            ref={tabBarRef}
+            onPointerMove={handleTabBarPointerMove}
+            onPointerLeave={() => setHoveredPanelTab(null)}
+          >
             <div className="tuna-tab-pill" ref={tabPillRef} />
             <button className={`tuna-tab${panelTab === "elements" ? " active" : ""}`} onClick={() => setPanelTab("elements")}>Elements</button>
             <button className={`tuna-tab${panelTab === "design" ? " active" : ""}`} onClick={() => setPanelTab("design")}>Design</button>
@@ -4049,6 +4082,7 @@ function TunaInner(props: TunaConfig) {
                 visible={manifestCheckedRef.current && !manifestLoadedRef.current && !manifestBannerDismissed}
                 title="Unlock your design system"
                 body="Apply your project's actual tokens, color palettes, and component variants directly."
+                tone="brand"
                 copyLabel="Copy instructions"
                 copiedLabel="Paste in your AI agent"
                 copyText={MANIFEST_PROMPT_TEXT}
@@ -4065,6 +4099,7 @@ function TunaInner(props: TunaConfig) {
                 visible={!!selectedElement.reactProps && !!manifest && !("components" in manifest) && !manifestBannerDismissed}
                 title="Know your components"
                 body="See every variant, size, and state your components support and switch between them."
+                tone="brand"
                 copyLabel="Copy instructions"
                 copiedLabel="Paste in your AI agent"
                 copyText={MANIFEST_COMPONENTS_PROMPT}

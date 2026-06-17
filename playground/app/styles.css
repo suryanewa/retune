@@ -1990,7 +1990,7 @@ html[data-theme="dark"] .code-card {
 
 .code-card .copy-command.is-copied,
 .code-card .copy-command.is-copied:hover {
-  color: var(--code-quote);
+  color: var(--brand);
 }
 
 .setup-steps {

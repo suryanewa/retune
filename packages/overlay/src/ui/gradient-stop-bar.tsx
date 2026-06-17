@@ -4,7 +4,7 @@
  * - Displays the gradient as a horizontal bar
  * - Stop indicators sit above the bar with carets pointing down
  * - Drag stops to reposition, click bar to add a new stop
- * - Selected stop indicator is highlighted blue
+ * - Selected stop indicator is highlighted with the accent color
  */
 
 import { useCallback, useRef } from "react";

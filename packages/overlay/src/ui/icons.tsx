@@ -4,6 +4,7 @@
  */
 
 interface P { size?: number }
+interface StrokeP extends P { strokeWidth?: number }
 
 function I({ size = 24, children }: P & { children: React.ReactNode }) {
   return (
@@ -211,26 +212,26 @@ export function IconStepBack({ size }: P) {
   return <I size={size}><path d="M18 5L10 12L18 19V5Z" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round"/><path d="M6 5V19" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"/></I>;
 }
 
-export function IconCrossMedium({ size }: P) {
-  return <I size={size}><path d="M6.75 6.75L17.25 17.25M17.25 6.75L6.75 17.25" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round"/></I>;
+export function IconCrossMedium({ size, strokeWidth = 1.7 }: StrokeP) {
+  return <I size={size}><path d="M6.75 6.75L17.25 17.25M17.25 6.75L6.75 17.25" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round"/></I>;
 }
 
-export function IconArrowRotateClockwise({ size }: P) {
-  return <I size={size}><path d="M3 12A9 9 0 1 0 6.05 5.25L3 8.25" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/><path d="M3 3.75V8.25H7.5" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/></I>;
+export function IconArrowRotateClockwise({ size, strokeWidth = 1.5 }: StrokeP) {
+  return <I size={size}><path d="M3 12A9 9 0 1 0 6.05 5.25L3 8.25" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"/><path d="M3 3.75V8.25H7.5" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"/></I>;
 }
 
 export function IconCheckCircle2({ size }: P) {
   return <I size={size}><path d="M21 11.08V12C20.9988 14.1564 20.3005 16.2547 19.0093 17.9818C17.7182 19.709 15.9033 20.9725 13.8354 21.5839C11.7674 22.1953 9.55726 22.1219 7.53447 21.3746C5.51168 20.6273 3.78465 19.2461 2.61096 17.4371C1.43727 15.628 0.879791 13.4881 1.02168 11.3363C1.16356 9.18455 1.99721 7.13631 3.39828 5.49706C4.79935 3.85781 6.69279 2.71537 8.79619 2.24013C10.8996 1.7649 13.1003 1.98232 15.07 2.86" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/><path d="M21 4L12 13.01L9.3 10.31" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/></I>;
 }
 
-export function IconSettingsGear2({ size }: P) {
-  return <I size={size}><path d="M12.22 2H11.78C10.68 2 9.78 2.9 9.78 4V4.18C9.78 4.9 9.4 5.57 8.78 5.93L8.35 6.18C7.73 6.54 6.97 6.54 6.35 6.18L6.2 6.1C5.25 5.55 4.03 5.88 3.48 6.83L3.25 7.22C2.7 8.17 3.03 9.39 3.98 9.94L4.13 10.03C4.75 10.39 5.13 11.05 5.13 11.77V12.27C5.13 12.99 4.75 13.65 4.13 14.01L3.98 14.1C3.03 14.65 2.7 15.87 3.25 16.82L3.48 17.21C4.03 18.16 5.25 18.49 6.2 17.94L6.35 17.86C6.97 17.5 7.73 17.5 8.35 17.86L8.78 18.11C9.4 18.47 9.78 19.14 9.78 19.86V20C9.78 21.1 10.68 22 11.78 22H12.22C13.32 22 14.22 21.1 14.22 20V19.82C14.22 19.1 14.6 18.43 15.22 18.07L15.65 17.82C16.27 17.46 17.03 17.46 17.65 17.82L17.8 17.9C18.75 18.45 19.97 18.12 20.52 17.17L20.75 16.78C21.3 15.83 20.97 14.61 20.02 14.06L19.87 13.97C19.25 13.61 18.87 12.95 18.87 12.23V11.73C18.87 11.01 19.25 10.35 19.87 9.99L20.02 9.9C20.97 9.35 21.3 8.13 20.75 7.18L20.52 6.79C19.97 5.84 18.75 5.51 17.8 6.06L17.65 6.14C17.03 6.5 16.27 6.5 15.65 6.14L15.22 5.89C14.6 5.53 14.22 4.86 14.22 4.14V4C14.22 2.9 13.32 2 12.22 2Z" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={1.5}/></I>;
+export function IconSettingsGear2({ size, strokeWidth = 1.5 }: StrokeP) {
+  return <I size={size}><path d="M12.22 2H11.78C10.68 2 9.78 2.9 9.78 4V4.18C9.78 4.9 9.4 5.57 8.78 5.93L8.35 6.18C7.73 6.54 6.97 6.54 6.35 6.18L6.2 6.1C5.25 5.55 4.03 5.88 3.48 6.83L3.25 7.22C2.7 8.17 3.03 9.39 3.98 9.94L4.13 10.03C4.75 10.39 5.13 11.05 5.13 11.77V12.27C5.13 12.99 4.75 13.65 4.13 14.01L3.98 14.1C3.03 14.65 2.7 15.87 3.25 16.82L3.48 17.21C4.03 18.16 5.25 18.49 6.2 17.94L6.35 17.86C6.97 17.5 7.73 17.5 8.35 17.86L8.78 18.11C9.4 18.47 9.78 19.14 9.78 19.86V20C9.78 21.1 10.68 22 11.78 22H12.22C13.32 22 14.22 21.1 14.22 20V19.82C14.22 19.1 14.6 18.43 15.22 18.07L15.65 17.82C16.27 17.46 17.03 17.46 17.65 17.82L17.8 17.9C18.75 18.45 19.97 18.12 20.52 17.17L20.75 16.78C21.3 15.83 20.97 14.61 20.02 14.06L19.87 13.97C19.25 13.61 18.87 12.95 18.87 12.23V11.73C18.87 11.01 19.25 10.35 19.87 9.99L20.02 9.9C20.97 9.35 21.3 8.13 20.75 7.18L20.52 6.79C19.97 5.84 18.75 5.51 17.8 6.06L17.65 6.14C17.03 6.5 16.27 6.5 15.65 6.14L15.22 5.89C14.6 5.53 14.22 4.86 14.22 4.14V4C14.22 2.9 13.32 2 12.22 2Z" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={strokeWidth}/></I>;
 }
 
-export function IconCursor1({ size }: P) {
-  return <I size={size}><path d="M3.45158 4.72779L9.06387 20.5551C9.36964 21.4174 10.577 21.4503 10.9293 20.6059L13.6196 14.157C13.721 13.9138 13.9143 13.7205 14.1575 13.6191L20.6064 10.9288C21.4508 10.5765 21.4179 9.36915 20.5556 9.06338L4.72828 3.45109C3.93501 3.1698 3.17029 3.93452 3.45158 4.72779Z" stroke="currentColor" strokeWidth={1.5} strokeLinejoin="round"/></I>;
+export function IconCursor1({ size, strokeWidth = 1.5 }: StrokeP) {
+  return <I size={size}><path d="M3.45158 4.72779L9.06387 20.5551C9.36964 21.4174 10.577 21.4503 10.9293 20.6059L13.6196 14.157C13.721 13.9138 13.9143 13.7205 14.1575 13.6191L20.6064 10.9288C21.4508 10.5765 21.4179 9.36915 20.5556 9.06338L4.72828 3.45109C3.93501 3.1698 3.17029 3.93452 3.45158 4.72779Z" stroke="currentColor" strokeWidth={strokeWidth} strokeLinejoin="round"/></I>;
 }
 
-export function IconPencil({ size }: P) {
-  return <I size={size}><path d="M18.5 3.5L20.5 5.5C21.05 6.05 21.05 6.95 20.5 7.5L8 20L3.75 20.25L4 16L16.5 3.5C17.05 2.95 17.95 2.95 18.5 3.5Z" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/><path d="M15 5L19 9" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round"/></I>;
+export function IconPencil({ size, strokeWidth = 1.5 }: StrokeP) {
+  return <I size={size}><path d="M18.5 3.5L20.5 5.5C21.05 6.05 21.05 6.95 20.5 7.5L8 20L3.75 20.25L4 16L16.5 3.5C17.05 2.95 17.95 2.95 18.5 3.5Z" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"/><path d="M15 5L19 9" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round"/></I>;
 }
