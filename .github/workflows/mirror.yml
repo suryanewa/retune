@@ -14,7 +14,7 @@ concurrency:
 jobs:
   mirror:
     runs-on: ubuntu-latest
-    if: github.repository == 'suryanewa/retune' || github.repository == 'suryanewa/tuna'
+    if: (github.repository == 'suryanewa/retune' || github.repository == 'suryanewa/tuna') && !github.event.deleted
     steps:
       - uses: actions/checkout@v4
         with:
