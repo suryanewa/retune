@@ -3690,7 +3690,7 @@ function TunaInner(props: TunaConfig) {
     pickerRef.current?.setChromeLayout(layout);
   }, []);
 
-  // Expose global API for external agents (MCP, Claude Code, Cursor, etc.)
+  // Expose global API for external agents through MCP.
   useEffect(() => {
     const api = {
       getChanges: () => trackerRef.current?.getPendingChanges() ?? [],
@@ -4027,7 +4027,7 @@ function TunaInner(props: TunaConfig) {
               body=""
               copyLabel="Copy update instructions"
               copiedLabel="Paste in your AI agent to update"
-              copyText="Update Tuna to the latest version by running `npm install @suryanewa/tuna@latest` and `npx @suryanewa/tuna setup`. After updating, I'll need to restart Claude Code so the new MCP server and skill take effect."
+              copyText="Update Tuna to the latest version by running `npm install @suryanewa/tuna@latest` and `npx @suryanewa/tuna setup`. After updating, restart your AI coding tool so the new MCP server and skill take effect."
               revertAfter={3000}
               onDismiss={() => setUpdateDismissed(true)}
             />

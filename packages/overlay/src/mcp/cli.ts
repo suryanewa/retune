@@ -29,6 +29,7 @@ function syncSkill() {
   if (!existsSync(bundledPath)) return;
 
   const targets = [
+    join(homedir(), ".agents", "skills", "tuna-visual-changes", "SKILL.md"),
     join(homedir(), ".claude", "skills", "tuna-visual-changes", "SKILL.md"),
     join(homedir(), ".cursor", "skills", "tuna-visual-changes", "SKILL.md"),
   ];
@@ -48,6 +49,44 @@ function syncSkill() {
       // Permission error or similar — skip silently
     }
   }
+}
+
+function parseSetupArgs(args: string[]) {
+  const tools = new Set<"codex" | "claude-code" | "cursor">();
+  let dryRun = false;
+
+  for (const arg of args) {
+    switch (arg) {
+      case "--codex":
+        tools.add("codex");
+        break;
+      case "--claude":
+      case "--claude-code":
+        tools.add("claude-code");
+        break;
+      case "--cursor":
+        tools.add("cursor");
+        break;
+      case "--all":
+        tools.add("codex");
+        tools.add("claude-code");
+        tools.add("cursor");
+        break;
+      case "--dry-run":
+        dryRun = true;
+        break;
+      default:
+        if (arg.startsWith("-")) {
+          console.error(`[Tuna MCP] Unknown setup option: ${arg}`);
+          process.exit(1);
+        }
+    }
+  }
+
+  return {
+    dryRun,
+    tools: tools.size > 0 ? Array.from(tools) : undefined,
+  };
 }
 
 async function startServer() {
@@ -84,7 +123,7 @@ async function main() {
 
   if (command === "setup") {
     const { setup } = await import("./setup.js");
-    await setup();
+    await setup(parseSetupArgs(process.argv.slice(3)));
     return;
   }
 

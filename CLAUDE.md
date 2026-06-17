@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An npm package that provides a visual overlay for dev mode. Users activate it, enter "edit mode", select DOM elements on their running app, tweak properties visually (like devtools but intuitive), and changes get sent to AI coding tools (Claude Code, Cursor, etc.) to persist as actual code changes.
+An npm package that provides a visual overlay for dev mode. Users activate it, enter "edit mode", select DOM elements on their running app, tweak properties visually (like devtools but intuitive), and changes get sent to AI coding tools (Codex, Claude Code, Cursor, etc.) to persist as actual code changes.
 
 **Mental model:** Visual devtools that persists changes to source code via AI agents.
 
@@ -21,7 +21,7 @@ This tool merges direct visual manipulation (Dialkit) with automatic AI agent in
 - **Primary use case:** Dev mode — fixing visual inconsistencies and bugs
 - **Live preview:** Changes show immediately in the browser (like devtools), then get sent to AI
 - **Output:** Structured diff of before/after values + element identification context
-- **AI integration:** MCP server (for Claude Code, Cursor) + copy-to-clipboard fallback
+- **AI integration:** MCP server (for Codex, Claude Code, Cursor) + copy-to-clipboard fallback
 
 ## Element Identification (Layered)
 

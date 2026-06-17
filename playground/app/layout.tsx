@@ -40,6 +40,7 @@ export const metadata: Metadata = {
     "visual devtools",
     "AI coding",
     "CSS editor",
+    "Codex",
     "Claude Code",
     "Cursor",
     "MCP",

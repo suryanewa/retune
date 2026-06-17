@@ -176,11 +176,27 @@ Auto-configure MCP, install the AI skill, and extract design tokens:
 npx @suryanewa/tuna setup
 ```
 
-This detects Claude Code and Cursor, configures the MCP server, installs the skill, and generates a partial manifest with your project's design tokens from CSS files. The output prompts your AI agent to complete the manifest with component definitions.
+This detects Codex, Claude Code, and Cursor, configures the MCP server, installs the skill, and generates a partial manifest with your project's design tokens from CSS files. The output prompts your AI agent to complete the manifest with component definitions.
+
+To target Codex explicitly, run:
+
+```bash
+npx @suryanewa/tuna setup --codex
+```
+
+Codex setup writes Tuna to `$CODEX_HOME/config.toml` when `CODEX_HOME` is set, otherwise `~/.codex/config.toml`, and installs the Tuna skill in `~/.agents/skills/tuna-visual-changes`.
 
 ## AI Integration (MCP Server)
 
-Tuna includes a built-in MCP server. Configure your AI tool to use it:
+Tuna includes a built-in MCP server. For Codex, `setup` writes this to `config.toml`:
+
+```toml
+[mcp_servers.tuna]
+command = "npx"
+args = ["-y", "@suryanewa/tuna"]
+```
+
+For Claude Code, Cursor, and other JSON-based MCP clients, use:
 
 ```json
 {
@@ -233,7 +249,7 @@ Tuna uses layered identification to help AI agents find elements in your code:
 
 - **Frameworks:** Next.js, Vite, Remix, Astro, SvelteKit
 - **Styling:** Tailwind CSS, CSS Modules, plain CSS, any utility-first framework
-- **AI tools:** Claude Code and Cursor via MCP, plus clipboard fallback for others
+- **AI tools:** Codex, Claude Code, and Cursor via MCP, plus clipboard fallback for others
 - **Viewport:** Desktop only (hidden below 768px)
 
 ## Tech Stack

@@ -2,12 +2,12 @@
 
 > The visual layer for vibe coding.
 
-Tuna is a browser overlay for developers that lets you visually edit any element in your running web app — spacing, colors, typography, layout, and more — with instant preview. Your AI coding tool (Claude Code, Cursor) then writes the changes to source code via MCP (Model Context Protocol).
+Tuna is a browser overlay for developers that lets you visually edit any element in your running web app — spacing, colors, typography, layout, and more — with instant preview. Your AI coding tool, such as Codex, Claude Code, or Cursor, then writes the changes to source code via MCP (Model Context Protocol).
 
 ## How It Works
 
 1. Add `<Tuna />` to your app (development only, hidden in production)
-2. Run `npx @suryanewa/tuna setup` to configure your AI tool (auto-detects Claude Code and Cursor, installs MCP server and skill)
+2. Run `npx @suryanewa/tuna setup` to configure your AI tool (auto-detects Codex, Claude Code, and Cursor, installs MCP server and skill)
 3. Click any element to select it
 4. Tweak properties visually with instant live preview
 5. Your AI agent picks up structured diffs and applies them to source files
@@ -31,7 +31,7 @@ Tuna is a browser overlay for developers that lets you visually edit any element
 
 - Frameworks: Next.js, Vite, Remix
 - Styling: Tailwind CSS, CSS Modules, plain CSS, any atomic CSS framework
-- AI Tools: Claude Code, Cursor (via MCP)
+- AI Tools: Codex, Claude Code, Cursor (via MCP); clipboard fallback for others
 
 ## Installation
 

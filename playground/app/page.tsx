@@ -191,7 +191,7 @@ export default function Home() {
             </div>
             <p className="setup-note">
               Works with Next.js, Vite, and Remix. Tailwind, CSS Modules, and plain CSS.
-              Codex, Claude Code, Cursor, and any other MCP-compatible agents.
+              Codex, Claude Code, Cursor, plus manual MCP configuration for other compatible agents.
             </p>
           </SetupStep>
         </div>

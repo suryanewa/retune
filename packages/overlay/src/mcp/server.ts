@@ -1,7 +1,7 @@
 /**
  * MCP Server tool registration.
  *
- * Exposes tools that AI agents (Claude Code, Cursor) can call
+ * Exposes tools that AI agents can call
  * to inspect the current selection, get pending changes, etc.
  */
 

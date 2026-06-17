@@ -62,7 +62,7 @@ const FAQ_ITEMS: FaqItem[] = [
     id: "ai-integration",
     question: "How does AI integration work?",
     answer:
-      "Run npx @suryanewa/tuna setup to install the MCP server and skill for Claude Code or Cursor. Tuna can also copy structured output to the clipboard if you prefer a manual handoff.",
+      "Run npx @suryanewa/tuna setup to install the MCP server and skill for Codex, Claude Code, or Cursor. Tuna can also copy structured output to the clipboard if you prefer a manual handoff.",
   },
   {
     id: "production",
