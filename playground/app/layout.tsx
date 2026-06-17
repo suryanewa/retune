@@ -5,15 +5,15 @@ import { Tuna } from "@suryanewa/tuna";
 export const metadata: Metadata = {
   title: "Tuna",
   description:
-    "Select any element in your running app, tweak it visually, and let your AI coding tool write the changes. The visual layer for vibe coding.",
+    "Visual edits your agents can ship. Tuna lets you select UI elements, fine-tune their visual details, and instruct your agents directly from your browser. Make changes visually and ship them frictionlessly.",
   metadataBase: new URL("https://tuna.dev"),
   alternates: {
     canonical: "/",
   },
   openGraph: {
-    title: "Tuna - The visual layer for vibe coding",
+    title: "Tuna - Visual edits your agents can ship",
     description:
-      "Select any element in your running app, tweak it visually, and let your AI coding tool write the changes to source.",
+      "Visual edits your agents can ship. Tuna lets you select UI elements, fine-tune their visual details, and instruct your agents directly from your browser. Make changes visually and ship them frictionlessly.",
     siteName: "Tuna",
     url: "https://tuna.dev",
     type: "website",
@@ -28,9 +28,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Tuna - The visual layer for vibe coding",
+    title: "Tuna - Visual edits your agents can ship",
     description:
-      "Select any element in your running app, tweak it visually, and let your AI coding tool write the changes to source.",
+      "Visual edits your agents can ship. Tuna lets you select UI elements, fine-tune their visual details, and instruct your agents directly from your browser. Make changes visually and ship them frictionlessly.",
     images: ["/opengraph-image.png"],
     creator: "@___sujan",
   },
