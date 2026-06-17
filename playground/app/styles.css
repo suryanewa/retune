@@ -176,6 +176,7 @@ code {
 }
 
 .brand h1 {
+  color: var(--brand);
   font-size: inherit;
   line-height: inherit;
   letter-spacing: -0.18px;
