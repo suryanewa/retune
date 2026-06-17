@@ -13,6 +13,7 @@ export interface TooltipProps {
   side?: "top" | "bottom" | "left" | "right";
   sideOffset?: number;
   delay?: number;
+  onPointerEnter?: () => void;
   children: ReactNode;
 }
 
@@ -22,6 +23,7 @@ export function Tooltip({
   side = "bottom",
   sideOffset = 6,
   delay = 400,
+  onPointerEnter,
   children,
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
@@ -111,7 +113,10 @@ export function Tooltip({
     <div
       ref={triggerRef}
       className="tuna-tooltip-trigger"
-      onPointerEnter={show}
+      onPointerEnter={() => {
+        onPointerEnter?.();
+        show();
+      }}
       onPointerLeave={hide}
       onPointerDown={hide}
     >

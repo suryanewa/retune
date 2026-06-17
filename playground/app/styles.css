@@ -635,10 +635,10 @@ code {
   border-radius: var(--radius-large);
   background: transparent;
   transition:
-    background-color 180ms var(--bento-ease-out),
-    border-color 180ms var(--bento-ease-out),
-    box-shadow 180ms var(--bento-ease-out),
-    transform 180ms var(--bento-ease-out);
+    background-color 240ms var(--bento-ease-out),
+    border-color 240ms var(--bento-ease-out),
+    box-shadow 240ms var(--bento-ease-out),
+    transform 240ms var(--bento-ease-out);
 }
 
 html[data-theme="dark"] .bento-cell {
@@ -759,7 +759,7 @@ html[data-theme="dark"] .bento-cell {
   align-items: center;
   gap: 6px;
   color: var(--fg);
-  transition: color 180ms var(--bento-ease-out);
+  transition: color 240ms var(--bento-ease-out);
 }
 
 html[data-theme="dark"] .bento-cell-label {
@@ -771,7 +771,7 @@ html[data-theme="dark"] .bento-cell-label {
   width: 14px;
   height: 14px;
   color: currentColor;
-  transition: color 180ms var(--bento-ease-out);
+  transition: color 240ms var(--bento-ease-out);
 }
 
 .bento-cell-icon svg {
@@ -803,8 +803,8 @@ html[data-theme="dark"] .bento-cell-label {
   background-image: linear-gradient(135deg, rgb(250 250 250 / 72%), rgb(244 244 244 / 48%));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
   transition:
-    background-color 220ms var(--bento-ease-out),
-    border-color 180ms var(--bento-ease-out);
+    background-color 293ms var(--bento-ease-out),
+    border-color 240ms var(--bento-ease-out);
 }
 
 html[data-theme="dark"] .bento-cell-demo {
@@ -918,7 +918,7 @@ html[data-theme="dark"] .bento-cell-copy {
   gap: 3px;
   overflow: hidden;
   color: var(--bento-illustration-muted);
-  transition: color 180ms var(--bento-ease-out);
+  transition: color 240ms var(--bento-ease-out);
 }
 
 .speak-waveform i {
@@ -927,7 +927,7 @@ html[data-theme="dark"] .bento-cell-copy {
   --wave-mid: 0.42;
   --wave-peak: 0.78;
   --wave-secondary: calc(var(--wave-peak) * 0.72);
-  --wave-duration: 720ms;
+  --wave-duration: 960ms;
   --wave-delay: 0ms;
 
   display: block;
@@ -945,38 +945,38 @@ html[data-theme="dark"] .bento-cell-copy {
   will-change: transform;
 }
 
-.speak-waveform i:nth-child(1) { --wave-rest: 0.1; --wave-low: 0.18; --wave-mid: 0.26; --wave-peak: 0.38; --wave-secondary: 0.3; --wave-duration: 820ms; --wave-delay: -120ms; }
-.speak-waveform i:nth-child(2) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.42; --wave-peak: 0.58; --wave-secondary: 0.5; --wave-duration: 690ms; --wave-delay: -420ms; }
-.speak-waveform i:nth-child(3) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.34; --wave-peak: 0.74; --wave-secondary: 0.44; --wave-duration: 760ms; --wave-delay: -40ms; }
-.speak-waveform i:nth-child(4) { --wave-rest: 0.24; --wave-low: 0.46; --wave-mid: 0.68; --wave-peak: 0.92; --wave-secondary: 0.78; --wave-duration: 640ms; --wave-delay: -610ms; }
-.speak-waveform i:nth-child(5) { --wave-rest: 0.14; --wave-low: 0.34; --wave-mid: 0.52; --wave-peak: 0.86; --wave-secondary: 0.56; --wave-duration: 900ms; --wave-delay: -260ms; }
-.speak-waveform i:nth-child(6) { --wave-rest: 0.3; --wave-low: 0.56; --wave-mid: 0.78; --wave-peak: 1; --wave-secondary: 0.84; --wave-duration: 710ms; --wave-delay: -690ms; }
-.speak-waveform i:nth-child(7) { --wave-rest: 0.18; --wave-low: 0.38; --wave-mid: 0.62; --wave-peak: 0.82; --wave-secondary: 0.7; --wave-duration: 790ms; --wave-delay: -180ms; }
-.speak-waveform i:nth-child(8) { --wave-rest: 0.36; --wave-low: 0.64; --wave-mid: 0.84; --wave-peak: 0.96; --wave-secondary: 0.9; --wave-duration: 620ms; --wave-delay: -500ms; }
-.speak-waveform i:nth-child(9) { --wave-rest: 0.12; --wave-low: 0.3; --wave-mid: 0.58; --wave-peak: 0.9; --wave-secondary: 0.48; --wave-duration: 850ms; --wave-delay: -340ms; }
-.speak-waveform i:nth-child(10) { --wave-rest: 0.26; --wave-low: 0.48; --wave-mid: 0.7; --wave-peak: 0.98; --wave-secondary: 0.76; --wave-duration: 700ms; --wave-delay: -70ms; }
-.speak-waveform i:nth-child(11) { --wave-rest: 0.2; --wave-low: 0.42; --wave-mid: 0.66; --wave-peak: 0.88; --wave-secondary: 0.58; --wave-duration: 940ms; --wave-delay: -780ms; }
-.speak-waveform i:nth-child(12) { --wave-rest: 0.4; --wave-low: 0.7; --wave-mid: 0.9; --wave-peak: 1; --wave-secondary: 0.86; --wave-duration: 660ms; --wave-delay: -230ms; }
-.speak-waveform i:nth-child(13) { --wave-rest: 0.18; --wave-low: 0.36; --wave-mid: 0.5; --wave-peak: 0.76; --wave-secondary: 0.64; --wave-duration: 810ms; --wave-delay: -560ms; }
-.speak-waveform i:nth-child(14) { --wave-rest: 0.28; --wave-low: 0.52; --wave-mid: 0.72; --wave-peak: 0.94; --wave-secondary: 0.82; --wave-duration: 735ms; --wave-delay: -130ms; }
-.speak-waveform i:nth-child(15) { --wave-rest: 0.1; --wave-low: 0.24; --wave-mid: 0.38; --wave-peak: 0.62; --wave-secondary: 0.42; --wave-duration: 880ms; --wave-delay: -470ms; }
-.speak-waveform i:nth-child(16) { --wave-rest: 0.22; --wave-low: 0.44; --wave-mid: 0.6; --wave-peak: 0.8; --wave-secondary: 0.7; --wave-duration: 680ms; --wave-delay: -20ms; }
-.speak-waveform i:nth-child(17) { --wave-rest: 0.14; --wave-low: 0.32; --wave-mid: 0.48; --wave-peak: 0.7; --wave-secondary: 0.38; --wave-duration: 920ms; --wave-delay: -640ms; }
-.speak-waveform i:nth-child(18) { --wave-rest: 0.34; --wave-low: 0.62; --wave-mid: 0.82; --wave-peak: 0.98; --wave-secondary: 0.88; --wave-duration: 650ms; --wave-delay: -300ms; }
-.speak-waveform i:nth-child(19) { --wave-rest: 0.2; --wave-low: 0.4; --wave-mid: 0.56; --wave-peak: 0.84; --wave-secondary: 0.72; --wave-duration: 760ms; --wave-delay: -740ms; }
-.speak-waveform i:nth-child(20) { --wave-rest: 0.08; --wave-low: 0.18; --wave-mid: 0.32; --wave-peak: 0.52; --wave-secondary: 0.34; --wave-duration: 840ms; --wave-delay: -190ms; }
-.speak-waveform i:nth-child(21) { --wave-rest: 0.24; --wave-low: 0.5; --wave-mid: 0.74; --wave-peak: 0.96; --wave-secondary: 0.8; --wave-duration: 705ms; --wave-delay: -520ms; }
-.speak-waveform i:nth-child(22) { --wave-rest: 0.16; --wave-low: 0.34; --wave-mid: 0.54; --wave-peak: 0.78; --wave-secondary: 0.46; --wave-duration: 890ms; --wave-delay: -90ms; }
-.speak-waveform i:nth-child(23) { --wave-rest: 0.32; --wave-low: 0.58; --wave-mid: 0.76; --wave-peak: 0.9; --wave-secondary: 0.84; --wave-duration: 630ms; --wave-delay: -390ms; }
-.speak-waveform i:nth-child(24) { --wave-rest: 0.12; --wave-low: 0.26; --wave-mid: 0.42; --wave-peak: 0.66; --wave-secondary: 0.54; --wave-duration: 780ms; --wave-delay: -670ms; }
-.speak-waveform i:nth-child(25) { --wave-rest: 0.38; --wave-low: 0.66; --wave-mid: 0.86; --wave-peak: 1; --wave-secondary: 0.92; --wave-duration: 675ms; --wave-delay: -160ms; }
-.speak-waveform i:nth-child(26) { --wave-rest: 0.22; --wave-low: 0.46; --wave-mid: 0.64; --wave-peak: 0.82; --wave-secondary: 0.62; --wave-duration: 860ms; --wave-delay: -580ms; }
-.speak-waveform i:nth-child(27) { --wave-rest: 0.1; --wave-low: 0.22; --wave-mid: 0.36; --wave-peak: 0.56; --wave-secondary: 0.28; --wave-duration: 740ms; --wave-delay: -240ms; }
-.speak-waveform i:nth-child(28) { --wave-rest: 0.26; --wave-low: 0.54; --wave-mid: 0.78; --wave-peak: 0.94; --wave-secondary: 0.74; --wave-duration: 910ms; --wave-delay: -820ms; }
-.speak-waveform i:nth-child(29) { --wave-rest: 0.14; --wave-low: 0.3; --wave-mid: 0.46; --wave-peak: 0.72; --wave-secondary: 0.5; --wave-duration: 690ms; --wave-delay: -360ms; }
-.speak-waveform i:nth-child(30) { --wave-rest: 0.2; --wave-low: 0.38; --wave-mid: 0.58; --wave-peak: 0.8; --wave-secondary: 0.66; --wave-duration: 820ms; --wave-delay: -110ms; }
-.speak-waveform i:nth-child(31) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.3; --wave-peak: 0.48; --wave-secondary: 0.36; --wave-duration: 760ms; --wave-delay: -600ms; }
-.speak-waveform i:nth-child(32) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.4; --wave-peak: 0.6; --wave-secondary: 0.44; --wave-duration: 930ms; --wave-delay: -280ms; }
+.speak-waveform i:nth-child(1) { --wave-rest: 0.1; --wave-low: 0.18; --wave-mid: 0.26; --wave-peak: 0.38; --wave-secondary: 0.3; --wave-duration: 1093ms; --wave-delay: -160ms; }
+.speak-waveform i:nth-child(2) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.42; --wave-peak: 0.58; --wave-secondary: 0.5; --wave-duration: 920ms; --wave-delay: -560ms; }
+.speak-waveform i:nth-child(3) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.34; --wave-peak: 0.74; --wave-secondary: 0.44; --wave-duration: 1013ms; --wave-delay: -53ms; }
+.speak-waveform i:nth-child(4) { --wave-rest: 0.24; --wave-low: 0.46; --wave-mid: 0.68; --wave-peak: 0.92; --wave-secondary: 0.78; --wave-duration: 853ms; --wave-delay: -813ms; }
+.speak-waveform i:nth-child(5) { --wave-rest: 0.14; --wave-low: 0.34; --wave-mid: 0.52; --wave-peak: 0.86; --wave-secondary: 0.56; --wave-duration: 1200ms; --wave-delay: -347ms; }
+.speak-waveform i:nth-child(6) { --wave-rest: 0.3; --wave-low: 0.56; --wave-mid: 0.78; --wave-peak: 1; --wave-secondary: 0.84; --wave-duration: 947ms; --wave-delay: -920ms; }
+.speak-waveform i:nth-child(7) { --wave-rest: 0.18; --wave-low: 0.38; --wave-mid: 0.62; --wave-peak: 0.82; --wave-secondary: 0.7; --wave-duration: 1053ms; --wave-delay: -240ms; }
+.speak-waveform i:nth-child(8) { --wave-rest: 0.36; --wave-low: 0.64; --wave-mid: 0.84; --wave-peak: 0.96; --wave-secondary: 0.9; --wave-duration: 827ms; --wave-delay: -667ms; }
+.speak-waveform i:nth-child(9) { --wave-rest: 0.12; --wave-low: 0.3; --wave-mid: 0.58; --wave-peak: 0.9; --wave-secondary: 0.48; --wave-duration: 1133ms; --wave-delay: -453ms; }
+.speak-waveform i:nth-child(10) { --wave-rest: 0.26; --wave-low: 0.48; --wave-mid: 0.7; --wave-peak: 0.98; --wave-secondary: 0.76; --wave-duration: 933ms; --wave-delay: -93ms; }
+.speak-waveform i:nth-child(11) { --wave-rest: 0.2; --wave-low: 0.42; --wave-mid: 0.66; --wave-peak: 0.88; --wave-secondary: 0.58; --wave-duration: 1253ms; --wave-delay: -1040ms; }
+.speak-waveform i:nth-child(12) { --wave-rest: 0.4; --wave-low: 0.7; --wave-mid: 0.9; --wave-peak: 1; --wave-secondary: 0.86; --wave-duration: 880ms; --wave-delay: -307ms; }
+.speak-waveform i:nth-child(13) { --wave-rest: 0.18; --wave-low: 0.36; --wave-mid: 0.5; --wave-peak: 0.76; --wave-secondary: 0.64; --wave-duration: 1080ms; --wave-delay: -747ms; }
+.speak-waveform i:nth-child(14) { --wave-rest: 0.28; --wave-low: 0.52; --wave-mid: 0.72; --wave-peak: 0.94; --wave-secondary: 0.82; --wave-duration: 980ms; --wave-delay: -173ms; }
+.speak-waveform i:nth-child(15) { --wave-rest: 0.1; --wave-low: 0.24; --wave-mid: 0.38; --wave-peak: 0.62; --wave-secondary: 0.42; --wave-duration: 1173ms; --wave-delay: -627ms; }
+.speak-waveform i:nth-child(16) { --wave-rest: 0.22; --wave-low: 0.44; --wave-mid: 0.6; --wave-peak: 0.8; --wave-secondary: 0.7; --wave-duration: 907ms; --wave-delay: -27ms; }
+.speak-waveform i:nth-child(17) { --wave-rest: 0.14; --wave-low: 0.32; --wave-mid: 0.48; --wave-peak: 0.7; --wave-secondary: 0.38; --wave-duration: 1227ms; --wave-delay: -853ms; }
+.speak-waveform i:nth-child(18) { --wave-rest: 0.34; --wave-low: 0.62; --wave-mid: 0.82; --wave-peak: 0.98; --wave-secondary: 0.88; --wave-duration: 867ms; --wave-delay: -400ms; }
+.speak-waveform i:nth-child(19) { --wave-rest: 0.2; --wave-low: 0.4; --wave-mid: 0.56; --wave-peak: 0.84; --wave-secondary: 0.72; --wave-duration: 1013ms; --wave-delay: -987ms; }
+.speak-waveform i:nth-child(20) { --wave-rest: 0.08; --wave-low: 0.18; --wave-mid: 0.32; --wave-peak: 0.52; --wave-secondary: 0.34; --wave-duration: 1120ms; --wave-delay: -253ms; }
+.speak-waveform i:nth-child(21) { --wave-rest: 0.24; --wave-low: 0.5; --wave-mid: 0.74; --wave-peak: 0.96; --wave-secondary: 0.8; --wave-duration: 940ms; --wave-delay: -693ms; }
+.speak-waveform i:nth-child(22) { --wave-rest: 0.16; --wave-low: 0.34; --wave-mid: 0.54; --wave-peak: 0.78; --wave-secondary: 0.46; --wave-duration: 1187ms; --wave-delay: -120ms; }
+.speak-waveform i:nth-child(23) { --wave-rest: 0.32; --wave-low: 0.58; --wave-mid: 0.76; --wave-peak: 0.9; --wave-secondary: 0.84; --wave-duration: 840ms; --wave-delay: -520ms; }
+.speak-waveform i:nth-child(24) { --wave-rest: 0.12; --wave-low: 0.26; --wave-mid: 0.42; --wave-peak: 0.66; --wave-secondary: 0.54; --wave-duration: 1040ms; --wave-delay: -893ms; }
+.speak-waveform i:nth-child(25) { --wave-rest: 0.38; --wave-low: 0.66; --wave-mid: 0.86; --wave-peak: 1; --wave-secondary: 0.92; --wave-duration: 900ms; --wave-delay: -213ms; }
+.speak-waveform i:nth-child(26) { --wave-rest: 0.22; --wave-low: 0.46; --wave-mid: 0.64; --wave-peak: 0.82; --wave-secondary: 0.62; --wave-duration: 1147ms; --wave-delay: -773ms; }
+.speak-waveform i:nth-child(27) { --wave-rest: 0.1; --wave-low: 0.22; --wave-mid: 0.36; --wave-peak: 0.56; --wave-secondary: 0.28; --wave-duration: 987ms; --wave-delay: -320ms; }
+.speak-waveform i:nth-child(28) { --wave-rest: 0.26; --wave-low: 0.54; --wave-mid: 0.78; --wave-peak: 0.94; --wave-secondary: 0.74; --wave-duration: 1213ms; --wave-delay: -1093ms; }
+.speak-waveform i:nth-child(29) { --wave-rest: 0.14; --wave-low: 0.3; --wave-mid: 0.46; --wave-peak: 0.72; --wave-secondary: 0.5; --wave-duration: 920ms; --wave-delay: -480ms; }
+.speak-waveform i:nth-child(30) { --wave-rest: 0.2; --wave-low: 0.38; --wave-mid: 0.58; --wave-peak: 0.8; --wave-secondary: 0.66; --wave-duration: 1093ms; --wave-delay: -147ms; }
+.speak-waveform i:nth-child(31) { --wave-rest: 0.08; --wave-low: 0.2; --wave-mid: 0.3; --wave-peak: 0.48; --wave-secondary: 0.36; --wave-duration: 1013ms; --wave-delay: -800ms; }
+.speak-waveform i:nth-child(32) { --wave-rest: 0.16; --wave-low: 0.28; --wave-mid: 0.4; --wave-peak: 0.6; --wave-secondary: 0.44; --wave-duration: 1240ms; --wave-delay: -373ms; }
 
 /* Select card */
 .select-ui {
@@ -1003,7 +1003,7 @@ html[data-theme="dark"] .bento-cell-copy {
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 6px 16px rgb(31 31 31 / 12%);
   transform: translateZ(0);
-  transition: background-color 180ms var(--bento-ease-out);
+  transition: background-color 240ms var(--bento-ease-out);
 }
 
 .select-box {
@@ -1016,8 +1016,8 @@ html[data-theme="dark"] .bento-cell-copy {
   opacity: 0;
   transform: scale(0.98) translateZ(0);
   transition:
-    opacity 90ms var(--bento-ease-out),
-    transform 140ms var(--bento-ease-out);
+    opacity 120ms var(--bento-ease-out),
+    transform 187ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1062,8 +1062,8 @@ html[data-theme="dark"] .bento-cell-copy {
   opacity: 0;
   transform: translateY(4px) translateZ(0);
   transition:
-    opacity 180ms var(--bento-ease-out),
-    transform 220ms var(--bento-ease-out);
+    opacity 240ms var(--bento-ease-out),
+    transform 293ms var(--bento-ease-out);
 }
 
 .select-cursor {
@@ -1076,7 +1076,7 @@ html[data-theme="dark"] .bento-cell-copy {
   stroke: var(--bento-illustration-muted);
   stroke-width: 2.1;
   transform: translateZ(0);
-  transition: stroke 180ms var(--bento-ease-out);
+  transition: stroke 240ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1104,13 +1104,13 @@ html[data-theme="dark"] .bento-cell-copy {
 .draw-page-block-small {
   fill: var(--bento-illustration-muted);
   stroke: none;
-  transition: fill 180ms var(--bento-ease-out);
+  transition: fill 240ms var(--bento-ease-out);
 }
 
 .draw-fill {
   fill: var(--brand);
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity 213ms ease;
 }
 
 .draw-ink {
@@ -1131,7 +1131,7 @@ html[data-theme="dark"] .bento-cell-copy {
   position: absolute;
   z-index: 3;
   top: calc(55.4% - 19px);
-  left: calc(57% + 4px);
+  left: calc(57% + 2px);
   width: 22px;
   height: 22px;
   color: var(--bento-illustration-muted);
@@ -1140,7 +1140,7 @@ html[data-theme="dark"] .bento-cell-copy {
     drop-shadow(0 8px 14px rgb(31 31 31 / 14%));
   transform: rotate(-28deg) translateZ(0);
   transform-origin: 11.5% 88.5%;
-  transition: color 180ms var(--bento-ease-out);
+  transition: color 240ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1226,9 +1226,9 @@ html[data-theme="dark"] .bento-cell-copy {
   transform: scaleX(var(--tune-fill));
   transform-origin: left center;
   transition:
-    opacity 180ms var(--bento-ease-out),
-    background-color 220ms var(--bento-ease-out),
-    transform 260ms var(--bento-ease-in-out);
+    opacity 240ms var(--bento-ease-out),
+    background-color 293ms var(--bento-ease-out),
+    transform 347ms var(--bento-ease-in-out);
   will-change: transform;
 }
 
@@ -1244,9 +1244,9 @@ html[data-theme="dark"] .bento-cell-copy {
   box-shadow: 0 2px 8px rgb(31 31 31 / 16%);
   transform: translate(var(--tune-thumb), -50%) translateZ(0);
   transition:
-    box-shadow 180ms var(--bento-ease-out),
-    background-color 220ms var(--bento-ease-out),
-    transform 260ms var(--bento-ease-in-out);
+    box-shadow 240ms var(--bento-ease-out),
+    background-color 293ms var(--bento-ease-out),
+    transform 347ms var(--bento-ease-in-out);
   will-change: transform;
 }
 
@@ -1276,8 +1276,8 @@ html[data-theme="dark"] .bento-cell-copy {
     0 2px 8px rgb(31 31 31 / 6%),
     0 0 0 1px var(--border);
   transition:
-    transform 220ms var(--bento-ease-out),
-    box-shadow 220ms var(--bento-ease-out);
+    transform 293ms var(--bento-ease-out),
+    box-shadow 293ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1287,8 +1287,8 @@ html[data-theme="dark"] .bento-cell-copy {
   border-radius: 3px;
   background: var(--bento-illustration-muted);
   transition:
-    background-color 220ms var(--bento-ease-out),
-    transform 220ms var(--bento-ease-out);
+    background-color 293ms var(--bento-ease-out),
+    transform 293ms var(--bento-ease-out);
 }
 
 .handoff-code {
@@ -1308,7 +1308,7 @@ html[data-theme="dark"] .bento-cell-copy {
   stroke: var(--border);
   stroke-linecap: round;
   stroke-width: 2;
-  transition: stroke 220ms var(--bento-ease-out);
+  transition: stroke 293ms var(--bento-ease-out);
 }
 
 .handoff-path {
@@ -1318,7 +1318,7 @@ html[data-theme="dark"] .bento-cell-copy {
   border-radius: 999px;
   background: var(--border);
   overflow: hidden;
-  transition: background-color 220ms var(--bento-ease-out);
+  transition: background-color 293ms var(--bento-ease-out);
 }
 
 .handoff-packet {
@@ -1380,7 +1380,7 @@ html[data-theme="dark"] .bento-cell-copy {
     inset 0 1px 0 rgb(255 255 255 / 12%),
     0 6px 16px rgb(31 31 31 / 12%);
   transform: translateZ(0);
-  transition: background-color 180ms var(--bento-ease-out);
+  transition: background-color 240ms var(--bento-ease-out);
 }
 
 .comment-select-box {
@@ -1393,8 +1393,8 @@ html[data-theme="dark"] .bento-cell-copy {
   opacity: 0;
   transform: scale(0.98) translateZ(0);
   transition:
-    opacity 90ms var(--bento-ease-out),
-    transform 140ms var(--bento-ease-out);
+    opacity 120ms var(--bento-ease-out),
+    transform 187ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1438,7 +1438,7 @@ html[data-theme="dark"] .bento-cell-copy {
   color: var(--bento-illustration-muted);
   filter: drop-shadow(0 6px 12px rgb(31 31 31 / 12%));
   transform: translateZ(0);
-  transition: color 180ms var(--bento-ease-out);
+  transition: color 240ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1473,8 +1473,8 @@ html[data-theme="dark"] .bento-cell-copy {
   transform: translateY(8px) scale(0.61875) translateZ(0);
   transform-origin: 104px 40px;
   transition:
-    opacity 150ms var(--bento-ease-out),
-    transform 190ms var(--bento-ease-out);
+    opacity 200ms var(--bento-ease-out),
+    transform 253ms var(--bento-ease-out);
   will-change: transform;
 }
 
@@ -1715,42 +1715,42 @@ html[data-theme="dark"] .bento-cell-copy {
 
   .bento-select:hover .select-target {
     background: var(--brand);
-    transition-delay: 220ms;
+    transition-delay: 293ms;
   }
 
   .bento-select:hover .select-box {
     opacity: 1;
     transform: scale(1) translateZ(0);
-    transition-delay: 230ms;
+    transition-delay: 307ms;
   }
 
   .bento-select:hover .select-tooltip {
     background: var(--brand);
     opacity: 1;
     transform: translateY(0) translateZ(0);
-    transition-delay: 260ms;
+    transition-delay: 347ms;
   }
 
   .bento-select:hover .select-cursor {
     stroke: var(--fg);
-    animation: select-cursor-press 360ms var(--bento-ease-out) both;
+    animation: select-cursor-press 480ms var(--bento-ease-out) both;
   }
 
   .bento-draw:hover .draw-ink-line {
     opacity: 0.84;
     stroke-dashoffset: 0;
-    animation: bento-draw-line 260ms var(--bento-ease-in-out) both;
+    animation: bento-draw-line 347ms var(--bento-ease-in-out) both;
   }
 
   .bento-draw:hover .draw-fill {
     opacity: 0.14;
-    transition-delay: 240ms;
+    transition-delay: 320ms;
   }
 
   .bento-draw:hover .draw-pencil-icon {
     color: var(--fg);
     transform: translate(0, 0) rotate(-28deg) translateZ(0);
-    animation: bento-draw-pencil 260ms var(--bento-ease-in-out) both;
+    animation: bento-draw-pencil 347ms var(--bento-ease-in-out) both;
   }
 
   .bento-tune:hover .tune-track::before {
@@ -1767,34 +1767,34 @@ html[data-theme="dark"] .bento-cell-copy {
 
   .bento-comment:hover .comment-trigger {
     color: var(--fg);
-    animation: comment-trigger-press 360ms var(--bento-ease-out) both;
+    animation: comment-trigger-press 480ms var(--bento-ease-out) both;
   }
 
   .bento-comment:hover .comment-target {
     background: var(--brand);
-    transition-delay: 150ms;
+    transition-delay: 200ms;
   }
 
   .bento-comment:hover .comment-select-box {
     opacity: 1;
     transform: scale(1) translateZ(0);
-    transition-delay: 180ms;
+    transition-delay: 240ms;
   }
 
   .bento-comment:hover .comment-box {
     opacity: 1;
     transform: translateY(0) scale(var(--comment-pill-scale)) translateZ(0);
-    transition-delay: 170ms;
+    transition-delay: 227ms;
   }
 
   .bento-comment:hover .comment-typing-wrap {
-    animation: comment-type-width 900ms steps(19, end) 520ms both;
+    animation: comment-type-width 1200ms steps(19, end) 693ms both;
   }
 
   .bento-comment:hover .comment-caret {
     animation:
-      comment-caret-typing 900ms step-end 520ms both,
-      comment-caret-blink 720ms step-end 1420ms infinite;
+      comment-caret-typing 1200ms step-end 693ms both,
+      comment-caret-blink 960ms step-end 1893ms infinite;
   }
 
   .bento-handoff:hover .handoff-node {
@@ -1816,7 +1816,7 @@ html[data-theme="dark"] .bento-cell-copy {
   }
 
   .bento-handoff:hover .handoff-packet {
-    animation: handoff-packet-flow 1s var(--bento-ease-in-out) infinite;
+    animation: handoff-packet-flow 1.333s var(--bento-ease-in-out) infinite;
   }
 
 }

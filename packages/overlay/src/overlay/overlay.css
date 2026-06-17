@@ -438,6 +438,8 @@ input, textarea, [contenteditable] {
 
 /* Expanded inner container */
 .tuna-toolbar-expanded {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -446,6 +448,30 @@ input, textarea, [contenteditable] {
               opacity 0.15s cubic-bezier(0.23, 1, 0.32, 1),
               gap 0.2s cubic-bezier(0.23, 1, 0.32, 1);
   overflow: hidden;
+}
+
+.tuna-toolbar-mode-fill {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--tuna-surface-hover);
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+  transition:
+    transform 180ms cubic-bezier(0.645, 0.045, 0.355, 1),
+    opacity 90ms ease;
+}
+
+.tuna-toolbar-mode-fill.visible {
+  opacity: 1;
+}
+
+:host(.tuna-theme) .tuna-toolbar-mode-fill {
+  background: color-mix(in srgb, var(--tuna-brand) 14%, transparent);
 }
 
 /* When collapsed: expanded items hidden */
@@ -478,6 +504,7 @@ input, textarea, [contenteditable] {
   padding: 6px;
   flex-shrink: 0;
   position: relative;
+  z-index: 1;
   transition:
     background 0.12s ease,
     color 0.12s ease;
@@ -504,6 +531,21 @@ input, textarea, [contenteditable] {
 
 :host(.tuna-theme) .tuna-toolbar-btn.active:hover {
   background: color-mix(in srgb, var(--tuna-brand) 18%, transparent);
+  color: var(--tuna-brand);
+}
+
+.tuna-toolbar-mode-btn:hover,
+.tuna-toolbar-mode-btn.active,
+.tuna-toolbar-mode-btn.active:hover,
+:host(.tuna-theme) .tuna-toolbar-mode-btn:hover,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active:hover {
+  background: transparent;
+}
+
+:host(.tuna-theme) .tuna-toolbar-mode-btn:hover,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active:hover {
   color: var(--tuna-brand);
 }
 
@@ -4015,6 +4057,12 @@ input, textarea, [contenteditable] {
   background: color-mix(in srgb, var(--tuna-brand) 18%, transparent);
   color: var(--tuna-brand);
 }
+.tuna-toolbar-mode-btn.active,
+.tuna-toolbar-mode-btn.active:hover,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active,
+:host(.tuna-theme) .tuna-toolbar-mode-btn.active:hover {
+  background: transparent;
+}
 .tuna-toolbar-divider {
   width: 1px;
   height: 20px;
@@ -4090,6 +4138,7 @@ input, textarea, [contenteditable] {
   .tuna-logo-wrapper,
   .tuna-logo-fish-glow,
   .tuna-toolbar-expanded,
+  .tuna-toolbar-mode-fill,
   .tuna-toolbar-btn,
   .tuna-icon-swap-icon,
   .tuna-segmented-pill,

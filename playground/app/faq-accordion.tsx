@@ -29,22 +29,10 @@ const FAQ_ITEMS: FaqItem[] = [
       "Tuna keeps Retune's core visual editing overlay and extends it with multi-select workflows, sketch and comment annotations, voice dictation, richer element context, improved coding-agent handoff, a Chrome extension workspace, and refreshed packaging and playground docs.",
   },
   {
-    id: "production",
-    question: "Does it run in production?",
-    answer:
-      "No. Tuna is meant for local development. Add it to your dev layout and keep it out of production builds.",
-  },
-  {
     id: "css-knowledge",
     question: "Do I need to know CSS to use Tuna?",
     answer:
       "No. Tuna gives designers and frontend coders familiar visual controls for common UI properties. Knowing CSS helps when reviewing the handoff, but Tuna captures the exact before and after values for your coding agent.",
-  },
-  {
-    id: "source-editing",
-    question: "Will Tuna edit my source code automatically?",
-    answer:
-      "Tuna previews changes live in the browser and produces structured context for your coding agent. The agent applies the real source changes, so you can review and keep normal code ownership.",
   },
   {
     id: "frameworks",
@@ -59,16 +47,28 @@ const FAQ_ITEMS: FaqItem[] = [
       "Yes. Tuna detects styling context, includes classes and computed styles in the handoff, and can suggest nearby design tokens when a visual value maps cleanly to your system.",
   },
   {
-    id: "ai-integration",
-    question: "How does AI integration work?",
+    id: "source-editing",
+    question: "Will Tuna edit my source code automatically?",
     answer:
-      "Run npx @suryanewa/tuna setup to install the MCP server and skill for Claude Code or Cursor. Tuna can also copy structured output to the clipboard if you prefer a manual handoff.",
+      "Tuna previews changes live in the browser and produces structured context for your coding agent. The agent applies the real source changes, so you can review and keep normal code ownership.",
   },
   {
     id: "finding-elements",
     question: "How does Tuna find the right code?",
     answer:
       "Each change includes a CSS selector, React component path, text content, classes, and optional source hints. Fidelity levels let you send minimal diffs or richer layout context for larger codebases.",
+  },
+  {
+    id: "ai-integration",
+    question: "How does AI integration work?",
+    answer:
+      "Run npx @suryanewa/tuna setup to install the MCP server and skill for Claude Code or Cursor. Tuna can also copy structured output to the clipboard if you prefer a manual handoff.",
+  },
+  {
+    id: "production",
+    question: "Does it run in production?",
+    answer:
+      "No. Tuna is meant for local development. Add it to your dev layout and keep it out of production builds.",
   },
 ];
 

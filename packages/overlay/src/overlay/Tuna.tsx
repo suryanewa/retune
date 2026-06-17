@@ -10,7 +10,7 @@
  *   <Tuna />
  */
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import type { TunaConfig, InspectedElement } from "../types";
 import { mountOverlay, unmountOverlay } from "./mount";
@@ -108,15 +108,16 @@ const DEFAULT_CONFIG: Required<TunaConfig> = {
 };
 
 type TunaTheme = "tuna" | "light" | "dark";
+type TunaMode = "select" | "draw" | "edit" | "comment";
 
 function normalizeTheme(value: string | null): TunaTheme | null {
   return value === "tuna" || value === "light" || value === "dark" ? value : null;
 }
 
-function getStoredTheme(): TunaTheme {
+function getPageTheme(): TunaTheme {
   try {
-    return normalizeTheme(localStorage.getItem("theme"))
-      ?? normalizeTheme(localStorage.getItem("tuna-theme"))
+    return normalizeTheme(document.documentElement.getAttribute("data-theme"))
+      ?? normalizeTheme(localStorage.getItem("theme"))
       ?? "tuna";
   } catch {
     return "tuna";
@@ -124,11 +125,18 @@ function getStoredTheme(): TunaTheme {
 }
 
 function getDocumentTheme(): TunaTheme {
-  return normalizeTheme(document.documentElement.getAttribute("data-theme")) ?? getStoredTheme();
+  return getPageTheme();
 }
 
 function isEffectiveDarkTheme(theme: TunaTheme): boolean {
   return theme === "dark";
+}
+
+function storeTheme(theme: TunaTheme) {
+  try {
+    localStorage.setItem("theme", theme);
+    localStorage.setItem("tuna-theme", theme);
+  } catch {}
 }
 
 function serializeInspectedElement(element: InspectedElement) {
@@ -319,7 +327,7 @@ function TunaInner(props: TunaConfig) {
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const editPanelOpenRef = useRef(false);
   editPanelOpenRef.current = editPanelOpen;
-  const [mode, setMode] = useState<"select" | "draw" | "edit" | "comment">("select");
+  const [mode, setMode] = useState<TunaMode>("select");
   const [selectedElement, setSelectedElement] = useState<InspectedElement | null>(null);
   const [selectedElements, setSelectedElements] = useState<InspectedElement[]>([]);
   const [changeCount, setChangeCount] = useState(0);
@@ -391,14 +399,11 @@ function TunaInner(props: TunaConfig) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsExiting, setSettingsExiting] = useState(false);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [theme, setTheme] = useState<TunaTheme>(() => getStoredTheme());
+  const [theme, setTheme] = useState<TunaTheme>(() => getPageTheme());
   const applyTheme = useCallback((t: TunaTheme) => {
     document.documentElement.setAttribute("data-theme", t);
     setTheme(t);
-    try {
-      localStorage.setItem("theme", t);
-      localStorage.setItem("tuna-theme", t);
-    } catch {}
+    storeTheme(t);
     window.dispatchEvent(new CustomEvent("tuna:color-mode-change", { detail: { theme: t } }));
   }, []);
   const handleThemeChange = useCallback((t: TunaTheme) => {
@@ -408,8 +413,30 @@ function TunaInner(props: TunaConfig) {
     applyTheme(getDocumentTheme() === "dark" ? "tuna" : "dark");
   }, [applyTheme]);
 
+  useLayoutEffect(() => {
+    const syncThemeFromDocument = () => {
+      const nextTheme = getPageTheme();
+      setTheme((current) => current === nextTheme ? current : nextTheme);
+      storeTheme(nextTheme);
+    };
+
+    syncThemeFromDocument();
+
+    const observer = new MutationObserver(syncThemeFromDocument);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+
+    window.addEventListener("storage", syncThemeFromDocument);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", syncThemeFromDocument);
+    };
+  }, []);
+
   // Toggle dark class on host element based on theme
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!portalTarget) return;
     const root = portalTarget.getRootNode();
     const host = root instanceof ShadowRoot ? root.host : null;
@@ -430,6 +457,64 @@ function TunaInner(props: TunaConfig) {
   const tabBarRef = useRef<HTMLDivElement>(null);
   const tabPillRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolbarExpandedRef = useRef<HTMLDivElement>(null);
+  const modeButtonRefs = useRef<Record<TunaMode, HTMLButtonElement | null>>({
+    select: null,
+    draw: null,
+    edit: null,
+    comment: null,
+  });
+  const [hoveredToolbarMode, setHoveredToolbarMode] = useState<TunaMode | null>(null);
+  const [toolbarFill, setToolbarFill] = useState({ left: 0, width: 32, visible: false });
+  const [commentCount, setCommentCount] = useState(0);
+  const clearToolbarModeHover = useCallback(() => setHoveredToolbarMode(null), []);
+  const handleToolbarExpandedPointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const modeButton = target.closest(".tuna-toolbar-mode-btn");
+    if (!modeButton) {
+      setHoveredToolbarMode((current) => current === null ? current : null);
+      return;
+    }
+
+    const nextMode = (Object.entries(modeButtonRefs.current) as Array<[TunaMode, HTMLButtonElement | null]>)
+      .find(([, button]) => button === modeButton)?.[0] ?? null;
+    setHoveredToolbarMode((current) => current === nextMode ? current : nextMode);
+  }, []);
+  const updateToolbarFill = useCallback((targetMode: TunaMode) => {
+    const container = toolbarExpandedRef.current;
+    const button = modeButtonRefs.current[targetMode];
+    if (!active || !container || !button) {
+      setToolbarFill((current) => ({ ...current, visible: false }));
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    setToolbarFill({
+      left: buttonRect.left - containerRect.left,
+      width: buttonRect.width,
+      visible: true,
+    });
+  }, [active]);
+
+  useLayoutEffect(() => {
+    updateToolbarFill(hoveredToolbarMode ?? mode);
+  }, [updateToolbarFill, hoveredToolbarMode, mode, changeCount, commentCount]);
+
+  useEffect(() => {
+    if (!active) return;
+    const handleResize = () => updateToolbarFill(hoveredToolbarMode ?? mode);
+    const animationFrame = window.requestAnimationFrame(handleResize);
+    const settleTimer = window.setTimeout(handleResize, 220);
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(settleTimer);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [active, updateToolbarFill, hoveredToolbarMode, mode]);
   const dragRef = useRef<{ startX: number; startY: number; originX: number; dragging: boolean; lastX: number; lastT: number; velocity: number } | null>(null);
   const [toolbarDragging, setToolbarDragging] = useState(false);
   const [sessionHidden, setSessionHidden] = useState(false);
@@ -477,7 +562,6 @@ function TunaInner(props: TunaConfig) {
   const trackerRef = useRef<ChangeTracker | null>(null);
   const commentStoreRef = useRef(new CommentStore());
   const [comments, setComments] = useState<Comment[]>([]);
-  const [commentCount, setCommentCount] = useState(0);
   const [areaResizeLive, setAreaResizeLive] = useState<{ id: number; br: { x: number; y: number } } | null>(null);
   const [drawnPathAnchors, setDrawnPathAnchors] = useState<SVGPathElement[]>([]);
   const [selectedDrawPaths, setSelectedDrawPaths] = useState<SVGPathElement[]>([]);
@@ -3735,7 +3819,20 @@ function TunaInner(props: TunaConfig) {
         </Tooltip>
 
         {/* Expanded: count + separator + mode + actions */}
-        <div className="tuna-toolbar-expanded">
+        <div
+          ref={toolbarExpandedRef}
+          className="tuna-toolbar-expanded"
+          onPointerMove={handleToolbarExpandedPointerMove}
+          onPointerLeave={() => setHoveredToolbarMode(null)}
+        >
+          <span
+            className={`tuna-toolbar-mode-fill${toolbarFill.visible ? " visible" : ""}`}
+            style={{
+              transform: `translate3d(${toolbarFill.left}px, 0, 0)`,
+              width: `${toolbarFill.width}px`,
+            }}
+            aria-hidden="true"
+          />
           {(changeCount > 0 || commentCount > 0) && (
             <div className="tuna-edit-count">{changeCount + commentCount}</div>
           )}
@@ -3744,7 +3841,9 @@ function TunaInner(props: TunaConfig) {
           )}
           <Tooltip content="Select" shortcut="V" side="top">
             <button
-              className={`tuna-toolbar-btn${mode === "select" ? " active" : ""}`}
+              ref={(node) => { modeButtonRefs.current.select = node; }}
+              className={`tuna-toolbar-btn tuna-toolbar-mode-btn${mode === "select" ? " active" : ""}`}
+              onPointerEnter={() => setHoveredToolbarMode("select")}
               onClick={() => {
                 setMode("select");
                 dismissCommentDraft();
@@ -3758,7 +3857,9 @@ function TunaInner(props: TunaConfig) {
           </Tooltip>
           <Tooltip content="Draw" shortcut="D" side="top">
             <button
-              className={`tuna-toolbar-btn${mode === "draw" ? " active" : ""}`}
+              ref={(node) => { modeButtonRefs.current.draw = node; }}
+              className={`tuna-toolbar-btn tuna-toolbar-mode-btn${mode === "draw" ? " active" : ""}`}
+              onPointerEnter={() => setHoveredToolbarMode("draw")}
               onClick={() => {
                 setMode("draw");
                 dismissCommentDraft();
@@ -3772,7 +3873,9 @@ function TunaInner(props: TunaConfig) {
           </Tooltip>
           <Tooltip content="Tune" shortcut="T" side="top">
             <button
-              className={`tuna-toolbar-btn${mode === "edit" ? " active" : ""}`}
+              ref={(node) => { modeButtonRefs.current.edit = node; }}
+              className={`tuna-toolbar-btn tuna-toolbar-mode-btn${mode === "edit" ? " active" : ""}`}
+              onPointerEnter={() => setHoveredToolbarMode("edit")}
               onClick={() => {
                 setMode("edit");
                 dismissCommentDraft();
@@ -3789,7 +3892,9 @@ function TunaInner(props: TunaConfig) {
           </Tooltip>
           <Tooltip content="Comment" shortcut="C" side="top">
             <button
-              className={`tuna-toolbar-btn${mode === "comment" ? " active" : ""}`}
+              ref={(node) => { modeButtonRefs.current.comment = node; }}
+              className={`tuna-toolbar-btn tuna-toolbar-mode-btn${mode === "comment" ? " active" : ""}`}
+              onPointerEnter={() => setHoveredToolbarMode("comment")}
               onClick={() => {
                 setMode("comment");
                 setSelectedElement(null);
@@ -3801,7 +3906,7 @@ function TunaInner(props: TunaConfig) {
               <IconComment size={20} />
             </button>
           </Tooltip>
-          <Tooltip content="Copy" shortcut="⌘C" side="top">
+          <Tooltip content="Copy" shortcut="⌘C" side="top" onPointerEnter={clearToolbarModeHover}>
             <button
               className={`tuna-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleCopy}
@@ -3809,7 +3914,7 @@ function TunaInner(props: TunaConfig) {
             >
               <span className="tuna-icon-swap">
                 <span className={`tuna-icon-swap-icon ${copied ? "out" : "in"}`}>
-                  <IconSquareBehindSquare6 size={20} />
+                  <IconSquareBehindSquare6 size={22.5} />
                 </span>
                 <span className={`tuna-icon-swap-icon ${copied ? "in" : "out"}`}>
                   <IconCheckCircle2 size={20} />
@@ -3817,7 +3922,7 @@ function TunaInner(props: TunaConfig) {
               </span>
             </button>
           </Tooltip>
-          <Tooltip content="Reset" shortcut="⌘R" side="top">
+          <Tooltip content="Reset" shortcut="⌘R" side="top" onPointerEnter={clearToolbarModeHover}>
             <button
               className={`tuna-toolbar-btn${changeCount === 0 && commentCount === 0 ? " disabled" : ""}`}
               onClick={handleReset}
@@ -3826,7 +3931,7 @@ function TunaInner(props: TunaConfig) {
               <IconArrowRotateClockwise size={20} />
             </button>
           </Tooltip>
-          <Tooltip content="Settings" shortcut="⌘," side="top">
+          <Tooltip content="Settings" shortcut="⌘," side="top" onPointerEnter={clearToolbarModeHover}>
             <button
               className="tuna-toolbar-btn"
               onClick={toggleSettingsPanel}
@@ -3834,7 +3939,7 @@ function TunaInner(props: TunaConfig) {
               <IconSettingsGear2 size={20} />
             </button>
           </Tooltip>
-          <Tooltip content="Close" shortcut="Esc" side="top">
+          <Tooltip content="Close" shortcut="Esc" side="top" onPointerEnter={clearToolbarModeHover}>
             <button
               className="tuna-toolbar-btn"
               onClick={handleClose}

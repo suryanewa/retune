@@ -15,6 +15,22 @@ export interface MountResult {
   sheet: CSSStyleSheet;
 }
 
+function getInitialPageTheme(): "tuna" | "light" | "dark" {
+  const documentTheme = document.documentElement.getAttribute("data-theme");
+  if (documentTheme === "tuna" || documentTheme === "light" || documentTheme === "dark") {
+    return documentTheme;
+  }
+
+  try {
+    const storedTheme = localStorage.getItem("theme");
+    if (storedTheme === "tuna" || storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+  } catch {}
+
+  return "tuna";
+}
+
 export function mountOverlay(options: { loadRemoteFonts?: boolean } = {}): MountResult {
   // Load Inter font if not already present
   if (options.loadRemoteFonts !== false && !document.querySelector('link[data-tuna-font]')) {
@@ -32,6 +48,9 @@ export function mountOverlay(options: { loadRemoteFonts?: boolean } = {}): Mount
 
   const host = document.createElement("div");
   host.setAttribute("data-tuna-host", "");
+  const theme = getInitialPageTheme();
+  host.classList.toggle("dark", theme === "dark");
+  host.classList.toggle("tuna-theme", theme === "tuna");
   host.style.cssText = `
     position: fixed;
     top: 0;
