@@ -236,6 +236,11 @@ input, textarea, [contenteditable] {
   transition-duration: 80ms;
 }
 
+.tuna-toolbar.expanded {
+  width: max-content;
+  overflow: visible;
+}
+
 .tuna-toolbar.collapsed:hover,
 .tuna-toolbar.collapsed .tuna-toolbar-collapse-btn:focus-visible {
   --tuna-toggle-active: 1;
@@ -436,7 +441,7 @@ input, textarea, [contenteditable] {
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 300px;
+  max-width: 420px;
   transition: max-width 0.2s cubic-bezier(0.23, 1, 0.32, 1),
               opacity 0.15s cubic-bezier(0.23, 1, 0.32, 1),
               gap 0.2s cubic-bezier(0.23, 1, 0.32, 1);
@@ -449,6 +454,13 @@ input, textarea, [contenteditable] {
   opacity: 0;
   pointer-events: none;
   gap: 0;
+}
+
+.tuna-toolbar.expanded .tuna-toolbar-expanded {
+  max-width: 420px;
+  opacity: 1;
+  pointer-events: auto;
+  gap: 6px;
 }
 
 /* Expanded action buttons */

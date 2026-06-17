@@ -34,23 +34,6 @@ html[data-theme="dark"] {
   --ok: #4ade80;
 }
 
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] {
-    color-scheme: dark;
-    --bg: #161414;
-    --fg: #f4eeee;
-    --muted: #b7a9a9;
-    --faint: #7f7272;
-    --border: #453b3b;
-    --surface: #1d1a1a;
-    --surface-2: #272121;
-    --bento-illustration-muted: #4a3f3f;
-    --bento-demo-hover-bg: color-mix(in srgb, var(--brand) 20%, #1d1a1a);
-    --accent: #72b7f6;
-    --ok: #4ade80;
-  }
-}
-
 * {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;
@@ -663,13 +646,6 @@ html[data-theme="dark"] .bento-cell {
   --bento-surface: #242020;
 }
 
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .bento-cell {
-    --bento-card-border: #453b3b;
-    --bento-surface: #242020;
-  }
-}
-
 .bento-cell:first-child,
 .bento-cell:last-child {
   grid-column: 1 / -1;
@@ -790,12 +766,6 @@ html[data-theme="dark"] .bento-cell-label {
   color: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .bento-cell-label {
-    color: #fff;
-  }
-}
-
 .bento-cell-icon {
   display: inline-flex;
   width: 14px;
@@ -851,22 +821,6 @@ html[data-theme="dark"] .bento-cell-demo {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
 }
 
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .bento-cell-demo {
-    --fg: #f4eeee;
-    --muted: #b7a9a9;
-    --faint: #7f7272;
-    --border: #453b3b;
-    --surface: #1d1a1a;
-    --surface-2: #2d2727;
-    --bento-illustration-muted: #6f6363;
-
-    border-color: var(--bento-card-border);
-    background-image: linear-gradient(135deg, rgb(54 47 47 / 72%), rgb(37 32 32 / 64%));
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 5%);
-  }
-}
-
 html[data-theme="dark"] .select-ui,
 html[data-theme="dark"] .draw-ui,
 html[data-theme="dark"] .comment-ui,
@@ -912,53 +866,6 @@ html[data-theme="dark"] .comment-trigger {
   stroke: #d7d7d7;
 }
 
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .select-ui,
-  html[data-theme="tuna"] .draw-ui,
-  html[data-theme="tuna"] .comment-ui,
-  html[data-theme="tuna"] .comment-box,
-  html[data-theme="tuna"] .handoff-node {
-    background: var(--surface);
-  }
-
-  html[data-theme="tuna"] .tune-ui {
-    background:
-      linear-gradient(180deg, rgb(36 31 31 / 90%), rgb(29 26 26 / 82%)),
-      var(--surface);
-  }
-
-  html[data-theme="tuna"] .draw-page-block {
-    fill: rgb(45 39 39 / 78%);
-    stroke: var(--border);
-  }
-
-  html[data-theme="tuna"] .draw-pencil-icon .draw-pencil-body {
-    fill: rgb(255 255 255 / 98%);
-  }
-
-  html[data-theme="tuna"] .comment-page {
-    background:
-      linear-gradient(180deg, rgb(45 39 39 / 84%), rgb(45 39 39 / 54%)),
-      linear-gradient(90deg, transparent 0 54%, var(--surface-2) 54% 100%);
-  }
-
-  html[data-theme="tuna"] .select-box i,
-  html[data-theme="tuna"] .comment-select-box i {
-    background: var(--surface);
-  }
-
-  html[data-theme="tuna"] .comment-trigger-icon {
-    fill: rgb(255 255 255 / 98%);
-  }
-
-  html[data-theme="tuna"] .select-cursor,
-  html[data-theme="tuna"] .draw-pencil-icon,
-  html[data-theme="tuna"] .comment-trigger {
-    color: #d7d7d7;
-    stroke: #d7d7d7;
-  }
-}
-
 .bento-cell:first-child .bento-cell-demo,
 .bento-cell:last-child .bento-cell-demo {
   flex-basis: 118px;
@@ -992,12 +899,6 @@ html[data-theme="dark"] .comment-trigger {
 
 html[data-theme="dark"] .bento-cell-copy {
   color: #b7a9a9;
-}
-
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .bento-cell-copy {
-    color: #b7a9a9;
-  }
 }
 
 /* Speak card */
@@ -2064,25 +1965,6 @@ html[data-theme="dark"] .code-card {
   --code-inline: #a5d6ff;
   --code-quote: #7ee787;
   --code-table: #8b949e;
-}
-
-@media (prefers-color-scheme: dark) {
-  html[data-theme="tuna"] .code-card {
-    --code-card-border: #453b3b;
-    --code-fg: #f0f6fc;
-    --code-muted: #8b949e;
-    --code-keyword: #ff7b72;
-    --code-string: #a5d6ff;
-    --code-comment: #8b949e;
-    --code-function: #d2a8ff;
-    --code-symbol: #ffa657;
-    --code-number: #79c0ff;
-    --code-punctuation: #f0f6fc;
-    --code-heading: #79c0ff;
-    --code-inline: #a5d6ff;
-    --code-quote: #7ee787;
-    --code-table: #8b949e;
-  }
 }
 
 .code-card:hover {

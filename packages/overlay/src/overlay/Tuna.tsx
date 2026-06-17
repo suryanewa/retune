@@ -107,6 +107,30 @@ const DEFAULT_CONFIG: Required<TunaConfig> = {
   loadRemoteFonts: true,
 };
 
+type TunaTheme = "tuna" | "light" | "dark";
+
+function normalizeTheme(value: string | null): TunaTheme | null {
+  return value === "tuna" || value === "light" || value === "dark" ? value : null;
+}
+
+function getStoredTheme(): TunaTheme {
+  try {
+    return normalizeTheme(localStorage.getItem("theme"))
+      ?? normalizeTheme(localStorage.getItem("tuna-theme"))
+      ?? "tuna";
+  } catch {
+    return "tuna";
+  }
+}
+
+function getDocumentTheme(): TunaTheme {
+  return normalizeTheme(document.documentElement.getAttribute("data-theme")) ?? getStoredTheme();
+}
+
+function isEffectiveDarkTheme(theme: TunaTheme): boolean {
+  return theme === "dark";
+}
+
 function serializeInspectedElement(element: InspectedElement) {
   const { element: _element, rect, reactProps, ...serializable } = element;
   return {
@@ -367,15 +391,8 @@ function TunaInner(props: TunaConfig) {
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsExiting, setSettingsExiting] = useState(false);
   const settingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [theme, setTheme] = useState<"tuna" | "light" | "dark">(() => {
-    try {
-      const saved = localStorage.getItem("tuna-theme");
-      if (saved === "tuna" || saved === "light" || saved === "dark") return saved;
-      if (saved === "system") return "tuna";
-    } catch {}
-    return "tuna";
-  });
-  const applyTheme = useCallback((t: "tuna" | "light" | "dark") => {
+  const [theme, setTheme] = useState<TunaTheme>(() => getStoredTheme());
+  const applyTheme = useCallback((t: TunaTheme) => {
     document.documentElement.setAttribute("data-theme", t);
     setTheme(t);
     try {
@@ -384,19 +401,11 @@ function TunaInner(props: TunaConfig) {
     } catch {}
     window.dispatchEvent(new CustomEvent("tuna:color-mode-change", { detail: { theme: t } }));
   }, []);
-  const handleThemeChange = useCallback((t: "tuna" | "light" | "dark") => {
+  const handleThemeChange = useCallback((t: TunaTheme) => {
     applyTheme(t);
   }, [applyTheme]);
   const togglePageAndTunaColorMode = useCallback(() => {
-    const root = document.documentElement;
-    const currentTheme = root.getAttribute("data-theme");
-    const normalizedTheme = currentTheme === "light" || currentTheme === "dark" || currentTheme === "tuna"
-      ? currentTheme
-      : "tuna";
-    const nextTheme: "tuna" | "light" | "dark" =
-      normalizedTheme === "dark" ? "tuna" : "dark";
-
-    applyTheme(nextTheme);
+    applyTheme(getDocumentTheme() === "dark" ? "tuna" : "dark");
   }, [applyTheme]);
 
   // Toggle dark class on host element based on theme
@@ -405,16 +414,11 @@ function TunaInner(props: TunaConfig) {
     const root = portalTarget.getRootNode();
     const host = root instanceof ShadowRoot ? root.host : null;
     if (!host) return;
-    const isDark = theme === "dark" || (theme === "tuna" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const isDark = isEffectiveDarkTheme(theme);
     host.classList.toggle("dark", isDark);
     host.classList.toggle("tuna-theme", theme === "tuna");
 
-    if (theme === "tuna") {
-      const mq = window.matchMedia("(prefers-color-scheme: dark)");
-      const handler = (e: MediaQueryListEvent) => host.classList.toggle("dark", e.matches);
-      mq.addEventListener("change", handler);
-      return () => mq.removeEventListener("change", handler);
-    }
+    return undefined;
   }, [theme, portalTarget]);
   const [side, setSide] = useState<"right" | "left">(() => {
     try {

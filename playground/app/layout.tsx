@@ -56,7 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var p=localStorage.getItem('theme')||'tuna';var t=p==='light'||p==='dark'||p==='tuna'?p:'tuna';var d=t==='dark'||(t==='tuna'&&matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.setAttribute('data-theme',t);window.__INITIAL_DARK__=d})()`,
+            __html: `(function(){var p=localStorage.getItem('theme')||'tuna';var t=p==='light'||p==='dark'||p==='tuna'?p:'tuna';document.documentElement.setAttribute('data-theme',t);window.__INITIAL_DARK__=t==='dark'})()`,
           }}
         />
         <link rel="preconnect" href="https://rsms.me/" />
